@@ -1,0 +1,13 @@
+machine:
+    python:
+        version: 3.4.2
+
+dependencies:
+    override:
+        - pip install . --upgrade
+    post:
+        - pip install coverage
+
+test:
+    override:
+        - nosetests --with-xunit --xunit-file=$CIRCLE_TEST_REPORTS/xunit.xml --cover-branches --with-coverage --cover-erase --cover-package=nyuki --cover-html --cover-html-dir=$CIRCLE_ARTIFACTS/coverage
