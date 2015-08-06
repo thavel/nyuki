@@ -4,7 +4,7 @@ from sleekxmpp import ClientXMPP
 from sleekxmpp.exceptions import IqError, IqTimeout
 
 from nyuki.messaging.event import (
-    on_event, Event, EventManager, SessionStart, Connecting, Connected,
+    on_event, EventManager, SessionStart, Connecting, Connected,
     ConnectionError, Disconnected, MessageReceived
 )
 
@@ -153,10 +153,14 @@ class Nbus(object):
 
         try:
             resp.send(now=True)
-            log.info("Account created for %s", self.xmpp.boundjid)
+            log.info(
+                "Account created for {jid}".format(jid=self.xmpp.boundjid)
+            )
         except IqError as iqex:
-            log.warning("Could not register account: %s",
-                        iqex.iq['error']['text'])
+            err = iqex.iq['error']['text']
+            log.warning(
+                "Could not register account: {msg}".format(msg=err)
+            )
         except IqTimeout:
             log.error("No response from the server")
             self.disconnect()
