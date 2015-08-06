@@ -261,3 +261,27 @@ class Lookup(_Rule):
             data[self.fieldname] = self.table[fieldval]
         except KeyError:
             pass
+
+
+class Lower(_Rule):
+    """
+    Lower case a string.
+    """
+    def _configure(self):
+        pass
+
+    def apply(self, data):
+        fieldval = data[self.fieldname]
+        data[self.fieldname] = fieldval.lower()
+
+
+class Upper(_Rule):
+    """
+    Upper case a string.
+    """
+    def _configure(self):
+        pass
+
+    def apply(self, data):
+        fieldval = data[self.fieldname]
+        data[self.fieldname] = fieldval.upper()
