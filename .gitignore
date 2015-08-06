@@ -46,3 +46,6 @@ coverage.xml
 
 # IDEs
 .idea/
+
+*.sublime-project
+*.sublime-workspace
