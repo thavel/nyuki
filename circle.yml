@@ -6,7 +6,7 @@ dependencies:
     override:
         - pip install . --upgrade
     post:
-        - pip install coverage
+        - pip install -r requirements_test.txt
 
 test:
     override:
