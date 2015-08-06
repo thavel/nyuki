@@ -51,8 +51,8 @@ class _ListRules(list):
 
     def _check_type(self, item):
         if self._rule_cls is not None and not isinstance(item, self._rule_cls):
-            err = 'item is not of type {cls}'
-            raise TypeError(err.format(cls=self._rule_cls.__name__))
+            clsname = self._rule_cls.__name__
+            raise TypeError('item is not of type {cls}'.format(cls=clsname))
 
     def append(self, item):
         """
@@ -84,8 +84,8 @@ class Converter(object):
     """
     def __init__(self, rule_cls, rules=[]):
         if not issubclass(rule_cls, _Rule):
-            err = '{obj} is not a subclass of _Rule'
-            raise TypeError(err.format(obj=rule_cls))
+            raise TypeError('{obj} is not a subclass of _Rule'.format(
+                            obj=rule_cls))
         self._rule_cls = rule_cls
         self._rules = _ListRules(rule_cls, rules)
 
@@ -180,42 +180,26 @@ class _RegexpRule(_Rule):
             data.update(resdict)
 
 
-class _MatchSearchRule(_RegexpRule):
+class Extract(_RegexpRule):
     """
-    Match and search operations basically share a common logic: when the
-    operation produces a match what matters is the resulting dict of named
-    patterns extracted from a string.
+    Scan through a string looking for the first location where the regular
+    expression pattern produces a match. What matters is the resulting dict of
+    captured substrings.
     """
     def _configure(self, pattern, flags=0, pos=None, endpos=None):
-        super(_MatchSearchRule, self)._configure(pattern, flags=flags)
+        super(Extract, self)._configure(pattern, flags=flags)
+        if not self.regexp.groupindex:
+            raise TypeError("'{pattern}' has no named capturing group".format(
+                            pattern=pattern))
         self._pos_args = tuple(f for f in (pos, endpos) if f is not None)
 
     def _run_regexp(self, string):
         args = (string,) + self._pos_args
-        match = getattr(self.regexp, self.TYPENAME)(*args)
+        match = self.regexp.search(*args)
         if match is not None:
             return match.groupdict()
         else:
             return {}
-
-
-# Search.TYPENAME
-# s = Search(fieldname, pattern, flags=0, pos=None, endpos=None)
-# s._configure(*args, **kwargs)
-# s.fieldname
-# s.apply(<dict>)
-class Search(_MatchSearchRule):
-    """
-    Scan through a string looking for the first location where the regular
-    expression pattern produces a match.
-    """
-
-
-class Match(_MatchSearchRule):
-    """
-    Check if zero or more characters at the beginning of a string match the
-    regular expression pattern.
-    """
 
 
 class Sub(_RegexpRule):
