@@ -126,17 +126,19 @@ class Converter(object):
 
 class _Rule(metaclass=_RegisteredRules):
     """
-    A rule is applied to a dict and may update that dict (in-place update).
+    A rule extracts an entry from a dict , performs an operation on the dict
+    and updates the dict with the result of that operation (in-place update).
     Only one field from the input dict can be processed within a rule.
     """
+    # Public subclasses of `_Rule` will have a TYPENAME attr set to classname
+    # (lowercase) if not set in the subclass itself.
     TYPENAME = None
 
-    def __init__(self, fieldname, **kwargs):
+    def __init__(self, fieldname, *args, **kwargs):
         self.fieldname = fieldname
-        self.config = kwargs
-        self.configure()
+        self._configure(*args, **kwargs)
 
-    def configure(self):
+    def _configure(self, *args, **kwargs):
         """
         Configure the rule to be applied (e.g. compile a regexp) so that
         everything is ready at runtime to apply it.
@@ -160,46 +162,37 @@ class _RegexpRule(_Rule):
     the `data` dict passed to `apply()`. If a group from the match object and
     a key from `data` have the same name, the group overrides the existing
     dict value.
-
-    Valid `__init__` kwargs are: 'pattern', 'flags'
     """
-    def _compile(self, pattern, flags=0):
-        self.config['regexp'] = re.compile(pattern, flags=flags)
-
-    def configure(self):
-        pattern, flags = self.config['pattern'], self.config.get('flags')
-        self._compile(pattern, flags=flags)
+    def _configure(self, pattern, flags=0):
+        self.regexp = re.compile(pattern, flags=flags)
 
     def _run_regexp(self, string):
-        pass
+        raise NotImplementedError
 
     def apply(self, data):
         try:
             string = data[self.fieldname]
-            resdict = self._run_regexp(string)
         except KeyError:
             # no data to process
             pass
         else:
+            resdict = self._run_regexp(string)
             data.update(resdict)
 
 
 class _MatchSearchRule(_RegexpRule):
     """
     Match and search operations basically share a common logic: when the
-    operation produces a match what matters is the resulting groupdict.
-
-    Valid `__init__` kwargs are: 'pattern', 'flags', 'pos', 'endpos'
+    operation produces a match what matters is the resulting dict of named
+    patterns extracted from a string.
     """
-    def configure(self):
-        super(_MatchSearchRule, self).configure()
-        pos, endpos = self.config['pos'], self.config['endpos']
-        pos_args = tuple(f for f in (pos, endpos) if f is not None)
-        self.config['pos_args'] = pos_args
+    def _configure(self, pattern, flags=0, pos=None, endpos=None):
+        super(_MatchSearchRule, self)._configure(pattern, flags=flags)
+        self._pos_args = tuple(f for f in (pos, endpos) if f is not None)
 
     def _run_regexp(self, string):
-        args = (string,) + self.config['pos_args']
-        match = getattr(self.config['regexp'], self.TYPENAME)(*args)
+        args = (string,) + self._pos_args
+        match = getattr(self.regexp, self.TYPENAME)(*args)
         if match is not None:
             return match.groupdict()
         else:
@@ -207,17 +200,14 @@ class _MatchSearchRule(_RegexpRule):
 
 
 # Search.TYPENAME
-# s = Search(*args, **kwargs)
+# s = Search(fieldname, pattern, flags=0, pos=None, endpos=None)
 # s._configure(*args, **kwargs)
 # s.fieldname
-# s.config
 # s.apply(<dict>)
 class Search(_MatchSearchRule):
     """
     Scan through a string looking for the first location where the regular
     expression pattern produces a match.
-
-    Valid `__init__` kwargs are: see `_MatchSearchRule`
     """
 
 
@@ -225,8 +215,6 @@ class Match(_MatchSearchRule):
     """
     Check if zero or more characters at the beginning of a string match the
     regular expression pattern.
-
-    Valid `__init__` kwargs are: see `_MatchSearchRule`
     """
 
 
@@ -235,33 +223,32 @@ class Sub(_RegexpRule):
     Build a string obtained by replacing the leftmost non-overlapping
     occurrences of regexp pattern in fieldname from `data` by a replacement
     string.
-
-    Valid `__init__` kwargs are: 'pattern', 'flags', 'repl', 'count'
     """
+    def _configure(self, pattern, repl, flags=0, count=0):
+        super(Sub, self)._configure(pattern, flags=flags)
+        self.repl, self.count = repl, count
+
     def _run_regexp(self, string):
-        regexp, repl = self.config['regexp'], self.config['repl']
-        res = regexp.sub(repl, string, count=self.config['count'])
+        res = self.regexp.sub(self.repl, string, count=self.count)
         return {self.fieldname: res}
 
 
 class Set(_Rule):
     """
     Set or update a field in the `data` dict.
-
-    Valid `__init__` kwargs is: 'value'
     """
-    def configure(self):
-        pass
+    def _configure(self, value):
+        self.value = value
 
     def apply(self, data):
-        data[self.fieldname] = self.config['value']
+        data[self.fieldname] = self.value
 
 
 class Unset(_Rule):
     """
     Remove a field from the `data` dict.
     """
-    def configure(self):
+    def _configure(self):
         pass
 
     def apply(self, data):
@@ -275,60 +262,18 @@ class Lookup(_Rule):
     """
     Implements a dead-simple lookup table which perform case sensitive
     (default) or insensitive (icase=True) lookups.
-
-    Valid `__init__` kwargs are: 'icase', 'table' (a dict)
     """
-    def configure(self):
-        self.config['table'] = LookupTable(self.config['table'])
+    def _configure(self, table={}):
+        self.table = table
 
     def apply(self, data):
         """
-        The 1st entry in the lookup table that matches the value from `data`
+        The 1st entry in the lookup table that matches the string from `data`
         replaces it. Note that entries in the lookup table are evaluated in an
         unpredictable order.
         """
-        field = data[self.fieldname]
-        for regexp, value in self.config['table'].items():
-            if regexp.search(field) is not None:
-                data[self.fieldname] = value
-                break
-
-
-# Inspired from this post:
-# http://stackoverflow.com/questions/2060972/subclassing-python-dictionary-to-override-setitem
-class LookupTable(dict):
-    """
-    Simple wrapper around dict() to build a lookup table where keys are
-    compiled regular expressions.
-    """
-    def __init__(self, *args, **kwargs):
-        super(LookupTable, self).__init__()
-        self.update(*args, **kwargs)
-
-    def __setitem__(self, re_spec, value):
-        """
-        're_spec' is expected to be a dict with 'pattern' and 'flags' keys.
-        If 're_spec' happens to be a string it is compiled as is without any
-        other regexp flags.
-        """
-        if isinstance(re_spec, dict):
-            regexp = re.compile(**re_spec)
-        else:
-            regexp = re.compile(re_spec)
-        super(LookupTable, self).__setitem__(regexp, value)
-
-    def update(self, *args, **kwargs):
-        if args:
-            if len(args) > 1:
-                raise TypeError("update expected at most 1 arguments, got"
-                                " {len}".format(len=len(args)))
-            other = dict(args[0])
-            for key in other:
-                self[key] = other[key]
-        for key in kwargs:
-            self[key] = kwargs[key]
-
-    def setdefault(self, key, value=None):
-        if key not in self:
-            self[key] = value
-        return self[key]
+        fieldval = data[self.fieldname]
+        try:
+            data[self.fieldname] = self.table[fieldval]
+        except KeyError:
+            pass
