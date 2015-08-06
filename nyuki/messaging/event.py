@@ -56,22 +56,6 @@ class EventMetaBase(type):
         return instance
 
 
-def list_events(name):
-    """
-    A utility method to list all the events (inheriting from `Event`) defined
-    in a module.
-    """
-    module = sys.modules[name]
-    members = inspect.getmembers(module)
-    events = set()
-    for name, obj in members:
-        if inspect.isclass(obj) \
-            and issubclass(obj, Event) \
-                and obj is not Event:
-            events.add(obj)
-    return events
-
-
 def on_event(*names):
     """
     A decorator that adds a `_register` attribute to each method/function that
@@ -154,3 +138,57 @@ class EventManager(object):
         # XXX: need to  make the code below asynchronous (e.g. using aynscio)
         for method in handlers:
             method(event)
+
+
+class Connected(Event):
+    pass
+
+
+class Connecting(Event):
+    pass
+
+
+class ConnectionError(Event):
+    pass
+
+
+class Disconnected(Event):
+    pass
+
+
+class MessageReceived(Event):
+    def __init__(self, message=None):
+        self.message = message
+
+
+class SessionStart(Event):
+    pass
+
+
+class AnnounceSuccess(Event):
+    def __init__(self, subject=None):
+        self.subject = subject
+
+
+class AnnounceError(Event):
+    def __init__(self, subject=None):
+        self.subject = subject
+
+
+# XXX useful ?
+def list_events(name):
+    """
+    A utility method to list all the events (inheriting from `Event`) defined
+    in a module.
+    """
+    module = sys.modules[name]
+    members = inspect.getmembers(module)
+    events = set()
+    for name, obj in members:
+        if inspect.isclass(obj) \
+            and issubclass(obj, Event) \
+                and obj is not Event:
+            events.add(obj)
+    return events
+
+EVENTS = list_events(__name__)

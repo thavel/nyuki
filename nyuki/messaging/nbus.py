@@ -3,38 +3,12 @@ from queue import Queue
 from sleekxmpp import ClientXMPP
 from sleekxmpp.exceptions import IqError, IqTimeout
 
-from nyuki.messaging.event import on_event, Event, EventManager, list_events
+from nyuki.messaging.event import (
+    on_event, Event, EventManager, SessionStart, Connecting, Connected,
+    ConnectionError, Disconnected, MessageReceived
+)
 
 
-class Connected(Event):
-    pass
-
-class Connecting(Event):
-    pass
-
-class ConnectionError(Event):
-    pass
-
-class Disconnected(Event):
-    pass
-
-class MessageReceived(Event):
-    def __init__(self, message=None):
-        self.message = message
-
-class SessionStart(Event):
-    pass
-
-class AnnounceSuccess(Event):
-    def __init__(self, subject=None):
-        self.subject = subject
-
-class AnnounceError(Event):
-    def __init__(self, subject=None):
-        self.subject = subject
-
-
-EVENTS = list_events(__name__)
 log = logging.getLogger(__name__)
 
 
@@ -90,7 +64,6 @@ class Nbus(object):
         """
         Initialize the bus with `host` and `port` as optional keyword arguments
         """
-        super(Nbus, self).__init__()
         self.xmpp = self._init_xmpp(jid, password, **kwargs)
         self._status = 'disconnected'
         self.log = logging.getLogger(__name__)
@@ -99,6 +72,9 @@ class Nbus(object):
             event_stack.register(self)
         else:
             self._event_stack = EventManager(self)
+
+    def fire(self, event):
+        raise NotImplementedError
 
     def _init_xmpp(self, jid, password, **kwargs):
         """
@@ -218,9 +194,9 @@ class Nbus(object):
         try:
             resp.send(now=True)
             logging.info("Account created for %s" % self.xmpp.boundjid)
-        except IqError as e:
+        except IqError as iqex:
             logging.warning("Could not register account: %s"
-                            % e.iq['error']['text'])
+                            % iqex.iq['error']['text'])
         except IqTimeout:
             logging.error("No response from server.")
             self.disconnect()

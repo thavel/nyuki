@@ -1,16 +1,40 @@
 import logging
+import logging.config
 import signal
 import threading
 
-from nyuki.messaging.event import Event, EventManager
-from nyuki.messaging.nbus import Nbus
+from nyuki.messaging.event import EventManager, on_event
+from nyuki.messaging.nbus import Nbus, SessionStart
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger()
 
 
-class Terminate(Event):
-    pass
+DEFAULT_LOGGING = {
+    "version": 1,
+    "formatters": {
+        "long": {
+            "format": "%(asctime)-24s %(levelname)-8s [%(processName)-12s] [%(name)s] %(message)s"
+        }
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "long",
+            "stream": "ext://sys.stdout"
+        }
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "DEBUG"
+    },
+    "loggers": {
+        "sleekxmpp": {
+            "level": "INFO"
+        }
+    },
+    "disable_existing_loggers": False
+}
 
 
 class Nyuki(object):
@@ -20,32 +44,34 @@ class Nyuki(object):
       - bus
     """
 
-    GOODBYE_ANNOUNCE = "goodbye"
-
     def __init__(self, **kwargs):
         """
         A nyuki instance is passed all the command-line arguments of the
         sub-command 'start'.
         """
+        logging.config.dictConfig(DEFAULT_LOGGING)
+        self._stopping = threading.Event()
         # The attribute `config` is meant to store all the parameters from the
         # command-line and the config file.
-        self.config = {}
-        # Init event stack
-        self._event_stack = EventManager(self)
+        self.config = {
+            'xmpp': {
+                'jid': 'dummy@localhost',
+                'password': 'dummy'
+            }
+        }
         # Init bus layer
+        self._event_stack = EventManager(self)
         # config should contains xmpp credentials in the form:
         # {'jid': nyuki_jid, 'password': nyuki_password}
         xmpp = self.config['xmpp']
-        self.bus = Nbus(
-            xmpp['jid'],
-            xmpp['password'],
-            event_stack=self._event_stack
-        )
+        self.bus = Nbus(xmpp['jid'], xmpp['password'], self._event_stack)
 
-    def start(self):
+    @on_event(SessionStart)
+    def start(self, event):
         """
         Start the nuyki and all its threads
         """
+        log.info('Connected! woo!')
 
     def run(self):
         """
@@ -72,22 +98,11 @@ class Nyuki(object):
         Disconnect from the bus and eventually call custom handlers (that catch
         the `Terminate` event) to properly cleanup things before exiting.
         """
-
         self._stopping.set()
-
-        def goodbye(iq, sessions):
-            self.fire(Terminate())
-            self.bus.disconnect()
-            try:
-                threads = threading.enumerate().remove(
-                    threading.main_thread()
-                ) or []
-            except ValueError:
-                pass
-            for t in threads:
-                t.join()
-        self.send_goodbye(success_callback=goodbye,
-                          error_callback=goodbye)
+        self.bus.disconnect()
+        threads = threading.enumerate().remove(threading.main_thread()) or []
+        for t in threads:
+            t.join()
 
     def _send_bus_unicast(self, message):
         '''
@@ -102,13 +117,6 @@ class Nyuki(object):
             the xep 0133. See the nbus method for detail.
         '''
         self.bus.send_broadcast(message)
-
-    def send_goodbye(self):
-        '''
-        Send a message on the bus announcing the termination of the Nyuki
-        '''
-        message = self.GOODBYE_ANNOUNCE
-        self.send_broadcast(message)
 
     def send_bus_message(self, message):
         '''
