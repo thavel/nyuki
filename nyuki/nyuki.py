@@ -38,6 +38,7 @@ DEFAULT_LOGGING = {
 
 
 class Nyuki(object):
+
     """A lightweight base class for creating nyukies. This mainly provides
     tools that shall help the developer with managing the following topics:
       - threading
@@ -67,7 +68,7 @@ class Nyuki(object):
         self.bus = Nbus(xmpp['jid'], xmpp['password'], self._event_stack)
 
     @on_event(SessionStart)
-    def start(self, event):
+    def start(self, _):
         """
         Start the nuyki and all its threads
         """
@@ -81,7 +82,7 @@ class Nyuki(object):
         signal.signal(signal.SIGINT, self._kill)
         self.bus.connect()
 
-    def _kill(self, signum, frame):
+    def _kill(self, signum, _):
         """
         Stop the nuyki and all its threads in a graceful fashion
         """
@@ -110,13 +111,6 @@ class Nyuki(object):
             sleekxmpp.stanza.Message
         '''
         self.bus.send_unicast(message)
-
-    def _send_bus_broadcast(self, message):
-        '''
-            This method use the announce behaviours that is described in
-            the xep 0133. See the nbus method for detail.
-        '''
-        self.bus.send_broadcast(message)
 
     def send_bus_message(self, message):
         '''

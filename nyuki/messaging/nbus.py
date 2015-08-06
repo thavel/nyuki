@@ -13,11 +13,13 @@ log = logging.getLogger(__name__)
 
 
 class XMPPClient(ClientXMPP):
+
     """
     A pre-configured and customized XMPP client based on `sleekxmpp.ClientXMPP`.
     This class is a simple wrapper that intends to make communication on the
     nyuki bus easy.
     """
+
     def __init__(self, jid, password, **kwargs):
         """
         Set the default configuration of the XMPP client and add default
@@ -49,10 +51,12 @@ class XMPPClient(ClientXMPP):
 
 
 class Nbus(object):
+
     """
     This class intends to provide a clean API to easily handle messages on the
     bus (incoming and outgoing).
     """
+
     received_queue = Queue()
     STATUSES = {
         'connected',
@@ -66,7 +70,6 @@ class Nbus(object):
         """
         self.xmpp = self._init_xmpp(jid, password, **kwargs)
         self._status = 'disconnected'
-        self.log = logging.getLogger(__name__)
         if event_stack:
             self._event_stack = event_stack
             event_stack.register(self)
@@ -118,49 +121,6 @@ class Nbus(object):
         TBD!
         """
 
-    def send_broadcast(self, subject, announcement, success_callback=None,
-                       error_callback=None):
-        """
-        Use XEP-133 to broadcast announce
-        """
-
-        def annouce_error(iq, session):
-            error_condition = iq['error']['condition']
-            error_text = iq['error']['text']
-            self.log.error("Announce error: " +
-                              " condition=%s; text=%s" % (error_condition,
-                                                          error_text))
-            self.fire(AnnounceError(subject=subject))
-            # self.xmpp['xep_0050'].complete_command(session)
-
-        def announce_success(iq, session):
-            self.fire(AnnounceSuccess(subject=subject))
-            self.log.debug("Announce: subject=%s; announcement=%s is sent" %
-                              (subject, announcement))
-
-        def process_announce(iq, session):
-            form = iq['command']['form']
-            answers = {}
-
-            for var, field in form['fields'].items():
-                if var == 'FORM_TYPE':
-                    answers[var] = field['value']
-                    break
-
-            answers["subject"] = subject
-            answers['announcement'] = announcement
-            form["type"] = "submit"
-            form["values"] = answers
-            session["payload"] = form
-            session["next"] = success_callback or announce_success
-            session["error"] = error_callback or annouce_error
-
-            self.xmpp['xep_0050'].complete_command(session)
-
-        session = {"next": process_announce,
-                   "error": annouce_error}
-        self.xmpp['xep_0133'].announce(session=session)
-
     def _on_start(self, event):
         self.xmpp.send_presence()
         self.xmpp.get_roster()
@@ -169,23 +129,23 @@ class Nbus(object):
     def _on_message(self, msg):
         self.fire(MessageReceived(message=msg))
 
-    def _on_disconnect(self, event):
-        self._status ='disconnected'
+    def _on_disconnect(self, _):
+        self._status = 'disconnected'
         self.fire(Disconnected())
 
     @on_event(Connecting)
-    def _on_connecting(self, event):
-        self._status ='connecting'
+    def _on_connecting(self, _):
+        self._status = 'connecting'
 
     @on_event(Connected)
-    def _on_connected(self, event):
-        self._status ='connected'
+    def _on_connected(self, _):
+        self._status = 'connected'
 
     @on_event(ConnectionError)
-    def _on_connecting_error(self, event):
-        self._status ='disconnected'
+    def _on_connecting_error(self, _):
+        self._status = 'disconnected'
 
-    def _on_register(self, iq):
+    def _on_register(self, _):
         resp = self.xmpp.Iq()
         resp['type'] = 'set'
         resp['register']['username'] = self.xmpp.boundjid.user
@@ -193,10 +153,10 @@ class Nbus(object):
 
         try:
             resp.send(now=True)
-            logging.info("Account created for %s" % self.xmpp.boundjid)
+            log.info("Account created for %s", self.xmpp.boundjid)
         except IqError as iqex:
-            logging.warning("Could not register account: %s"
-                            % iqex.iq['error']['text'])
+            log.warning("Could not register account: %s",
+                        iqex.iq['error']['text'])
         except IqTimeout:
-            logging.error("No response from server.")
+            log.error("No response from the server")
             self.disconnect()
