@@ -1,21 +1,5 @@
 import re
 
-"""
-Overall philosophy
-dict => data processing block => dict
-
-Detailed data flow within a data processing block
-This is an object that embeds an ordered list of rules to apply.
-dict => enter data processing block
-     => apply 1st rule
-        => extract field from dict
-        => apply operation to field
-        => update dict with operation's output
-     => apply 2nd rule
-        => ...
-There can be only 1 type of rule within a data processing block
-"""
-
 
 # Inspired from https://github.com/faif/python-patterns/blob/master/registry.py
 class _RegisteredRules(type):
@@ -38,28 +22,28 @@ class _RegisteredRules(type):
         return mcs._registry
 
 
-class _ListRules(list):
+class _TypedList(list):
     """
-    Subclass of `list()` that makes sure each element of it is an instance of
-    a predefined class (e.g. `Search()`).
+    Subclass of `list` that makes sure each element of it is an instance of
+    a predefined class.
     """
-    def __init__(self, rule_cls, *iterable):
-        super(_ListRules, self).__init__()
-        self._rule_cls = rule_cls
+    def __init__(self, cls, *iterable):
+        super(_TypedList, self).__init__()
+        self._cls = cls
         if iterable:
             self.extend(*iterable)
 
-    def _check_type(self, item):
-        if self._rule_cls is not None and not isinstance(item, self._rule_cls):
-            clsname = self._rule_cls.__name__
+    def _check_class(self, item):
+        if self._cls is not None and not isinstance(item, self._cls):
+            clsname = self._cls.__name__
             raise TypeError('item is not of type {cls}'.format(cls=clsname))
 
     def append(self, item):
         """
         Check the object type of 'item' before appending to the list.
         """
-        self._check_type(item)
-        super(_ListRules, self).append(item)
+        self._check_class(item)
+        super(_TypedList, self).append(item)
 
     def extend(self, iterable):
         """
@@ -67,27 +51,74 @@ class _ListRules(list):
         list.
         """
         for item in iterable:
-            self._check_type(item)
-        super(_ListRules, self).extend(iterable)
+            self._check_class(item)
+        super(_TypedList, self).extend(iterable)
 
     def insert(self, index, item):
         """
         Check the object type of 'item' before appending to the list.
         """
-        self._check_type(item)
-        super(_ListRules, self).insert(index, item)
+        self._check_class(item)
+        super(_TypedList, self).insert(index, item)
 
 
 class Converter(object):
     """
-    A base class that can apply a (ordered) list of rules to a dict.
+    A sequence of `Ruler` objects intended to be applied on a dict.
+    """
+    def __init__(self, rulers=[]):
+        self._rulers = _TypedList(Ruler, rulers)
+
+    @property
+    def rulers(self):
+        return self._rulers
+
+    @classmethod
+    def from_dict(cls, config):
+        """
+        Create a `Converter` object from dict 'config'. The dict must look like
+        the following:
+        {"rulers": [
+                {
+                    "type": <rule-type-name>,
+                    "rules": [
+                        {"fieldname": <name>, ...},
+                        {"fieldname": <name>, ...},
+                        ...
+                    ]
+                },
+                {
+                    "type": <rule-type-name>,
+                    "rules": [
+                        {"fieldname": <name>, ...},
+                        {"fieldname": <name>, ...}
+                        ...
+                    ]
+                }
+            ]
+        }
+        """
+        rulers = []
+        for params in config['rulers']:
+            rulers.append(Ruler.from_dict(params))
+        return cls(rulers=rulers)
+
+    def apply(self, data):
+        for ruler in self.rulers:
+            ruler.apply(data)
+
+
+class Ruler(object):
+    """
+    Stores a list of rules that can be applied sequentially to a dict.
+    All the rules of the list must be of the same type.
     """
     def __init__(self, rule_cls, rules=[]):
         if not issubclass(rule_cls, _Rule):
             raise TypeError('{obj} is not a subclass of _Rule'.format(
                             obj=rule_cls))
         self._rule_cls = rule_cls
-        self._rules = _ListRules(rule_cls, rules)
+        self._rules = _TypedList(rule_cls, rules)
 
     @property
     def type(self):
@@ -100,13 +131,14 @@ class Converter(object):
     @classmethod
     def from_dict(cls, config):
         """
-        Create a `Converter()` object from dict 'config'. The dict must look
-        like the following:
+        Create a `Ruler` object from dict 'config'. The dict must look like the
+        following:
             {
                 "type": <rule-type-name>,       # lower-case
                 "rules": [
                     {"fieldname": <name>, ...}, # + rule-type dependent items
                     {"fieldname": <name>, ...},
+                    ...
                 ]
             }
         """
