@@ -25,10 +25,25 @@ class EventLoop(object):
         asyncio.set_event_loop(self._loop)
         assert isinstance(self._loop, BaseEventLoop)
 
-        self._setup = setup
-        self._teardown = teardown
+        self._setup = setup or self._setup
+        self._teardown = teardown or self._teardown
 
         self._timeouts = dict()
+
+    def __str__(self):
+        alive = 'alive' if self.is_running() else 'down'
+        blocking = 'blocking' if self._blocking else 'not blocking'
+        setup = 'setup' if self._setup else 'no setup'
+        tear = 'teardown' if self._teardown else 'no teardown'
+        return '< EventLoop : {}, {}, {}, {} >'.format(
+            alive, blocking, setup, tear
+        )
+
+    def _setup(self):
+        pass
+
+    def _teardown(self):
+        pass
 
     @property
     def loop(self):
@@ -39,6 +54,8 @@ class EventLoop(object):
         An running event loop is so when the thread is still active and the
         asyncio loop within is running.
         """
+        if not self._thread:
+            return False
         return self._thread.is_alive() and self._loop.is_running()
 
     def start(self, block=False):
@@ -62,6 +79,7 @@ class EventLoop(object):
             run()
         else:
             self._thread = threading.Thread(target=run)
+            self._thread.start()
 
     def stop(self, timeout=None):
         """
@@ -84,7 +102,7 @@ class EventLoop(object):
         """
         Useful method to schedule a callback using the event loop.
         """
-        self._loop.call_later(delay, callback *args)
+        self._loop.call_later(delay, callback, *args)
 
     def add_timeout(self, key, deadline, callback, *args):
         """
