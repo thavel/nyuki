@@ -33,10 +33,9 @@ class EventLoop(object):
     def __str__(self):
         alive = 'alive' if self.is_running() else 'down'
         blocking = 'blocking' if self._blocking else 'not blocking'
-        setup = 'setup' if self._setup else 'no setup'
-        tear = 'teardown' if self._teardown else 'no teardown'
-        return '< EventLoop : {}, {}, {}, {} >'.format(
-            alive, blocking, setup, tear
+        timeouts = '{} timeout(s)'.format(len(self._timeouts.keys()))
+        return '< {} : {}, {}, {} >'.format(
+            self.__class__.__name__, alive, blocking, timeouts
         )
 
     def _setup(self):

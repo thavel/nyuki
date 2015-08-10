@@ -17,13 +17,13 @@ class TestNyuki(Nyuki):
 
     @on_event(SessionStart)
     def _running(self, _):
-        log.info('Nyuki is running with %s', self.loop)
         self.loop.start()
-        self.func()
+        self.loop.schedule(5, self.func)
+        log.info('Nyuki is running with %s', self.loop)
 
     def func(self):
         self.count += 1
-        self.loop.schedule(3, self.func)
+        self.loop.schedule(5, self.func)
         log.info("after 5 seconds : %s", self.count)
 
     @on_event(MessageReceived)
