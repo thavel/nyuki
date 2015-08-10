@@ -70,8 +70,8 @@ class Converter(object):
     """
     A sequence of `Ruler` objects intended to be applied on a dict.
     """
-    def __init__(self, rulers=[]):
-        self._rulers = _TypedList(Ruler, rulers)
+    def __init__(self, rulers=None):
+        self._rulers = _TypedList(Ruler, rulers or list())
 
     @property
     def rulers(self):
