@@ -67,10 +67,11 @@ class MessageFactory(object):
         self.xmpp_client = xmpp_client
         self.requests = dict()
 
-    def generate_uid(self):
+    @staticmethod
+    def _generate_uid():
         return str(uuid.uuid4())
 
-    def build_message_for_unicast(self, msg, to, subject="PROCESS",
+    def _build_message_for_unicast(self, msg, to, subject="PROCESS",
                                   is_json=False):
         if is_json:
             return self.xmpp_client.make_message(mto=to, mbody=json.dumps(msg),
@@ -82,13 +83,14 @@ class MessageFactory(object):
                                                  msubject=subject)
 
     def build_request_unicast_message(self, msg, to, subject="PROCESS",
-                                      session=None, is_json=False, msg_id=None):
+                                      session=None, is_json=False,
+                                      msg_id=None):
 
         session = session or {}
         subject = subject.lower()
-        xmpp_message = self.build_message_for_unicast(msg, to, subject,
+        xmpp_message = self._build_message_for_unicast(msg, to, subject,
                                                       is_json)
-        xmpp_message['id'] = msg_id or self.generate_uid()
+        xmpp_message['id'] = msg_id or self._generate_uid()
         self.requests[xmpp_message['id']] = session
         return xmpp_message
 
@@ -99,7 +101,7 @@ class MessageFactory(object):
         elif not Codes.in_values(subject):
             raise ValueError("subject must be a response type")
 
-        xmpp_message = self.build_message_for_unicast(
+        xmpp_message = self._build_message_for_unicast(
             msg, to, subject, is_json)
         xmpp_message['id'] = msg_id
         return xmpp_message

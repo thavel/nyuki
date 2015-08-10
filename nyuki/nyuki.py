@@ -3,7 +3,7 @@ import logging.config
 import signal
 import threading
 
-from nyuki.messaging.event import EventManager, on_event
+from nyuki.messaging.event import EventManager, on_event, Terminate
 from nyuki.messaging.nbus import Nbus, SessionStart
 
 
@@ -101,6 +101,7 @@ class Nyuki(object):
         """
         self._stopping.set()
         self.bus.disconnect()
+        self.fire(Terminate())
         threads = threading.enumerate().remove(threading.main_thread()) or []
         for t in threads:
             t.join()
@@ -117,7 +118,7 @@ class Nyuki(object):
         Method that enable to send a message on the bus
         Can call _send_bus_unicast and _send_bus_broadcast methods
         '''
-        pass
+        self.bus.send_unicast(message)
 
     def handle_bus_message(self, message):
         '''

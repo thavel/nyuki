@@ -7,6 +7,7 @@ from nyuki.messaging.event import (
     on_event, EventManager, SessionStart, Connecting, Connected,
     ConnectionError, Disconnected, MessageReceived
 )
+from nyuki.messaging.message_factory import MessageFactory
 
 
 log = logging.getLogger(__name__)
@@ -75,6 +76,7 @@ class Nbus(object):
             event_stack.register(self)
         else:
             self._event_stack = EventManager(self)
+        self.factory = MessageFactory(self.xmpp)
 
     def fire(self, event):
         raise NotImplementedError
@@ -92,7 +94,7 @@ class Nbus(object):
 
     def connect(self, reattempt=False, **kwargs):
         self.fire(Connecting())
-        if self.xmpp.connect(reattempt=False, **kwargs):
+        if self.xmpp.connect(reattempt=reattempt, **kwargs):
             self.xmpp.process()
             self.fire(Connected())
         else:
@@ -153,9 +155,6 @@ class Nbus(object):
 
         try:
             resp.send(now=True)
-            log.info(
-                "Account created for {jid}".format(jid=self.xmpp.boundjid)
-            )
         except IqError as iqex:
             err = iqex.iq['error']['text']
             log.warning(
@@ -164,3 +163,7 @@ class Nbus(object):
         except IqTimeout:
             log.error("No response from the server")
             self.disconnect()
+        else:
+            log.info(
+                "Account created for {jid}".format(jid=self.xmpp.boundjid)
+            )

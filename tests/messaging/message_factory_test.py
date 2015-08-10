@@ -15,17 +15,17 @@ class TestMessageFactory(TestCase):
         self.factory = None
 
     def test_001_generate_uid(self):
-        uid1 = self.factory.generate_uid()
-        uid2 = self.factory.generate_uid()
+        uid1 = self.factory._generate_uid()
+        uid2 = self.factory._generate_uid()
         self.assertTrue(isinstance(uid1, str))
         self.assertNotEqual(uid1, uid2)
 
     def test_002a_build_message_for_unicast(self):
         with patch.object(self.factory.xmpp_client, 'make_message') as mock:
-            self.factory.build_message_for_unicast('msg', 'to', is_json=False)
+            self.factory._build_message_for_unicast('msg', 'to', is_json=False)
             mock.assert_called_once_with(mbody='msg', msubject='PROCESS', mto='to', mtype='normal')
 
-        msg = self.factory.build_message_for_unicast('msg', 'to', is_json=False)
+        msg = self.factory._build_message_for_unicast('msg', 'to', is_json=False)
         self.assertTrue(isinstance(msg, Message))
 
     def test_002b_build_message_for_unicasti_json(self):
@@ -35,7 +35,7 @@ class TestMessageFactory(TestCase):
             'parent_thread': '', 'subject': 'PROCESS',
             'thread': '', 'to': JID('to'), 'type': 'normal'
         }
-        msg = self.factory.build_message_for_unicast({'msg': 'toto'}, 'to', is_json=True)
+        msg = self.factory._build_message_for_unicast({'msg': 'toto'}, 'to', is_json=True)
         self.assertTrue(isinstance(msg, Message))
         self.assertEqual(dict(msg), expected)
 

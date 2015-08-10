@@ -175,6 +175,10 @@ class AnnounceError(Event):
         self.subject = subject
 
 
+class Terminate(Event):
+    pass
+
+
 # XXX useful ?
 def list_events(name):
     """
