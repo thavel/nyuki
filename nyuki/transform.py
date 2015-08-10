@@ -1,4 +1,8 @@
+import logging
 import re
+
+
+log = logging.getLogger(__name__)
 
 
 # Inspired from https://github.com/faif/python-patterns/blob/master/registry.py
@@ -28,7 +32,7 @@ class _TypedList(list):
     a predefined class.
     """
     def __init__(self, cls, *iterable):
-        super(_TypedList, self).__init__()
+        super().__init__()
         self._cls = cls
         if iterable:
             self.extend(*iterable)
@@ -43,7 +47,7 @@ class _TypedList(list):
         Check the object type of 'item' before appending to the list.
         """
         self._check_class(item)
-        super(_TypedList, self).append(item)
+        super().append(item)
 
     def extend(self, iterable):
         """
@@ -52,14 +56,14 @@ class _TypedList(list):
         """
         for item in iterable:
             self._check_class(item)
-        super(_TypedList, self).extend(iterable)
+        super().extend(iterable)
 
     def insert(self, index, item):
         """
         Check the object type of 'item' before appending to the list.
         """
         self._check_class(item)
-        super(_TypedList, self).insert(index, item)
+        super().insert(index, item)
 
 
 class Converter(object):
@@ -113,12 +117,12 @@ class Ruler(object):
     Stores a list of rules that can be applied sequentially to a dict.
     All the rules of the list must be of the same type.
     """
-    def __init__(self, rule_cls, rules=[]):
+    def __init__(self, rule_cls, rules=None):
         if not issubclass(rule_cls, _Rule):
             raise TypeError('{obj} is not a subclass of _Rule'.format(
                             obj=rule_cls))
         self._rule_cls = rule_cls
-        self._rules = _TypedList(rule_cls, rules)
+        self._rules = _TypedList(rule_cls, rules or list())
 
     @property
     def type(self):
@@ -205,8 +209,8 @@ class _RegexpRule(_Rule):
         try:
             string = data[self.fieldname]
         except KeyError:
-            # no data to process
-            pass
+            # No data to process
+            log.debug('Regexp : unknown field %s, ignoring', self.fieldname)
         else:
             resdict = self._run_regexp(string)
             data.update(resdict)
@@ -219,7 +223,7 @@ class Extract(_RegexpRule):
     captured substrings.
     """
     def _configure(self, pattern, flags=0, pos=None, endpos=None):
-        super(Extract, self)._configure(pattern, flags=flags)
+        super()._configure(pattern, flags=flags)
         if not self.regexp.groupindex:
             raise TypeError("'{pattern}' has no named capturing group".format(
                             pattern=pattern))
@@ -241,7 +245,7 @@ class Sub(_RegexpRule):
     string.
     """
     def _configure(self, pattern, repl, flags=0, count=0):
-        super(Sub, self)._configure(pattern, flags=flags)
+        super()._configure(pattern, flags=flags)
         self.repl, self.count = repl, count
 
     def _run_regexp(self, string):
@@ -271,7 +275,7 @@ class Unset(_Rule):
         try:
             del data[self.fieldname]
         except KeyError:
-            pass
+            log.debug('Unset : unknown field %s, ignoring', self.fieldname)
 
 
 class Lookup(_Rule):
@@ -279,8 +283,8 @@ class Lookup(_Rule):
     Implements a dead-simple lookup table which perform case sensitive
     (default) or insensitive (icase=True) lookups.
     """
-    def _configure(self, table={}):
-        self.table = table
+    def _configure(self, table=None):
+        self.table = table or dict()
 
     def apply(self, data):
         """
@@ -292,7 +296,7 @@ class Lookup(_Rule):
         try:
             data[self.fieldname] = self.table[fieldval]
         except KeyError:
-            pass
+            log.debug('Lookup : unknown field %s, ignoring', fieldval)
 
 
 class Lower(_Rule):
