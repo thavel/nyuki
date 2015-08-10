@@ -25,24 +25,19 @@ class EventLoop(object):
         asyncio.set_event_loop(self._loop)
         assert isinstance(self._loop, BaseEventLoop)
 
-        self._setup = setup or self._setup
-        self._teardown = teardown or self._teardown
+        self._setup = setup or (lambda: None)
+        self._teardown = teardown or (lambda: None)
 
         self._timeouts = dict()
 
     def __str__(self):
         alive = 'alive' if self.is_running() else 'down'
         blocking = 'blocking' if self._blocking else 'not blocking'
-        timeouts = '{} timeout(s)'.format(len(self._timeouts.keys()))
-        return '< {} : {}, {}, {} >'.format(
-            self.__class__.__name__, alive, blocking, timeouts
+        timeouts = '{} timeout(s)'.format(len(self._timeouts))
+        address = hex(id(self))
+        return '<{}: {}, {}, {} at {}>'.format(
+            self.__class__.__name__, alive, blocking, timeouts, address
         )
-
-    def _setup(self):
-        pass
-
-    def _teardown(self):
-        pass
 
     @property
     def loop(self):
