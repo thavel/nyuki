@@ -115,8 +115,8 @@ class EventLoop(object):
 
         if key in self._timeouts:
             raise ValueError("This timeout key already exists")
-        future = self._loop.call_at(deadline, wrapper, *args)
-        self._timeouts[key] = future
+        handle = self._loop.call_at(deadline, wrapper, *args)
+        self._timeouts[key] = handle
 
     def cancel_timeout(self, key):
         """
