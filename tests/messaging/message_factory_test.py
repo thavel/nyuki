@@ -73,3 +73,10 @@ class TestMessageFactory(TestCase):
                 subject=Codes('000'),
                 msg_id='666'
             )
+        with self.assertRaises(ValueError):
+            self.factory.build_response_unicast_message(
+                msg='toto',
+                to='tata',
+                subject='unknown',
+                msg_id='666'
+            )

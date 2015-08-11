@@ -10,7 +10,7 @@ class TestLooping(TestCase):
     def setUp(self):
         self.loop = EventLoop()
 
-    def test_001__loop(self):
+    def test_001_loop(self):
         self.assertFalse(self.loop.is_running())
         self.assertEqual(get_event_loop(), self.loop.loop)
 
