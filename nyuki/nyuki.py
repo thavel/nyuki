@@ -7,7 +7,7 @@ from nyuki.messaging.event import EventManager, on_event, Terminate
 from nyuki.messaging.nbus import Nbus, SessionStart
 
 
-log = logging.getLogger()
+log = logging.getLogger(__name__)
 
 
 DEFAULT_LOGGING = {
