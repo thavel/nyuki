@@ -21,12 +21,10 @@ class EventLoop(object):
         self._thread = None
         self._blocking = False
 
-        self._loop = loop or asyncio.new_event_loop()
-        asyncio.set_event_loop(self._loop)
+        self._loop = loop or asyncio.get_event_loop()
         assert isinstance(self._loop, BaseEventLoop)
-
-        self._setup = setup or (lambda: None)
-        self._teardown = teardown or (lambda: None)
+        if loop:
+            asyncio.set_event_loop(loop)
 
         self._timeouts = dict()
 
@@ -48,49 +46,7 @@ class EventLoop(object):
         An running event loop is so when the thread is still active and the
         asyncio loop within is running.
         """
-        if not self._thread:
-            return False
-        return self._thread.is_alive() and self._loop.is_running()
-
-    def start(self, block=False):
-        """
-        Run the asyncio loop in its own thread, or in the current thread if the
-        parameter `block` is true.
-        """
-        def run():
-            log.debug("The event loop is starting")
-            try:
-                self._setup()
-                self._loop.run_forever()
-            finally:
-                self._teardown()
-            self._loop.close()
-            log.debug("The event loop has been stopped")
-
-        self._blocking = block
-        if block:
-            self._thread = threading.current_thread()
-            run()
-        else:
-            self._thread = threading.Thread(target=run)
-            self._thread.start()
-
-    def stop(self, timeout=None):
-        """
-        Stop the event loop and wait until its thread stop (if it is a
-        non-blocking event loop). The `timeout` raises an exception if the
-        thread didn't end within the specified amount of time (in secs).
-        """
-        if not self.is_running():
-            return
-
-        self._loop.call_soon_threadsafe(self._loop.stop)
-        # If the loop is non-blocking, we also stop its thread.
-        if not self._blocking:
-            self._thread.join(timeout=timeout)
-            if self._thread.is_alive():
-                raise TimeoutError("Event loop failed to stop "
-                                   "in {} seconds".format(timeout))
+        return self._loop.is_running()
 
     def schedule(self, delay, callback, *args):
         """
@@ -109,6 +65,7 @@ class EventLoop(object):
 
         if key in self._timeouts:
             raise ValueError("This timeout key already exists")
+        deadline += self._loop.time()
         handle = self._loop.call_at(deadline, wrapper, *args)
         self._timeouts[key] = handle
 

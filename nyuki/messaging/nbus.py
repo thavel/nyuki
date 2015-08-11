@@ -1,11 +1,9 @@
 import logging
-from queue import Queue
-from sleekxmpp import ClientXMPP
-from sleekxmpp.exceptions import IqError, IqTimeout
+from slixmpp import ClientXMPP
+from slixmpp.exceptions import IqError, IqTimeout
 
 from nyuki.messaging.event import (
-    on_event, EventManager, SessionStart, Connecting, Connected,
-    ConnectionError, Disconnected, MessageReceived
+    EventManager, Disconnected, MessageReceived, SessionStart
 )
 from nyuki.messaging.message_factory import MessageFactory
 
@@ -35,7 +33,7 @@ class XMPPClient(ClientXMPP):
         except KeyError:
             port = 5222
         self._address = (host, port)
-        super(XMPPClient, self).__init__(jid, password, **kwargs)
+        super().__init__(jid, password, **kwargs)
         # Need MUC and Service Administration XEPs
         self.register_plugin('xep_0045')
         self.register_plugin('xep_0133')
@@ -48,7 +46,7 @@ class XMPPClient(ClientXMPP):
         Disable SRV lookups by always passing to `connect()` an address.
         """
         addr = address if address else self._address
-        return super(XMPPClient, self).connect(address=addr, **kwargs)
+        return super().connect(address=addr, **kwargs)
 
 
 class Nbus(object):
@@ -58,24 +56,16 @@ class Nbus(object):
     bus (incoming and outgoing).
     """
 
-    received_queue = Queue()
-    STATUSES = {
-        'connected',
-        'diconnected',
-        'connecting'
-    }
-
     def __init__(self, jid, password, event_stack=None, **kwargs):
         """
         Initialize the bus with `host` and `port` as optional keyword arguments
         """
-        self.xmpp = self._init_xmpp(jid, password, **kwargs)
-        self._status = 'disconnected'
         if event_stack:
             self._event_stack = event_stack
             event_stack.register(self)
         else:
             self._event_stack = EventManager(self)
+        self.xmpp = self._init_xmpp(jid, password, **kwargs)
         self.factory = MessageFactory(self.xmpp)
 
     def fire(self, event):
@@ -92,24 +82,15 @@ class Nbus(object):
         xmpp.add_event_handler("register", self._on_register)
         return xmpp
 
-    def connect(self, reattempt=False, **kwargs):
-        self.fire(Connecting())
-        if self.xmpp.connect(reattempt=reattempt, **kwargs):
-            self.xmpp.process()
-            self.fire(Connected())
-        else:
-            self.fire(ConnectionError())
+    def is_connected(self):
+        return self.xmpp.is_connected()
+
+    def connect(self):
+        self.xmpp.connect()
+        self.xmpp.process(forever=False)
 
     def disconnect(self, **kwargs):
         self.xmpp.disconnect(**kwargs)
-
-    @property
-    def status(self):
-        return self._status
-
-    @property
-    def is_connected(self):
-        return self._status == 'connected'
 
     def send_unicast(self, message):
         """
@@ -123,7 +104,7 @@ class Nbus(object):
         TBD!
         """
 
-    def _on_start(self, event):
+    def _on_start(self, _):
         self.xmpp.send_presence()
         self.xmpp.get_roster()
         self.fire(SessionStart())
@@ -132,20 +113,7 @@ class Nbus(object):
         self.fire(MessageReceived(message=msg))
 
     def _on_disconnect(self, _):
-        self._status = 'disconnected'
         self.fire(Disconnected())
-
-    @on_event(Connecting)
-    def _on_connecting(self, _):
-        self._status = 'connecting'
-
-    @on_event(Connected)
-    def _on_connected(self, _):
-        self._status = 'connected'
-
-    @on_event(ConnectionError)
-    def _on_connecting_error(self, _):
-        self._status = 'disconnected'
 
     def _on_register(self, _):
         resp = self.xmpp.Iq()
@@ -154,7 +122,8 @@ class Nbus(object):
         resp['register']['password'] = self.xmpp.password
 
         try:
-            resp.send(now=True)
+            # TODO: catch these errors (inside async call)
+            resp.send()
         except IqError as iqex:
             err = iqex.iq['error']['text']
             log.warning(

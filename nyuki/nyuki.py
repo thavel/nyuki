@@ -3,6 +3,7 @@ import logging.config
 import signal
 import threading
 
+from nyuki.eventloop import EventLoop
 from nyuki.messaging.event import EventManager, on_event, Terminate
 from nyuki.messaging.nbus import Nbus, SessionStart
 
@@ -29,7 +30,7 @@ DEFAULT_LOGGING = {
         "level": "DEBUG"
     },
     "loggers": {
-        "sleekxmpp": {
+        "slixmpp": {
             "level": "INFO"
         }
     },
@@ -66,6 +67,7 @@ class Nyuki(object):
         # {'jid': nyuki_jid, 'password': nyuki_password}
         xmpp = self.config['xmpp']
         self.bus = Nbus(xmpp['jid'], xmpp['password'], self._event_stack)
+        self.loop = EventLoop()
 
     @on_event(SessionStart)
     def start(self, _):
@@ -103,6 +105,7 @@ class Nyuki(object):
         self.bus.disconnect()
         self.fire(Terminate())
         threads = threading.enumerate().remove(threading.main_thread()) or []
+        log.debug('remaining threads : %s', threads)
         for t in threads:
             t.join()
 
