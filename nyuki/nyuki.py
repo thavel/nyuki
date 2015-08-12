@@ -5,6 +5,7 @@ import logging.config
 from nyuki.logging import DEFAULT_LOGGING
 from nyuki.bus import Bus
 from nyuki.event import Event
+from nyuki.capability import CapabilityExposer, Capability
 
 
 log = logging.getLogger(__name__)
@@ -17,9 +18,16 @@ def on_event(event):
     return call
 
 
+def capability(method, endpoint):
+    def call(func):
+        func.capability = Capability(method, endpoint)
+        return func
+    return call
+
+
 # --------------------------------------
 
-class CapabilityExposer(type):
+class CapabilityHandler(type):
     pass
 
 
@@ -46,13 +54,16 @@ class EventHandler(type):
 
 # --------------------------------------
 
-class RegisterMeta(EventHandler):
+class MetaHandler(EventHandler, CapabilityHandler):
     def __call__(cls, *args, **kwargs):
         nyuki = super().__call__(*args, **kwargs)
         return nyuki
 
 
-class Nyuki(metaclass=RegisterMeta):
+class Nyuki(metaclass=MetaHandler):
+
+    API_IP = '0.0.0.0'
+    API_PORT = 8080
 
     def __init__(self):
         # Let's assume we've fetch configs through the command line / conf file
@@ -65,8 +76,8 @@ class Nyuki(metaclass=RegisterMeta):
         }
 
         logging.config.dictConfig(DEFAULT_LOGGING)
-        self._capabilities = dict()
         self._bus = Bus(**self.config['bus'])
+        self._exposer = CapabilityExposer(self.event_loop)
 
     @property
     def event_loop(self):
@@ -74,7 +85,7 @@ class Nyuki(metaclass=RegisterMeta):
 
     @property
     def capabilities(self):
-        return self._capabilities
+        return self._exposer.capabilities
 
     @property
     def event_manager(self):
@@ -88,6 +99,7 @@ class Nyuki(metaclass=RegisterMeta):
         signal.signal(signal.SIGTERM, self.abort)
         signal.signal(signal.SIGINT, self.abort)
         self._bus.connect(block=False)
+        self._exposer.expose(self.API_IP, self.API_PORT)
 
     def abort(self, signum=signal.SIGINT, frame=None):
         log.warning("Caught signal {}".format(signum))
