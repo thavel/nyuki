@@ -52,7 +52,7 @@ class Bus(object):
         return self._event
 
     def _on_connection(self, event):
-        log.info("Connecting to the bus...")
+        log.debug("Connecting to the bus...")
         self._event.trigger(Event.Connecting)
 
     def _on_register(self, event):
@@ -70,12 +70,12 @@ class Bus(object):
             log.error("No response from the server")
             self.disconnect()
         else:
-            log.info("Account {} created".format(self.client.boundjid))
+            log.debug("Account {} created".format(self.client.boundjid))
 
     def _on_start(self, event):
         self.client.send_presence()
         self.client.get_roster()
-        log.info("Connection to the bus succeed")
+        log.debug("Connection to the bus succeed")
         self._event.trigger(Event.Connected)
 
     def _on_message(self, event):
