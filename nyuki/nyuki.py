@@ -18,17 +18,33 @@ def on_event(event):
     return call
 
 
-def capability(method, endpoint):
+def capability(access, endpoint):
     def call(func):
-        func.capability = Capability(method, endpoint)
+        func.capability = Capability(name=func.__name__, method=func,
+                                     access=access, endpoint=endpoint)
         return func
     return call
 
 
-# --------------------------------------
-
 class CapabilityHandler(type):
-    pass
+    def __call__(cls, *args, **kwargs):
+        """
+        Register decorated method to be routed by the web app.
+        """
+        nyuki = super().__call__(*args, **kwargs)
+        for capa in cls._filter(nyuki):
+            nyuki.exposer.register(capa)
+        return nyuki
+
+    @staticmethod
+    def _filter(obj):
+        """
+        Find methods decorated with `capability`.
+        """
+        for attr in dir(obj):
+            value = getattr(obj, attr)
+            if callable(value) and hasattr(value, 'capability'):
+                yield value.capability
 
 
 class EventHandler(type):
@@ -51,8 +67,6 @@ class EventHandler(type):
             if callable(value) and hasattr(value, 'on_event'):
                 yield value, value.on_event
 
-
-# --------------------------------------
 
 class MetaHandler(EventHandler, CapabilityHandler):
     def __call__(cls, *args, **kwargs):
@@ -90,6 +104,10 @@ class Nyuki(metaclass=MetaHandler):
     @property
     def event_manager(self):
         return self._bus.event_manager
+
+    @property
+    def capability_exposer(self):
+        return self._exposer
 
     @on_event(Event.Connected)
     def _on_connection(self):

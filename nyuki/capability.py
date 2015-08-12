@@ -15,6 +15,7 @@ class Capability(object):
     def __eq__(self, other):
         return self.method == other.method
 
+
 class CapabilityExposer(object):
     def __init__(self, loop):
         self._loop = loop.loop
