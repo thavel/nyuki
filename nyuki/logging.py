@@ -18,6 +18,9 @@ DEFAULT_LOGGING = {
         "level": "DEBUG"
     },
     "loggers": {
+        "asyncio": {
+            "level": "INFO"
+        },
         "slixmpp": {
             "level": "INFO"
         }

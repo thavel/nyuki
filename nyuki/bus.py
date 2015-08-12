@@ -9,13 +9,13 @@ log = logging.getLogger(__name__)
 
 class _BusClient(ClientXMPP):
 
-    def __init__(self, jid, password, port=5222, host=None):
-        super().__init__(self, jid, password)
+    def __init__(self, jid, password, host=None, port=None):
+        super().__init__(jid, password)
         try:
             host = host or jid.split('@')[1]
         except IndexError:
             raise XMPPError("Missing argument: host")
-        self._address = (host, port)
+        self._address = (host, port or 5222)
 
         self.register_plugin('xep_0045')  # Multi-user chat
         self.register_plugin('xep_0133')  # Service administration
@@ -29,16 +29,21 @@ class _BusClient(ClientXMPP):
 
 class Bus(object):
 
-    def __init__(self, jid, password, port=None, host=None):
-        self.client = _BusClient(jid, password, port, host)
+    def __init__(self, jid, password, host=None, port=None):
+        self.client = _BusClient(jid, password, host, port)
+        self.client.add_event_handler('connecting', self._on_connection)
         self.client.add_event_handler('register', self._on_register)
         self.client.add_event_handler('session_start', self._on_start)
         self.client.add_event_handler('message', self._on_message)
         self.client.add_event_handler('disconnected', self._on_disconnect)
+        self.client.add_event_handler('connection_failed', self._on_failure)
 
     @property
     def loop(self):
         return self.client.loop
+
+    def _on_connection(self, event):
+        log.info("Connecting to the bus...")
 
     def _on_register(self, event):
         resp = self.client.Iq()
@@ -47,7 +52,7 @@ class Bus(object):
         resp['register']['password'] = self.client.password
 
         try:
-            resp.send()
+            yield from resp.send()
         except IqError as exc:
             error = exc.iq['error']['text']
             log.warning("Could not register account: {}".format(error))
@@ -60,12 +65,17 @@ class Bus(object):
     def _on_start(self, event):
         self.client.send_presence()
         self.client.get_roster()
+        log.info("Connection succeed")
 
     def _on_message(self, event):
         pass
 
     def _on_disconnect(self, event):
         pass
+
+    def _on_failure(self, event):
+        log.error("Connection failed")
+        self.client.abort()
 
     def connect(self, block=False):
         self.client.connect()
