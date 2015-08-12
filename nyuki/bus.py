@@ -36,6 +36,10 @@ class Bus(object):
         self.client.add_event_handler('message', self._on_message)
         self.client.add_event_handler('disconnected', self._on_disconnect)
 
+    @property
+    def loop(self):
+        return self.client.loop
+
     def _on_register(self, event):
         resp = self.client.Iq()
         resp['type'] = 'set'
