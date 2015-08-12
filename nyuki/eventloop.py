@@ -20,22 +20,43 @@ class EventLoop(object):
         """
         self._thread = None
         self._blocking = False
-
-        self._loop = loop or asyncio.get_event_loop()
-        assert isinstance(self._loop, BaseEventLoop)
-        if loop:
-            asyncio.set_event_loop(loop)
-
         self._timeouts = dict()
+
+        self._loop = self._init_loop(loop)
+
+        self._setup = setup or (lambda: None)
+        self._teardown = teardown or (lambda: None)
 
     def __str__(self):
         alive = 'alive' if self.is_running() else 'down'
-        blocking = 'blocking' if self._blocking else 'not blocking'
+        if self._thread:
+            blocking = 'blocking' if self._blocking else 'not blocking'
+        else:
+            blocking = 'wrapped'
         timeouts = '{} timeout(s)'.format(len(self._timeouts))
         address = hex(id(self))
         return '<{}: {}, {}, {} at {}>'.format(
             self.__class__.__name__, alive, blocking, timeouts, address
         )
+
+    def _init_loop(self, loop):
+        """
+        Handle wrapper init if the an existing loop is given.
+        """
+        if not loop:
+            _loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(_loop)
+            return _loop
+
+        assert isinstance(loop, BaseEventLoop)
+        if loop.is_running():
+            # Asyncio is supposed to be single-threaded but we can't assume we
+            # are in the very thread use by asyncio (we're maybe in a callback
+            # fired with `call_soon_threadsafe` on a differend thread.
+            # So, let's say it's a blocking loop.
+            self._blocking = True
+            self._thread = None
+        return loop
 
     @property
     def loop(self):
@@ -46,7 +67,52 @@ class EventLoop(object):
         An running event loop is so when the thread is still active and the
         asyncio loop within is running.
         """
-        return self._loop.is_running()
+        if not self._thread:
+            return self._loop.is_running()
+        return self._thread.is_alive() and self._loop.is_running()
+
+    def start(self, block=False):
+        """
+        Run the asyncio loop in its own thread, or in the current thread if the
+        parameter `block` is true.
+        """
+        def run():
+            log.debug("The event loop is starting")
+            try:
+                self._setup()
+                self._loop.run_forever()
+            finally:
+                self._teardown()
+            self._loop.close()
+            log.debug("The event loop has been stopped")
+
+        if self.is_running():
+            raise RuntimeError("This event loop has already been started")
+
+        self._blocking = block
+        if block:
+            self._thread = threading.current_thread()
+            run()
+        else:
+            self._thread = threading.Thread(target=run)
+            self._thread.start()
+
+    def stop(self, timeout=None):
+        """
+        Stop the event loop and wait until its thread stop (if it is a
+        non-blocking event loop). The `timeout` raises an exception if the
+        thread didn't end within the specified amount of time (in secs).
+        """
+        if not self.is_running():
+            raise RuntimeError("This event loop hasn't been started yet")
+
+        self._loop.call_soon_threadsafe(self._loop.stop)
+        # If the loop is non-blocking, we also stop its thread.
+        if not self._blocking:
+            self._thread.join(timeout=timeout)
+            if self._thread.is_alive():
+                raise TimeoutError("Event loop failed to stop "
+                                   "in {} seconds".format(timeout))
 
     def schedule(self, delay, callback, *args):
         """
@@ -74,7 +140,7 @@ class EventLoop(object):
         Cancel a timeout that has been previously added to the event loop.
         """
         if key not in self._timeouts:
-            raise ValueError('This timeout key does not exist')
+            raise ValueError("This timeout key does not exist")
         coro = self._timeouts[key]
         coro.cancel()
         del self._timeouts[key]
