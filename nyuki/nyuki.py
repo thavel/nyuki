@@ -1,17 +1,22 @@
 import signal
-import threading
 import logging
 import logging.config
 
 from nyuki.logging import DEFAULT_LOGGING
-from nyuki.loop import EventLoop
 from nyuki.bus import Bus
 
 
 log = logging.getLogger(__name__)
 
 
-class Nyuki(object):
+class RegisterMeta(type):
+
+    def __call__(cls, *args, **kwargs):
+        nyuki = super().__call__(*args, **kwargs)
+        return nyuki
+
+
+class Nyuki(metaclass=RegisterMeta):
 
     def __init__(self):
         # Let's assume we've fetch configs through the command line / conf file
@@ -26,11 +31,10 @@ class Nyuki(object):
         logging.config.dictConfig(DEFAULT_LOGGING)
         self._capabilities = dict()
         self._bus = Bus(**self.config['bus'])
-        self._loop = EventLoop(loop=self._bus.loop)
 
     @property
     def event_loop(self):
-        return self._loop
+        return self._bus.loop
 
     @property
     def capabilities(self):

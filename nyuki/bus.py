@@ -3,6 +3,8 @@ import logging
 from slixmpp import ClientXMPP
 from slixmpp.exceptions import XMPPError, IqError, IqTimeout
 
+from nyuki.loop import EventLoop
+from nyuki.event import EventManager, Event
 
 log = logging.getLogger(__name__)
 
@@ -38,12 +40,20 @@ class Bus(object):
         self.client.add_event_handler('disconnected', self._on_disconnect)
         self.client.add_event_handler('connection_failed', self._on_failure)
 
+        self._loop = EventLoop(loop=self.client.loop)
+        self._event = EventManager(self._loop)
+
     @property
     def loop(self):
-        return self.client.loop
+        return self._loop
+
+    @property
+    def event_manager(self):
+        return self._event
 
     def _on_connection(self, event):
         log.info("Connecting to the bus...")
+        self._event.trigger(Event.Connecting)
 
     def _on_register(self, event):
         resp = self.client.Iq()
@@ -65,16 +75,20 @@ class Bus(object):
     def _on_start(self, event):
         self.client.send_presence()
         self.client.get_roster()
-        log.info("Connection succeed")
+        log.info("Connection to the bus succeed")
+        self._event.trigger(Event.Connected)
 
     def _on_message(self, event):
-        pass
+        log.debug("Message received: {}".format(event))
+        self._event.trigger(Event.MessageReceived, event)
 
     def _on_disconnect(self, event):
-        pass
+        log.debug("Disconnected from the bus")
+        self._event.trigger(Event.Disconnected)
 
     def _on_failure(self, event):
         log.error("Connection failed")
+        self._event.trigger(Event.ConnectionError, event)
         self.client.abort()
 
     def connect(self, block=False):

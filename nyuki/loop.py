@@ -114,6 +114,12 @@ class EventLoop(object):
                 raise TimeoutError("Event loop failed to stop "
                                    "in {} seconds".format(timeout))
 
+    def async(self, callback, *args):
+        """
+        Perform a simple asynchronous call using the event loop.
+        """
+        self._loop.call_soon(callback, *args)
+
     def schedule(self, delay, callback, *args):
         """
         Useful method to schedule a callback using the event loop.
