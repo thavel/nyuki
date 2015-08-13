@@ -7,7 +7,3 @@ dependencies:
         - pip install . --upgrade
     post:
         - pip install -r requirements_test.txt
-
-test:
-    override:
-        - nosetests --with-xunit --xunit-file=$CIRCLE_TEST_REPORTS/xunit.xml --cover-branches --with-coverage --cover-erase --cover-package=nyuki --cover-html --cover-html-dir=$CIRCLE_ARTIFACTS/coverage
