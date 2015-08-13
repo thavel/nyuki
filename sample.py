@@ -9,7 +9,6 @@ log = logging.getLogger(__name__)
 
 
 class Sample(Nyuki):
-
     def __init__(self):
         super().__init__()
         self.message = 'Hello world!'
@@ -23,7 +22,7 @@ class Sample(Nyuki):
         log.info("Alright, this is the end of my existence.")
 
     @capability(access='GET', endpoint='/hello')
-    def hello(self, request=None):
+    def hello(self, request):
         return Response(body=self.message)
 
 if __name__ == '__main__':

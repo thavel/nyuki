@@ -1,5 +1,4 @@
 import logging
-from collections import namedtuple
 
 from aiohttp import web
 
@@ -7,7 +6,18 @@ from aiohttp import web
 log = logging.getLogger(__name__)
 
 
-Capability = namedtuple('Capability', ['name', 'method', 'access', 'endpoint'])
+class Capability(object):
+    """
+    A capability is unique (hashable object, based on capability's name).
+    """
+    def __init__(self, name, method, access, endpoint):
+        self.name = name
+        self.method = method
+        self.access = access
+        self.endpoint = endpoint
+
+    def __hash__(self):
+        return hash(self.name)
 
 
 class CapabilityExposer(object):

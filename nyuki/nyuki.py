@@ -1,6 +1,7 @@
 import signal
 import logging
 import logging.config
+import asyncio
 
 from nyuki.log import DEFAULT_LOGGING
 from nyuki.bus import Bus
@@ -41,6 +42,11 @@ class CapabilityHandler(type):
         """
         nyuki = super().__call__(*args, **kwargs)
         for capa in cls._filter_capability(nyuki):
+            # Route callbacks are supposed to be called through `func(request)`,
+            # the following code updates capabilities to be executed as instance
+            # methods: `func(self, request)`.
+            func = capa.method
+            capa.method = asyncio.coroutine(lambda req: func(nyuki, req))
             nyuki.capability_exposer.register(capa)
         return nyuki
 
@@ -136,7 +142,7 @@ class Nyuki(metaclass=MetaHandler):
         The direct result of a disconnection from the bus is the shut down of
         the event loop (that eventually makes the nyuki process to exit).
         """
-        # Might need a bit of retry here before exiting?
+        # Might need a bit of retry here before exiting...
         self.event_loop.stop()
         log.info("Nyuki exiting")
 
