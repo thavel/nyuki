@@ -1,3 +1,4 @@
+import json
 import logging
 
 from slixmpp import ClientXMPP
@@ -55,6 +56,7 @@ class Bus(object):
         # Wrap asyncio loop for easy use
         self._loop = EventLoop(loop=self.client.loop)
         self._event = EventManager(self._loop)
+        self._formatter = Formatter(factory=self.client)
 
     @property
     def loop(self):
@@ -141,3 +143,30 @@ class Bus(object):
         Abort after a timeout (in seconds) if the action is too long.
         """
         self.client.disconnect(wait=timeout)
+
+    def send(self, message, to, capability='process'):
+        """
+        Send a unicast message through the bus.
+        """
+        bus_message = self._formatter.unicast(message, to, capability)
+        bus_message.send()
+
+
+class Formatter(object):
+    """
+    Format messages to be send through the bus.
+    """
+    DEFAULT_TYPE = 'normal'
+
+    def __init__(self, factory):
+        self._factory = factory
+
+    def unicast(self, message, to, subject):
+        """
+        Build a stanza message to send to one nyuki.
+        """
+        if not isinstance(message, dict):
+            raise TypeError("Message contents must be a dictionary")
+        content = json.dumps(message)
+        return self._factory.make_message(mto=to, mtype=self.DEFAULT_TYPE,
+                                          msubject=subject, mbody=content)

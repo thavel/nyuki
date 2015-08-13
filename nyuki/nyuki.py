@@ -135,6 +135,24 @@ class Nyuki(metaclass=MetaHandler):
     def _on_connection(self):
         log.info("Nyuki connected to the bus")
 
+    @on_event(Event.Disconnected)
+    def _on_disconnection(self):
+        """
+        The direct result of a disconnection from the bus is the shut down of
+        the event loop (that eventually makes the nyuki process to exit).
+        """
+        # Might need a bit of retry here before exiting?
+        self.event_loop.stop()
+        log.info("Nyuki exiting")
+
+    @on_event(Event.MessageReceived)
+    def _dispatch(self, event):
+        """
+        Dispatch message to its capability.
+        """
+        capa_name = event['subject']
+        self._exposer.use(capa_name, event)
+
     def start(self):
         """
         Start the nyuki: launch the bus client and expose capabilities.
@@ -155,8 +173,7 @@ class Nyuki(metaclass=MetaHandler):
 
     def stop(self, timeout=5):
         """
-        Stop the nyuki. Basically, it stops the event loop.
+        Stop the nyuki. Basically, disconnect to the bus. That will eventually
+        trigger a `Disconnected` event.
         """
         self._bus.disconnect(timeout=timeout)
-        self.event_loop.stop()
-        log.info("Nyuki exiting")

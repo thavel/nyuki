@@ -32,6 +32,23 @@ class CapabilityExposer(object):
         self._app.router.add_route(capa.access, capa.endpoint, capa.method)
         log.debug("Capability added: {}".format(capa.name))
 
+    def find(self, capa_name):
+        """
+        Get a capability by its name.
+        """
+        for capability in self._capabilities:
+            if capa_name == capability.name:
+                return capability
+
+    def use(self, name, *args):
+        """
+        Call a capability by its name in an asynchronous fashion.
+        """
+        capa = self.find(name)
+        if not capa:
+            log.warning("Capability {} is called but doen't exist".format(name))
+        self._loop.call_soon(capa.method, *args)
+
     def _build_http(self, host, port):
         """
         Create a HTTP server to expose the API.
