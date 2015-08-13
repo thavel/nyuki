@@ -32,12 +32,12 @@ class CapabilityHandler(type):
         Register decorated method to be routed by the web app.
         """
         nyuki = super().__call__(*args, **kwargs)
-        for capa in cls._filter(nyuki):
-            nyuki.exposer.register(capa)
+        for capa in cls._filter_capability(nyuki):
+            nyuki.capability_exposer.register(capa)
         return nyuki
 
     @staticmethod
-    def _filter(obj):
+    def _filter_capability(obj):
         """
         Find methods decorated with `capability`.
         """
@@ -53,12 +53,12 @@ class EventHandler(type):
         Register decorated method to be called when an event is trigger.
         """
         nyuki = super().__call__(*args, **kwargs)
-        for method, event in cls._filter(nyuki):
+        for method, event in cls._filter_event(nyuki):
             nyuki.event_manager.register(event, method)
         return nyuki
 
     @staticmethod
-    def _filter(obj):
+    def _filter_event(obj):
         """
         Find methods decorated with `on_event`.
         """

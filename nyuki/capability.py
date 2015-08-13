@@ -1,19 +1,13 @@
 import logging
+from collections import namedtuple
+
 from aiohttp import web
 
 
 log = logging.getLogger(__name__)
 
 
-class Capability(object):
-    def __init__(self, name, method, access, endpoint):
-        self.name = name
-        self.method = method
-        self.access = access
-        self.endpoint = endpoint
-
-    def __eq__(self, other):
-        return self.method == other.method
+Capability = namedtuple('Capability', ['name', 'method', 'access', 'endpoint'])
 
 
 class CapabilityExposer(object):
@@ -28,7 +22,7 @@ class CapabilityExposer(object):
 
     def register(self, capa):
         self._capabilities.add(capa)
-        self._app.router.add_route(capa.accesss, capa.endpoint, capa.method)
+        self._app.router.add_route(capa.access, capa.endpoint, capa.method)
 
     def _start_http(self, host, port):
         future = yield from self._loop.create_server(
