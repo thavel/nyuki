@@ -14,7 +14,7 @@ DEFAULT_LOGGING = {
     },
     "root": {
         "handlers": ["console"],
-        "level": "DEBUG"
+        "level": "INFO"
     },
     "loggers": {
         "asyncio": {

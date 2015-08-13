@@ -2,10 +2,11 @@ import signal
 import logging
 import logging.config
 
-from nyuki.logging import DEFAULT_LOGGING
+from nyuki.log import DEFAULT_LOGGING
 from nyuki.bus import Bus
 from nyuki.event import Event
 from nyuki.capability import CapabilityExposer, Capability
+from nyuki.command import parse_init
 
 
 log = logging.getLogger(__name__)
@@ -99,22 +100,15 @@ class Nyuki(metaclass=MetaHandler):
     single loop is used for all features). A wrapper is also provide to ease the
     use of asynchronous calls over the actions nyukis are inteded to do.
     """
-    API_IP = '0.0.0.0'
-    API_PORT = 8080
-
-    def __init__(self):
-        # Let's assume we've fetched configs through the command line/conf file
-        self.config = {
-            'bus': {
-                'jid': 'test@localhost',
-                'password': 'test',
-                'host': '192.168.0.216'
-            }
-        }
-
-        logging.config.dictConfig(DEFAULT_LOGGING)
-        self._bus = Bus(**self.config['bus'])
+    def __init__(self, config=parse_init()):
+        self._config = config
+        self._bus = Bus(**config['bus'])
         self._exposer = CapabilityExposer(self.event_loop)
+        logging.config.dictConfig(DEFAULT_LOGGING)
+
+    @property
+    def config(self):
+        return self._config
 
     @property
     def event_loop(self):
@@ -162,7 +156,7 @@ class Nyuki(metaclass=MetaHandler):
         signal.signal(signal.SIGTERM, self.abort)
         signal.signal(signal.SIGINT, self.abort)
         self._bus.connect()
-        self._exposer.expose(self.API_IP, self.API_PORT)
+        self._exposer.expose(**self._config['api'])
         self.event_loop.start(block=True)
 
     def abort(self, signum=signal.SIGINT, frame=None):

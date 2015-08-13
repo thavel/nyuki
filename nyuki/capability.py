@@ -59,11 +59,11 @@ class CapabilityExposer(object):
         )
         return future
 
-    def expose(self, host, port):
+    def expose(self, host='0.0.0.0', port=8080):
         """
         Init the HTTP server.
         """
-        log.debug("Starting the http server")
+        log.debug("Starting the http server on {}:{}".format(host, port))
         self._loop.run_until_complete(self._build_http(host, port))
 
 
