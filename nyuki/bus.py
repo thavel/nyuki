@@ -77,23 +77,26 @@ class Bus(object):
     def _on_register(self, event):
         """
         XMPP event handler while registering a user (in-band registration).
-        Does not trigger bus event (internal behavior).
+        Does not trigger bus event (internal behavior), except if it fails.
         """
+        def done(future):
+            try:
+                raise future.result()
+            except IqError as exc:
+                error = exc.iq['error']['text']
+                log.debug("Could not register account: {}".format(error))
+            except IqTimeout:
+                log.error("No response from the server")
+                self._event.trigger(Event.ConnectionError)
+            finally:
+                log.debug("Account {} created".format(self.client.boundjid))
+
         resp = self.client.Iq()
         resp['type'] = 'set'
         resp['register']['username'] = self.client.boundjid.user
         resp['register']['password'] = self.client.password
-
-        try:
-            yield from resp.send()
-        except IqError as exc:
-            error = exc.iq['error']['text']
-            log.warning("Could not register account: {}".format(error))
-        except IqTimeout:
-            log.error("No response from the server")
-            self._event.trigger(Event.ConnectionError)
-        else:
-            log.debug("Account {} created".format(self.client.boundjid))
+        future = resp.send()
+        future.add_done_callback(done)
 
     def _on_start(self, event):
         """
