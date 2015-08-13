@@ -6,6 +6,7 @@ from slixmpp.exceptions import XMPPError, IqError, IqTimeout
 from nyuki.loop import EventLoop
 from nyuki.event import EventManager, Event
 
+
 log = logging.getLogger(__name__)
 
 
