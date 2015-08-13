@@ -12,6 +12,9 @@ log = logging.getLogger(__name__)
 
 
 def on_event(event):
+    """
+    Nyuki method decorator to register a callback for a bus event.
+    """
     def call(func):
         func.on_event = event
         return func
@@ -19,6 +22,10 @@ def on_event(event):
 
 
 def capability(access, endpoint):
+    """
+    Nyuki method decorator to register a capability.
+    It will be exposed as a HTTP route for the nyuki's API.
+    """
     def call(func):
         func.capability = Capability(name=func.__name__, method=func,
                                      access=access, endpoint=endpoint)
@@ -69,18 +76,33 @@ class EventHandler(type):
 
 
 class MetaHandler(EventHandler, CapabilityHandler):
+    """
+    Meta class that registers all decorated methods as either a capability or
+    a callback for a bus event.
+    """
     def __call__(cls, *args, **kwargs):
         nyuki = super().__call__(*args, **kwargs)
         return nyuki
 
 
 class Nyuki(metaclass=MetaHandler):
-
+    """
+    A lightweigh base class to build nyukis. A nyuki provides tools that shall
+    help the developer with managing the following topics:
+      - Bus of communication between nyukis.
+      - Asynchronous events.
+      - Capabilities exposure through a REST API.
+    This class has been written to perform the features above in a reliable,
+    single-threaded, asynchronous and concurrent-safe environment.
+    The core engine of a nyuki implementation is the asyncio event loop (a
+    single loop is used for all features). A wrapper is also provide to ease the
+    use of asynchronous calls over the actions nyukis are inteded to do.
+    """
     API_IP = '0.0.0.0'
     API_PORT = 8080
 
     def __init__(self):
-        # Let's assume we've fetch configs through the command line / conf file
+        # Let's assume we've fetched configs through the command line/conf file
         self.config = {
             'bus': {
                 'jid': 'test@localhost',
@@ -114,6 +136,10 @@ class Nyuki(metaclass=MetaHandler):
         log.info("Nyuki connected to the bus")
 
     def start(self):
+        """
+        Start the nyuki: launch the bus client and expose capabilities.
+        Basically, it starts the event loop.
+        """
         signal.signal(signal.SIGTERM, self.abort)
         signal.signal(signal.SIGINT, self.abort)
         self._bus.connect()
@@ -121,10 +147,16 @@ class Nyuki(metaclass=MetaHandler):
         self.event_loop.start(block=True)
 
     def abort(self, signum=signal.SIGINT, frame=None):
+        """
+        Signal handler: gracefully stop the nyuki.
+        """
         log.warning("Caught signal {}".format(signum))
         self.stop()
 
     def stop(self, timeout=5):
+        """
+        Stop the nyuki. Basically, it stops the event loop.
+        """
         self._bus.disconnect(timeout=timeout)
         self.event_loop.stop()
         log.info("Nyuki exiting")
