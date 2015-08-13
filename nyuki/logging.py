@@ -2,8 +2,7 @@ DEFAULT_LOGGING = {
     "version": 1,
     "formatters": {
         "long": {
-            "format": "%(asctime)-24s %(levelname)-8s [%(processName)-12s] "
-                      "[%(name)s] %(message)s"
+            "format": "%(asctime)-24s %(levelname)-8s [%(name)s] %(message)s"
         }
     },
     "handlers": {
@@ -15,14 +14,17 @@ DEFAULT_LOGGING = {
     },
     "root": {
         "handlers": ["console"],
-        "level": "INFO"
+        "level": "DEBUG"
     },
     "loggers": {
         "asyncio": {
-            "level": "INFO"
+            "level": "WARNING"
         },
         "slixmpp": {
-            "level": "INFO"
+            "level": "WARNING"
+        },
+        "aiohttp.web": {
+            "level": "WARNING"
         }
     },
     "disable_existing_loggers": False

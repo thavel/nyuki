@@ -1,5 +1,6 @@
 from nyuki import Nyuki, capability, on_event
 from nyuki.event import Event
+from nyuki.capability import Response
 
 
 class Sample(Nyuki):
@@ -17,8 +18,8 @@ class Sample(Nyuki):
         pass
 
     @capability(access='GET', endpoint='/hello')
-    def hello(self, request):
-        pass
+    def hello(self, request=None):
+        return Response(body="Hello world!")
 
 if __name__ == '__main__':
     nyuki = Sample()

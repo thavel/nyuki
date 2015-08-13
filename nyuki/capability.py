@@ -15,6 +15,7 @@ class CapabilityExposer(object):
         self._loop = loop.loop
         self._capabilities = set()
         self._app = web.Application(loop=self._loop)
+        log.debug("Capabilities will be called through {}".format(self._loop))
 
     @property
     def capabilities(self):
@@ -23,6 +24,7 @@ class CapabilityExposer(object):
     def register(self, capa):
         self._capabilities.add(capa)
         self._app.router.add_route(capa.access, capa.endpoint, capa.method)
+        log.debug("Capability added: {}".format(capa.name))
 
     def _start_http(self, host, port):
         future = yield from self._loop.create_server(
@@ -32,5 +34,14 @@ class CapabilityExposer(object):
         return future
 
     def expose(self, host, port):
+        log.debug("Starting the http server")
         self._loop.run_until_complete(self._start_http(host, port))
-        self._loop.run_forever()
+
+
+class Response(web.Response):
+    ENCODING = 'utf-8'
+
+    def __init__(self, body, **kwargs):
+        if isinstance(body, str):
+            body = bytes(body, self.ENCODING)
+        super().__init__(body=body, **kwargs)

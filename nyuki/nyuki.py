@@ -116,8 +116,9 @@ class Nyuki(metaclass=MetaHandler):
     def start(self):
         signal.signal(signal.SIGTERM, self.abort)
         signal.signal(signal.SIGINT, self.abort)
-        self._bus.connect(block=False)
+        self._bus.connect()
         self._exposer.expose(self.API_IP, self.API_PORT)
+        self.event_loop.start(block=True)
 
     def abort(self, signum=signal.SIGINT, frame=None):
         log.warning("Caught signal {}".format(signum))
@@ -125,4 +126,5 @@ class Nyuki(metaclass=MetaHandler):
 
     def stop(self, timeout=5):
         self._bus.disconnect(timeout=timeout)
+        self.event_loop.stop()
         log.info("Nyuki exiting")

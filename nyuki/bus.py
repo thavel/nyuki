@@ -52,7 +52,7 @@ class Bus(object):
         return self._event
 
     def _on_connection(self, event):
-        log.debug("Connecting to the bus...")
+        log.debug("Connecting to the bus")
         self._event.trigger(Event.Connecting)
 
     def _on_register(self, event):
@@ -91,9 +91,9 @@ class Bus(object):
         self._event.trigger(Event.ConnectionError, event)
         self.client.abort()
 
-    def connect(self, block=False):
+    def connect(self):
         self.client.connect()
-        self.client.process(forever=block)
+        self.client.init_plugins()
 
     def disconnect(self, timeout=5):
         self.client.disconnect(wait=timeout)
