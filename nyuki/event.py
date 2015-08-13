@@ -26,6 +26,7 @@ class EventManager(object):
         self._loop = loop
         self._callbacks = self._init_callbacks()
         log.debug("Available events: {}".format(list(Event)))
+        log.debug("Events will be called through {}".format(self._loop.loop))
 
     @staticmethod
     def _init_callbacks():

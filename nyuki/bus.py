@@ -36,7 +36,7 @@ class _BusClient(ClientXMPP):
         """
         Schedule the connection process.
         """
-        return super().connect(address=self._address, **kwargs)
+        super().connect(address=self._address, **kwargs)
 
 
 class Bus(object):
@@ -91,7 +91,7 @@ class Bus(object):
             log.warning("Could not register account: {}".format(error))
         except IqTimeout:
             log.error("No response from the server")
-            self.disconnect()
+            self._event.trigger(Event.ConnectionError)
         else:
             log.debug("Account {} created".format(self.client.boundjid))
 
@@ -126,7 +126,7 @@ class Bus(object):
         XMPP event handler when something is going wrong with the connection.
         Also trigger a bus event: `ConnectionError`.
         """
-        log.error("Connection failed")
+        log.error("Connection to the bus has failed")
         self._event.trigger(Event.ConnectionError, event)
         self.client.abort()
 

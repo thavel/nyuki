@@ -108,7 +108,7 @@ class EventLoop(object):
 
         self._loop.call_soon_threadsafe(self._loop.stop)
         # If the loop is non-blocking, we also stop its thread.
-        if not self._blocking:
+        if not self._blocking and self._thread:
             self._thread.join(timeout=timeout)
             if self._thread.is_alive():
                 raise TimeoutError("Event loop failed to stop "

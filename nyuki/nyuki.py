@@ -11,12 +11,12 @@ from nyuki.capability import CapabilityExposer, Capability
 log = logging.getLogger(__name__)
 
 
-def on_event(event):
+def on_event(*events):
     """
     Nyuki method decorator to register a callback for a bus event.
     """
     def call(func):
-        func.on_event = event
+        func.on_event = set(events)
         return func
     return call
 
@@ -60,8 +60,9 @@ class EventHandler(type):
         Register decorated method to be called when an event is trigger.
         """
         nyuki = super().__call__(*args, **kwargs)
-        for method, event in cls._filter_event(nyuki):
-            nyuki.event_manager.register(event, method)
+        for method, events in cls._filter_event(nyuki):
+            for event in events:
+                nyuki.event_manager.register(event, method)
         return nyuki
 
     @staticmethod
@@ -135,8 +136,8 @@ class Nyuki(metaclass=MetaHandler):
     def _on_connection(self):
         log.info("Nyuki connected to the bus")
 
-    @on_event(Event.Disconnected)
-    def _on_disconnection(self):
+    @on_event(Event.Disconnected, Event.ConnectionError)
+    def _on_disconnection(self, event=None):
         """
         The direct result of a disconnection from the bus is the shut down of
         the event loop (that eventually makes the nyuki process to exit).
