@@ -3,11 +3,10 @@ import logging
 import logging.config
 import asyncio
 
-from nyuki.log import DEFAULT_LOGGING
 from nyuki.bus import Bus
 from nyuki.event import Event
 from nyuki.capability import CapabilityExposer, Capability
-from nyuki.command import parse_init
+from nyuki.command import parse_init, exhaustive_config
 
 
 log = logging.getLogger(__name__)
@@ -106,11 +105,11 @@ class Nyuki(metaclass=MetaHandler):
     single loop is used for all features). A wrapper is also provide to ease the
     use of asynchronous calls over the actions nyukis are inteded to do.
     """
-    def __init__(self, config=parse_init()):
-        self._config = config
-        self._bus = Bus(**config['bus'])
+    def __init__(self, conf=parse_init()):
+        self._config = exhaustive_config(conf)
+        self._bus = Bus(**self._config['bus'])
         self._exposer = CapabilityExposer(self.event_loop)
-        logging.config.dictConfig(DEFAULT_LOGGING)
+        logging.config.dictConfig(self._config['log'])
 
     @property
     def config(self):

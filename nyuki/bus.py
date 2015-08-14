@@ -81,7 +81,7 @@ class Bus(object):
         """
         def done(future):
             try:
-                raise future.result()
+                future.result()
             except IqError as exc:
                 error = exc.iq['error']['text']
                 log.debug("Could not register account: {}".format(error))

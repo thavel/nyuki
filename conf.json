@@ -1,7 +1,6 @@
 {
   "bus": {
     "jid": "toto@localhost",
-    "password": "toto",
-    "host": "192.168.59.103"
+    "password": "toto"
   }
 }
