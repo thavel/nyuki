@@ -108,7 +108,7 @@ class Nyuki(metaclass=MetaHandler):
     def __init__(self, conf=parse_init()):
         self._config = exhaustive_config(conf)
         self._bus = Bus(**self._config['bus'])
-        self._exposer = CapabilityExposer(self.event_loop)
+        self._exposer = CapabilityExposer(self.event_loop.loop)
         logging.config.dictConfig(self._config['log'])
 
     @property
@@ -176,4 +176,5 @@ class Nyuki(metaclass=MetaHandler):
         Stop the nyuki. Basically, disconnect to the bus. That will eventually
         trigger a `Disconnected` event.
         """
+        self._exposer.shutdown()
         self._bus.disconnect(timeout=timeout)

@@ -1,4 +1,5 @@
 import logging
+import asyncio
 
 from aiohttp import web
 
@@ -20,15 +21,48 @@ class Capability(object):
         return hash(self.name)
 
 
+class _HttpApi(object):
+    """
+    The goal of this class is to gather all http-related behaviours.
+    """
+    def __init__(self, loop):
+        self._loop = loop
+        self._app = web.Application(loop=self._loop)
+        self._server = None
+        self._handler = None
+
+    @property
+    def router(self):
+        return self._app.router
+
+    @asyncio.coroutine
+    def build(self, host, port):
+        """
+        Create a HTTP server to expose the API.
+        """
+        self._handler = self._app.make_handler(log=log, access_log=log)
+        self._server = yield from self._loop.create_server(self._handler,
+                                                           host=host, port=port)
+
+    @asyncio.coroutine
+    def destroy(self):
+        """
+        Gracefully destroy the HTTP server by closing all pending connections.
+        """
+        self._server.close()
+        yield from self._handler.finish_connections()
+        yield from self._server.wait_closed()
+
+
 class CapabilityExposer(object):
     """
     Provide a engine to expose nyuki capabilities through a HTTP API.
     """
     def __init__(self, loop):
-        self._loop = loop.loop
+        self._loop = loop
         self._capabilities = set()
-        self._app = web.Application(loop=self._loop)
-        log.debug("Capabilities will be called through {}".format(self._loop))
+        self._api = _HttpApi(loop)
+        log.debug("Capabilities will be called through {}".format(loop))
 
     @property
     def capabilities(self):
@@ -39,7 +73,7 @@ class CapabilityExposer(object):
         Add a capability and its HTTP route.
         """
         self._capabilities.add(capa)
-        self._app.router.add_route(capa.access, capa.endpoint, capa.method)
+        self._api.router.add_route(capa.access, capa.endpoint, capa.method)
         log.debug("Capability added: {}".format(capa.name))
 
     def find(self, capa_name):
@@ -59,22 +93,19 @@ class CapabilityExposer(object):
             log.warning("Capability {} is called but doen't exist".format(name))
         self._loop.call_soon(capa.method, *args)
 
-    def _build_http(self, host, port):
-        """
-        Create a HTTP server to expose the API.
-        """
-        future = yield from self._loop.create_server(
-            self._app.make_handler(log=log, access_log=log),
-            host=host, port=port
-        )
-        return future
-
     def expose(self, host='0.0.0.0', port=8080):
         """
         Init the HTTP server.
         """
         log.debug("Starting the http server on {}:{}".format(host, port))
-        self._loop.run_until_complete(self._build_http(host, port))
+        self._loop.run_until_complete(self._api.build(host, port))
+
+    def shutdown(self):
+        """
+        Destroy the HTTP server.
+        """
+        log.debug("Stopping the http server")
+        asyncio.async(self._api.destroy(), loop=self._loop)
 
 
 class Response(web.Response):
