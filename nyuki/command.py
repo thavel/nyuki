@@ -140,6 +140,6 @@ def exhaustive_config(updates):
     try:
         validate(conf, CONF_SCHEMA)
     except ValidationError as error:
-        log.error("Invalid configuration file: {}".format(error.message))
+        log.error("Invalid configuration: {}".format(error.message))
         exit(1)
     return conf
