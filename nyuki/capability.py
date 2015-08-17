@@ -1,5 +1,6 @@
 import logging
 import asyncio
+from enum import Enum
 
 from aiohttp import web
 
@@ -7,18 +8,39 @@ from aiohttp import web
 log = logging.getLogger(__name__)
 
 
+class HttpMethod(Enum):
+    """
+    Supported HTTP methods by the REST API.
+    """
+    GET = 'GET'
+    POST = 'POST'
+    PUT = 'PUT'
+    DELETE = 'DELETE'
+    HEAD = 'HEAD'
+    OPTIONS = 'OPTIONS'
+    TRACE = 'TRACE'
+    CONNECT = 'CONNECT'
+    PATCH = 'PATCH'
+
+    @classmethod
+    def list(cls):
+        return [method.name for method in cls]
+
+
 class Capability(object):
     """
     A capability is unique (hashable object, based on capability's name).
     """
-    def __init__(self, name, handler, method, endpoint):
+    def __init__(self, name, method, endpoint, version, handler, wrapper):
         self.name = name
-        self.handler = handler
-        self.method = method.upper()
+        self.method = method
         self.endpoint = endpoint
+        self.version = version
+        self.handler = handler
+        self.wrapper = wrapper
 
     def __hash__(self):
-        return hash(self.method) + hash(self.endpoint)
+        return hash(self.name)
 
 
 class _HttpApi(object):
@@ -54,7 +76,7 @@ class _HttpApi(object):
         yield from self._server.wait_closed()
 
 
-class CapabilityExposer(object):
+class Exposer(object):
     """
     Provide a engine to expose nyuki capabilities through a HTTP API.
     """
@@ -76,7 +98,12 @@ class CapabilityExposer(object):
             raise ValueError("A capability is already exposed through {} with "
                              "{} method".format(capa.endpoint, capa.method))
         self._capabilities.add(capa)
-        self._api.router.add_route(capa.method, capa.endpoint, capa.handler)
+        # Handle version as part of the endpoint (if defined)
+        if capa.version:
+            endpoint = '/{}{}'.format(capa.version, capa.endpoint)
+        else:
+            endpoint = capa.endpoint
+        self._api.router.add_route(capa.method, endpoint, capa.wrapper)
         log.debug("Capability added: {}".format(capa.name))
 
     def find(self, capa_name):

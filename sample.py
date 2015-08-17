@@ -1,6 +1,6 @@
 import logging
 
-from nyuki import Nyuki, capability, on_event
+from nyuki import Nyuki, on_event, capability, endpoint
 from nyuki.event import Event
 from nyuki.capability import Response
 
@@ -21,9 +21,12 @@ class Sample(Nyuki):
     def _on_stop(self):
         log.info("Alright, this is the end of my existence.")
 
-    @capability(method='GET', endpoint='/hello')
-    def hello(self, request):
-        return Response(body=self.message)
+    @endpoint(route='/message')
+    class Message:
+        @capability(name='list_messages')
+        def get(self, request):
+            return Response(body=self.message)
+
 
 if __name__ == '__main__':
     nyuki = Sample()

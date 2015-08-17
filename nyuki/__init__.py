@@ -1,1 +1,1 @@
-from nyuki.nyuki import Nyuki, capability, on_event
+from nyuki.nyuki import Nyuki, endpoint, capability, on_event

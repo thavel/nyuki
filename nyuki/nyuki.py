@@ -2,10 +2,11 @@ import signal
 import logging
 import logging.config
 import asyncio
+from inspect import getmembers, isclass, isfunction
 
 from nyuki.bus import Bus
 from nyuki.event import Event
-from nyuki.capability import CapabilityExposer, Capability
+from nyuki.capability import Exposer, Capability, HttpMethod
 from nyuki.command import parse_init, exhaustive_config
 
 
@@ -22,48 +23,85 @@ def on_event(*events):
     return call
 
 
-def capability(method, endpoint):
+def endpoint(route, version=None):
     """
-    Nyuki method decorator to register a capability.
+    Nyuki resource decorator to register a route.
+    A resource has multiple HTTP methods (get, post, etc).
+    """
+    def decorated(cls):
+        cls.route = route
+        cls.version = version
+        return cls
+    return decorated
+
+
+def capability(name=None):
+    """
+    Nyuki resource method decorator to register a capability.
     It will be exposed as a HTTP route for the nyuki's API.
     """
-    def call(func):
-        func.capability = Capability(name=func.__name__, handler=func,
-                                     method=method, endpoint=endpoint)
-        return func
-    return call
+    def decorated(func):
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+        wrapper.capability = name
+        return wrapper
+    return decorated
 
 
 class CapabilityHandler(type):
+    ALLOWED_METHODS = HttpMethod.list()
+
     def __call__(cls, *args, **kwargs):
         """
-        Register decorated method to be routed by the web app.
+        Register decorated resources and methods to be routed by the web app.
         """
         nyuki = super().__call__(*args, **kwargs)
-        for capa in cls._filter_capability(nyuki):
-            capa.handler = cls._build_handler(nyuki, capa.handler)
-            nyuki.capability_exposer.register(capa)
+        for resource, desc in cls._filter_resource(nyuki):
+            version = desc.version
+            endpoint = desc.route
+            for method, handler in cls._filter_capability(desc):
+                name = handler.capability or '{}_{}'.format(method, resource)
+                wrapper = cls._build_wrapper(nyuki, handler)
+                nyuki.capability_exposer.register(Capability(
+                    name=name.lower(),
+                    method=method,
+                    endpoint=endpoint,
+                    version=version,
+                    handler=handler,
+                    wrapper=wrapper
+                ))
         return nyuki
 
     @staticmethod
-    def _build_handler(obj, func):
+    def _build_wrapper(obj, func):
         """
         Build a wrapper method to be called by the web server.
         Route callbacks are supposed to be called through `func(request)`,
         the following code updates capabilities to be executed as instance
-        methods: `func(self, request)`.
+        methods: `func(nyuki, request)`.
         """
         return asyncio.coroutine(lambda req: func(obj, req))
 
-    @staticmethod
-    def _filter_capability(obj):
+    @classmethod
+    def _filter_capability(mcs, resource):
         """
         Find methods decorated with `capability`.
         """
-        for attr in dir(obj):
-            value = getattr(obj, attr)
-            if callable(value) and hasattr(value, 'capability'):
-                yield value.capability
+        for name, handler in getmembers(resource, isfunction):
+            method = name.upper()
+            if method not in mcs.ALLOWED_METHODS:
+                raise ValueError("{} is not a valid HTTP method".format(method))
+            if hasattr(handler, 'capability'):
+                yield method, handler
+
+    @staticmethod
+    def _filter_resource(obj):
+        """
+        Find nested classes decorated with `endpoint`.
+        """
+        for name, cls in getmembers(obj, isclass):
+            if hasattr(cls, 'route'):
+                yield name, cls
 
 
 class EventHandler(type):
@@ -116,7 +154,7 @@ class Nyuki(metaclass=MetaHandler):
         logging.config.dictConfig(self._config['log'])
 
         self._bus = Bus(**self._config['bus'])
-        self._exposer = CapabilityExposer(self.event_loop.loop)
+        self._exposer = Exposer(self.event_loop.loop)
 
     @property
     def config(self):
