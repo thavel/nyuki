@@ -11,14 +11,14 @@ class Capability(object):
     """
     A capability is unique (hashable object, based on capability's name).
     """
-    def __init__(self, name, method, access, endpoint):
+    def __init__(self, name, handler, method, endpoint):
         self.name = name
-        self.method = method
-        self.access = access.upper()
+        self.handler = handler
+        self.method = method.upper()
         self.endpoint = endpoint
 
     def __hash__(self):
-        return hash(self.access) + hash(self.endpoint)
+        return hash(self.method) + hash(self.endpoint)
 
 
 class _HttpApi(object):
@@ -74,9 +74,9 @@ class CapabilityExposer(object):
         """
         if capa in self._capabilities:
             raise ValueError("A capability is already exposed through {} with "
-                             "{} method".format(capa.access, capa.endpoint))
+                             "{} method".format(capa.endpoint, capa.method))
         self._capabilities.add(capa)
-        self._api.router.add_route(capa.access, capa.endpoint, capa.method)
+        self._api.router.add_route(capa.method, capa.endpoint, capa.handler)
         log.debug("Capability added: {}".format(capa.name))
 
     def find(self, capa_name):
@@ -94,7 +94,7 @@ class CapabilityExposer(object):
         capa = self.find(name)
         if not capa:
             log.warning("Capability {} is called but doen't exist".format(name))
-        self._loop.call_soon(capa.method, *args)
+        self._loop.call_soon(capa.handler, *args)
 
     def expose(self, host='0.0.0.0', port=8080):
         """

@@ -21,7 +21,7 @@ class Sample(Nyuki):
     def _on_stop(self):
         log.info("Alright, this is the end of my existence.")
 
-    @capability(access='GET', endpoint='/hello')
+    @capability(method='GET', endpoint='/hello')
     def hello(self, request):
         return Response(body=self.message)
 

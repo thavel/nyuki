@@ -22,14 +22,14 @@ def on_event(*events):
     return call
 
 
-def capability(access, endpoint):
+def capability(method, endpoint):
     """
     Nyuki method decorator to register a capability.
     It will be exposed as a HTTP route for the nyuki's API.
     """
     def call(func):
-        func.capability = Capability(name=func.__name__, method=func,
-                                     access=access, endpoint=endpoint)
+        func.capability = Capability(name=func.__name__, handler=func,
+                                     method=method, endpoint=endpoint)
         return func
     return call
 
@@ -41,13 +41,19 @@ class CapabilityHandler(type):
         """
         nyuki = super().__call__(*args, **kwargs)
         for capa in cls._filter_capability(nyuki):
-            # Route callbacks are supposed to be called through `func(request)`,
-            # the following code updates capabilities to be executed as instance
-            # methods: `func(self, request)`.
-            func = capa.method
-            capa.method = asyncio.coroutine(lambda req: func(nyuki, req))
+            capa.handler = cls._build_handler(nyuki, capa.handler)
             nyuki.capability_exposer.register(capa)
         return nyuki
+
+    @staticmethod
+    def _build_handler(obj, func):
+        """
+        Build a wrapper method to be called by the web server.
+        Route callbacks are supposed to be called through `func(request)`,
+        the following code updates capabilities to be executed as instance
+        methods: `func(self, request)`.
+        """
+        return asyncio.coroutine(lambda req: func(obj, req))
 
     @staticmethod
     def _filter_capability(obj):
