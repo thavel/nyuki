@@ -14,11 +14,11 @@ class Capability(object):
     def __init__(self, name, method, access, endpoint):
         self.name = name
         self.method = method
-        self.access = access
+        self.access = access.upper()
         self.endpoint = endpoint
 
     def __hash__(self):
-        return hash(self.name)
+        return hash(self.access) + hash(self.endpoint)
 
 
 class _HttpApi(object):
@@ -72,6 +72,9 @@ class CapabilityExposer(object):
         """
         Add a capability and its HTTP route.
         """
+        if capa in self._capabilities:
+            raise ValueError("A capability is already exposed through {} with "
+                             "{} method".format(capa.access, capa.endpoint))
         self._capabilities.add(capa)
         self._api.router.add_route(capa.access, capa.endpoint, capa.method)
         log.debug("Capability added: {}".format(capa.name))
