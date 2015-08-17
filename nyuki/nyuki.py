@@ -149,8 +149,8 @@ class Nyuki(metaclass=MetaHandler):
     single loop is used for all features). A wrapper is also provide to ease the
     use of asynchronous calls over the actions nyukis are inteded to do.
     """
-    def __init__(self, conf=parse_init()):
-        self._config = exhaustive_config(conf)
+    def __init__(self, conf=None):
+        self._config = exhaustive_config(conf or parse_init())
         logging.config.dictConfig(self._config['log'])
 
         self._bus = Bus(**self._config['bus'])
