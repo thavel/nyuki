@@ -107,9 +107,10 @@ class Nyuki(metaclass=MetaHandler):
     """
     def __init__(self, conf=parse_init()):
         self._config = exhaustive_config(conf)
+        logging.config.dictConfig(self._config['log'])
+        
         self._bus = Bus(**self._config['bus'])
         self._exposer = CapabilityExposer(self.event_loop.loop)
-        logging.config.dictConfig(self._config['log'])
 
     @property
     def config(self):
