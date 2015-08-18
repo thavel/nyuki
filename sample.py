@@ -1,8 +1,8 @@
 import logging
 
 from nyuki import Nyuki, on_event, resource, capability
-from nyuki.event import Event
-from nyuki.capability import Response
+from nyuki.events import Event
+from nyuki.capabilities import Response
 
 
 log = logging.getLogger(__name__)

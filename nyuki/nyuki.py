@@ -5,9 +5,9 @@ import asyncio
 from inspect import getmembers, isclass, isfunction
 
 from nyuki.bus import Bus
-from nyuki.event import Event
-from nyuki.capability import Exposer, Capability, HttpMethod
-from nyuki.command import parse_init, exhaustive_config
+from nyuki.events import Event
+from nyuki.capabilities import Exposer, Capability, HttpMethod
+from nyuki.commands import parse_init, exhaustive_config
 
 
 log = logging.getLogger(__name__)

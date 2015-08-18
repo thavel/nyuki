@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 
 from jsonschema import validate, ValidationError
 
-from nyuki.log import DEFAULT_LOGGING
+from nyuki.logs import DEFAULT_LOGGING
 
 
 log = logging.getLogger(__name__)
