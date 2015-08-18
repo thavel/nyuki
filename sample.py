@@ -23,9 +23,14 @@ class Sample(Nyuki):
 
     @resource(endpoint='/message')
     class Message:
-        @capability(name='list_messages')
+        @capability(name='last_message')
         def get(self, request):
             return Response(self.message)
+
+        @capability(name='update_message')
+        def post(self, request):
+            self.message = request['message']
+            return Response('OK')
 
 
 if __name__ == '__main__':

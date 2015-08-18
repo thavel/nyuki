@@ -3,7 +3,7 @@ import asyncio
 from enum import Enum
 
 from aiohttp import web
-from aiohttp import HttpBadRequest
+from aiohttp import HttpBadRequest, BadHttpMessage
 
 
 log = logging.getLogger(__name__)
@@ -88,15 +88,17 @@ def mw_capability(app, capa_handler):
     """
     Transform the request data to be passed through a capability and convert the
     result into a web response.
+    From here, we are expecting a JSON content.
     """
     @asyncio.coroutine
     def middleware(request):
-        # Parse request payloads
         if request.method in request.POST_METHODS:
-            parser = getattr(request, request.method.lower())
-            yield from parser()
-        # Get data
-        data = dict(getattr(request, request.method))
+            try:
+                data = yield from request.json()
+            except ValueError:
+                raise BadHttpMessage('Unvalid JSON request content')
+        else:
+            data = dict(getattr(request, request.method))
         capa_resp = yield from capa_handler(data)
         return web.Response(body=capa_resp.body, status=capa_resp.status)
     return middleware
