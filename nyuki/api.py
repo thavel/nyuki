@@ -3,6 +3,7 @@ import asyncio
 from enum import Enum
 
 from aiohttp import web
+from aiohttp import HttpBadRequest
 
 
 log = logging.getLogger(__name__)
@@ -37,9 +38,11 @@ class Api(object):
     """
     def __init__(self, loop, **kwargs):
         self._loop = loop
-        self._app = web.Application(loop=self._loop, **kwargs)
         self._server = None
         self._handler = None
+        self._middlewares = [mw_json, mw_capability]  # Call order = list order
+        self._app = web.Application(loop=self._loop,
+                                    middlewares=self._middlewares, **kwargs)
 
     @property
     def router(self):
@@ -64,13 +67,36 @@ class Api(object):
         yield from self._server.wait_closed()
 
 
-class Response(web.Response):
+@asyncio.coroutine
+def mw_json(app, next_handler):
     """
-    Provide a wrapper around aiohttp to ease HTTP responses.
+    Ensure the content type is `application/json` for all POST-like requests.
     """
-    ENCODING = 'utf-8'
+    @asyncio.coroutine
+    def middleware(request):
+        if request.method in request.POST_METHODS:
+            content_type = request.headers.get('CONTENT-TYPE')
+            if not content_type or content_type != 'application/json':
+                raise HttpBadRequest('This API only supports JSON content type')
+        response = yield from next_handler(request)
+        return response
+    return middleware
 
-    def __init__(self, body, **kwargs):
-        if isinstance(body, str):
-            body = bytes(body, self.ENCODING)
-        super().__init__(body=body, **kwargs)
+
+@asyncio.coroutine
+def mw_capability(app, capa_handler):
+    """
+    Transform the request data to be passed through a capability and convert the
+    result into a web response.
+    """
+    @asyncio.coroutine
+    def middleware(request):
+        # Parse request payloads
+        if request.method in request.POST_METHODS:
+            parser = getattr(request, request.method.lower())
+            yield from parser()
+        # Get data
+        data = dict(getattr(request, request.method))
+        capa_resp = yield from capa_handler(data)
+        return web.Response(body=capa_resp.body, status=capa_resp.status)
+    return middleware

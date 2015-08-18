@@ -2,11 +2,10 @@ import logging
 
 from nyuki import Nyuki, on_event, resource, capability
 from nyuki.events import Event
-from nyuki.api import Response
+from nyuki.capabilities import Response
 
 
 log = logging.getLogger(__name__)
-
 
 
 class Sample(Nyuki):
@@ -26,7 +25,7 @@ class Sample(Nyuki):
     class Message:
         @capability(name='list_messages')
         def get(self, request):
-            return Response(body=self.message)
+            return Response(self.message)
 
 
 if __name__ == '__main__':

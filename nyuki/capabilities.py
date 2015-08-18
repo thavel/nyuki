@@ -23,6 +23,16 @@ class Capability(object):
         return hash(self.name)
 
 
+class Response(object):
+    ENCODING = 'utf-8'
+
+    def __init__(self, body, status=200):
+        self.body = body
+        if isinstance(body, str):
+            self.body = bytes(body, self.ENCODING)
+        self.status = status
+
+
 class Exposer(object):
     """
     Provide a engine to expose nyuki capabilities through a HTTP API.

@@ -57,11 +57,11 @@ class CapabilityHandler(type):
         Register decorated resources and methods to be routed by the web app.
         """
         nyuki = super().__call__(*args, **kwargs)
-        for resource, desc in cls._filter_resource(nyuki):
+        for resrc, desc in cls._filter_resource(nyuki):
             version = desc.version
             endpoint = desc.endpoint
             for method, handler in cls._filter_capability(desc):
-                name = handler.capability or '{}_{}'.format(method, resource)
+                name = handler.capability or '{}_{}'.format(method, resrc)
                 wrapper = cls._build_wrapper(nyuki, handler)
                 nyuki.capability_exposer.register(Capability(
                     name=name.lower(),
@@ -84,11 +84,11 @@ class CapabilityHandler(type):
         return asyncio.coroutine(lambda req: func(obj, req))
 
     @classmethod
-    def _filter_capability(mcs, resource):
+    def _filter_capability(mcs, resrc):
         """
         Find methods decorated with `capability`.
         """
-        for name, handler in getmembers(resource, isfunction):
+        for name, handler in getmembers(resrc, isfunction):
             method = name.upper()
             if method not in mcs.ALLOWED_METHODS:
                 raise ValueError("{} is not a valid HTTP method".format(method))
