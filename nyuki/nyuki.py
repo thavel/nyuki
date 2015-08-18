@@ -6,7 +6,8 @@ from inspect import getmembers, isclass, isfunction
 
 from nyuki.bus import Bus
 from nyuki.events import Event
-from nyuki.capabilities import Exposer, Capability, HttpMethod
+from nyuki.api import Method
+from nyuki.capabilities import Exposer, Capability
 from nyuki.commands import parse_init, exhaustive_config
 
 
@@ -49,7 +50,7 @@ def capability(name=None):
 
 
 class CapabilityHandler(type):
-    ALLOWED_METHODS = HttpMethod.list()
+    ALLOWED_METHODS = Method.list()
 
     def __call__(cls, *args, **kwargs):
         """

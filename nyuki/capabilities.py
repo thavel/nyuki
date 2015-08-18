@@ -1,33 +1,10 @@
 import logging
 import asyncio
-from enum import Enum
 
-from aiohttp import web
+from nyuki.api import Api
 
 
 log = logging.getLogger(__name__)
-# aiohttp needs its own logger, and always prints HTTP hits using INFO level
-access_log = logging.getLogger('.'.join([__name__, 'access']))
-access_log.info = access_log.debug
-
-
-class HttpMethod(Enum):
-    """
-    Supported HTTP methods by the REST API.
-    """
-    GET = 'GET'
-    POST = 'POST'
-    PUT = 'PUT'
-    DELETE = 'DELETE'
-    HEAD = 'HEAD'
-    OPTIONS = 'OPTIONS'
-    TRACE = 'TRACE'
-    CONNECT = 'CONNECT'
-    PATCH = 'PATCH'
-
-    @classmethod
-    def list(cls):
-        return [method.name for method in cls]
 
 
 class Capability(object):
@@ -46,39 +23,6 @@ class Capability(object):
         return hash(self.name)
 
 
-class _HttpApi(object):
-    """
-    The goal of this class is to gather all http-related behaviours.
-    """
-    def __init__(self, loop):
-        self._loop = loop
-        self._app = web.Application(loop=self._loop)
-        self._server = None
-        self._handler = None
-
-    @property
-    def router(self):
-        return self._app.router
-
-    @asyncio.coroutine
-    def build(self, host, port):
-        """
-        Create a HTTP server to expose the API.
-        """
-        self._handler = self._app.make_handler(log=log, access_log=access_log)
-        self._server = yield from self._loop.create_server(self._handler,
-                                                           host=host, port=port)
-
-    @asyncio.coroutine
-    def destroy(self):
-        """
-        Gracefully destroy the HTTP server by closing all pending connections.
-        """
-        self._server.close()
-        yield from self._handler.finish_connections()
-        yield from self._server.wait_closed()
-
-
 class Exposer(object):
     """
     Provide a engine to expose nyuki capabilities through a HTTP API.
@@ -86,7 +30,7 @@ class Exposer(object):
     def __init__(self, loop):
         self._loop = loop
         self._capabilities = set()
-        self._api = _HttpApi(loop)
+        self._api = Api(loop)
         log.debug("Capabilities will be called through {}".format(loop))
 
     @property
@@ -95,7 +39,7 @@ class Exposer(object):
 
     def register(self, capa):
         """
-        Add a capability and its HTTP route.
+        Add a capability and register its route to the API.
         """
         if capa in self._capabilities:
             raise ValueError("A capability is already exposed through {} with "
@@ -128,26 +72,15 @@ class Exposer(object):
 
     def expose(self, host='0.0.0.0', port=8080):
         """
-        Init the HTTP server.
+        Expose capabilities by building the HTTP server.
+        The server will be started with the event loop.
         """
         log.debug("Starting the http server on {}:{}".format(host, port))
         self._loop.run_until_complete(self._api.build(host, port))
 
     def shutdown(self):
         """
-        Destroy the HTTP server.
+        Shutdown capabilities exposure by destroying the HTTP server.
         """
         log.debug("Stopping the http server")
         asyncio.async(self._api.destroy(), loop=self._loop)
-
-
-class Response(web.Response):
-    """
-    Provide a wrapper around aiohttp to ease HTTP responses.
-    """
-    ENCODING = 'utf-8'
-
-    def __init__(self, body, **kwargs):
-        if isinstance(body, str):
-            body = bytes(body, self.ENCODING)
-        super().__init__(body=body, **kwargs)
