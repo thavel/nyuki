@@ -6,6 +6,9 @@ from aiohttp import web
 
 
 log = logging.getLogger(__name__)
+# aiohttp needs its own logger, and always prints HTTP hits using INFO level
+access_log = logging.getLogger('.'.join([__name__, 'access']))
+access_log.info = access_log.debug
 
 
 class HttpMethod(Enum):
@@ -62,7 +65,7 @@ class _HttpApi(object):
         """
         Create a HTTP server to expose the API.
         """
-        self._handler = self._app.make_handler(log=log, access_log=log)
+        self._handler = self._app.make_handler(log=log, access_log=access_log)
         self._server = yield from self._loop.create_server(self._handler,
                                                            host=host, port=port)
 
