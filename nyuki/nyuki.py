@@ -23,13 +23,13 @@ def on_event(*events):
     return call
 
 
-def endpoint(route, version=None):
+def resource(endpoint, version=None):
     """
     Nyuki resource decorator to register a route.
     A resource has multiple HTTP methods (get, post, etc).
     """
     def decorated(cls):
-        cls.route = route
+        cls.endpoint = endpoint
         cls.version = version
         return cls
     return decorated
@@ -58,7 +58,7 @@ class CapabilityHandler(type):
         nyuki = super().__call__(*args, **kwargs)
         for resource, desc in cls._filter_resource(nyuki):
             version = desc.version
-            endpoint = desc.route
+            endpoint = desc.endpoint
             for method, handler in cls._filter_capability(desc):
                 name = handler.capability or '{}_{}'.format(method, resource)
                 wrapper = cls._build_wrapper(nyuki, handler)
@@ -100,7 +100,7 @@ class CapabilityHandler(type):
         Find nested classes decorated with `endpoint`.
         """
         for name, cls in getmembers(obj, isclass):
-            if hasattr(cls, 'route'):
+            if hasattr(cls, 'endpoint'):
                 yield name, cls
 
 

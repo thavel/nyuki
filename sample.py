@@ -1,11 +1,12 @@
 import logging
 
-from nyuki import Nyuki, on_event, capability, endpoint
+from nyuki import Nyuki, on_event, resource, capability
 from nyuki.event import Event
 from nyuki.capability import Response
 
 
 log = logging.getLogger(__name__)
+
 
 
 class Sample(Nyuki):
@@ -21,7 +22,7 @@ class Sample(Nyuki):
     def _on_stop(self):
         log.info("Alright, this is the end of my existence.")
 
-    @endpoint(route='/message')
+    @resource(endpoint='/message')
     class Message:
         @capability(name='list_messages')
         def get(self, request):
