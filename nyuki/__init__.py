@@ -1,1 +1,2 @@
-from nyuki.nyuki import Nyuki, resource, capability, on_event
+from nyuki.nyuki import Nyuki
+from nyuki.handlers import resource, capability, on_event
