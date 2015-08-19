@@ -108,14 +108,6 @@ class Bus(object):
         log.debug("Connection to the bus succeed")
         self._event.trigger(Event.Connected)
 
-    def _on_message(self, event):
-        """
-        XMPP event handler when a message has been received.
-        Also trigger a bus event: `MessageReceived`.
-        """
-        log.debug("Message received: {}".format(event))
-        self._event.trigger(Event.MessageReceived, event)
-
     def _on_disconnect(self, event):
         """
         XMPP event handler when the client has been disconnected.
@@ -132,6 +124,35 @@ class Bus(object):
         log.error("Connection to the bus has failed")
         self._event.trigger(Event.ConnectionError, event)
         self.client.abort()
+
+    def _on_message(self, event):
+        """
+        XMPP event handler when a message has been received.
+        Also trigger a bus events: `RequestReceived`, `ResponseReceived`,
+        or `MessageReceived` if the message can't be decoded.
+        """
+        def response_callback(future):
+            # Fetch returned Response object from a capability and send it.
+            response = future.result()
+            if response:
+                log.debug("Sending request's response: {}".format(response))
+                self.reply(event, response.bus_message)
+
+        log.debug("Message received: {}".format(event))
+
+        try:
+            body = json.loads(event['body'])
+        except (ValueError, KeyError):
+            log.warning("Unknown message received")
+            self._event.trigger(Event.MessageReceived, event)
+            return
+
+        capa_name = event.get('subject')
+        if capa_name:
+            event = (capa_name, body, response_callback)
+            self._event.trigger(Event.RequestReceived, event)
+        else:
+            self._event.trigger(Event.ResponseReceived, body)
 
     def connect(self):
         """

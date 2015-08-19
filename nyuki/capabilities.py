@@ -2,6 +2,8 @@ import json
 import logging
 import asyncio
 
+from nyuki.handlers import on_event
+from nyuki.events import Event
 from nyuki.api import Api
 
 
@@ -81,24 +83,6 @@ class Exposer(object):
         self._api.router.add_route(capa.method, endpoint, capa.wrapper)
         log.debug("Capability added: {}".format(capa.name))
 
-    def find(self, capa_name):
-        """
-        Get a capability by its name.
-        """
-        for capability in self._capabilities:
-            if capa_name == capability.name:
-                return capability
-
-    def use(self, name, request):
-        """
-        Call a capability by its name in an asynchronous fashion.
-        """
-        capa = self.find(name)
-        if not capa:
-            log.warning("Capability {} is called but doen't exist".format(name))
-        future = asyncio.async(capa.wrapper(request), loop=self._loop)
-        return future
-
     def expose(self, host='0.0.0.0', port=8080):
         """
         Expose capabilities by building the HTTP server.
@@ -113,3 +97,40 @@ class Exposer(object):
         """
         log.debug("Stopping the http server")
         asyncio.async(self._api.destroy(), loop=self._loop)
+
+    def _find(self, capa_name):
+        """
+        Get a capability by its name.
+        """
+        for capability in self._capabilities:
+            if capa_name == capability.name:
+                return capability
+
+    def _call(self, name, request):
+        """
+        Call a capability by its name in an asynchronous fashion.
+        """
+        capa = self._find(name)
+        if not capa:
+            log.warning("Capability {} is called but doen't exist".format(name))
+
+        # TODO: use asyncio.ensure_future when Python 3.4.4 will be released
+        future = asyncio.async(capa.wrapper(request), loop=self._loop)
+        return future
+
+    @on_event(Event.RequestReceived)
+    def _handle_request(self, event):
+        """
+        Handle request received from the bus.
+        Call the targeted capability.
+        """
+        capa_name, request, response_callback = event
+        future = self._call(capa_name, request)
+        future.add_done_callback(response_callback)
+
+    @on_event(Event.ResponseReceived)
+    def _handle_response(self, response):
+        """
+        Handle response for a request sent through the bus.
+        """
+        log.debug("Response received, but ignored")

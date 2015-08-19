@@ -15,6 +15,8 @@ class Event(Enum):
     ConnectionError = 'connection_error'
     Disconnected = 'disconnected'
     MessageReceived = 'message_received'
+    RequestReceived = 'request_received'
+    ResponseReceived = 'response_received'
 
 
 class EventManager(object):
