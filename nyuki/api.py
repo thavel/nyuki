@@ -100,5 +100,5 @@ def mw_capability(app, capa_handler):
         else:
             data = dict(getattr(request, request.method))
         capa_resp = yield from capa_handler(data)
-        return web.Response(body=capa_resp.body, status=capa_resp.status)
+        return web.Response(body=capa_resp.api_payload, status=capa_resp.status)
     return middleware

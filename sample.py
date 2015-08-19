@@ -25,12 +25,20 @@ class Sample(Nyuki):
     class Message:
         @capability(name='last_message')
         def get(self, request):
-            return Response(self.message)
+            return Response({'message': self.message})
 
         @capability(name='update_message')
         def post(self, request):
             self.message = request['message']
-            return Response('OK')
+            log.info("Message updated")
+            return Response(status=200)
+
+    @resource(endpoint='/alert')
+    class Alert:
+        @capability(name='alert_someone')
+        def post(self, request):
+            self.send(request, 'toto@localhost', 'do_something')
+            return Response(status=200)
 
 
 if __name__ == '__main__':

@@ -1,3 +1,4 @@
+import json
 import signal
 import logging
 import logging.config
@@ -177,6 +178,14 @@ class Nyuki(metaclass=MetaHandler):
     def capability_exposer(self):
         return self._exposer
 
+    @property
+    def send(self):
+        return self._bus.send
+
+    @property
+    def reply(self):
+        return self._bus.reply
+
     @on_event(Event.Connected)
     def _on_connection(self):
         log.info("Nyuki connected to the bus")
@@ -192,12 +201,25 @@ class Nyuki(metaclass=MetaHandler):
         log.info("Nyuki exiting")
 
     @on_event(Event.MessageReceived)
-    def _dispatch(self, event):
+    def _dispatch(self, message):
         """
         Dispatch message to its capability.
         """
-        capa_name = event['subject']
-        self._exposer.use(capa_name, event)
+        def send_response(future):
+            response = future.result()
+            if response:
+                self.reply(message, response.bus_message)
+
+        capa_name = message['subject']
+        if capa_name:
+            # It's a request
+            content = json.loads(message['body'])
+            future = self._exposer.use(capa_name, content)
+            future.add_done_callback(send_response)
+        else:
+            # It's a response
+            # Not implemented yet
+            log.debug("Response received, but ignored")
 
     def start(self):
         """

@@ -1,3 +1,4 @@
+import json
 import logging
 import asyncio
 
@@ -26,11 +27,28 @@ class Capability(object):
 class Response(object):
     ENCODING = 'utf-8'
 
-    def __init__(self, body, status=200):
-        self.body = body
-        if isinstance(body, str):
-            self.body = bytes(body, self.ENCODING)
+    def __init__(self, body=None, status=200):
+        self.body = body or dict()
         self.status = status
+        self._is_valid()
+
+    def _is_valid(self):
+        if not isinstance(self.body, dict):
+            raise ValueError("Response body should be a dictionary")
+        if not isinstance(self.status, int):
+            raise ValueError("Response status code should be a integer")
+
+    @property
+    def api_payload(self):
+        self._is_valid()
+        payload = json.dumps(self.body)
+        return bytes(payload, self.ENCODING)
+
+    @property
+    def bus_message(self):
+        self._is_valid()
+        self.body.update({'status': self.status})
+        return self.body
 
 
 class Exposer(object):
@@ -71,14 +89,15 @@ class Exposer(object):
             if capa_name == capability.name:
                 return capability
 
-    def use(self, name, *args):
+    def use(self, name, request):
         """
         Call a capability by its name in an asynchronous fashion.
         """
         capa = self.find(name)
         if not capa:
             log.warning("Capability {} is called but doen't exist".format(name))
-        self._loop.call_soon(capa.handler, *args)
+        future = asyncio.async(capa.wrapper(request), loop=self._loop)
+        return future
 
     def expose(self, host='0.0.0.0', port=8080):
         """

@@ -53,7 +53,7 @@ class Bus(object):
         self.client.add_event_handler('disconnected', self._on_disconnect)
         self.client.add_event_handler('connection_failed', self._on_failure)
 
-        # Wrap asyncio loop for easy use
+        # Wrap asyncio loop for easy usage
         self._loop = EventLoop(loop=self.client.loop)
         self._event = EventManager(self._loop)
         self._formatter = Formatter(factory=self.client)
@@ -154,6 +154,13 @@ class Bus(object):
         bus_message = self._formatter.unicast(message, to, capability)
         bus_message.send()
 
+    def reply(self, request, response):
+        """
+        Send a response to a message through the bus.
+        """
+        bus_message = self._formatter.reply(request, response)
+        bus_message.send()
+
 
 class Formatter(object):
     """
@@ -164,12 +171,21 @@ class Formatter(object):
     def __init__(self, factory):
         self._factory = factory
 
+    @staticmethod
+    def _format(message):
+        if not isinstance(message, dict):
+            raise TypeError("Bus message content must be a dictionary")
+        return json.dumps(message)
+
+    def reply(self, request, message):
+        content = self._format(message)
+        response = request.reply(content)
+        return response
+
     def unicast(self, message, to, subject):
         """
         Build a stanza message to send to one nyuki.
         """
-        if not isinstance(message, dict):
-            raise TypeError("Message contents must be a dictionary")
-        content = json.dumps(message)
+        content = self._format(message)
         return self._factory.make_message(mto=to, mtype=self.DEFAULT_TYPE,
                                           msubject=subject, mbody=content)
