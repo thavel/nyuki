@@ -1,11 +1,10 @@
-import json
 import signal
 import logging
 import logging.config
 
-from nyuki.handlers import MetaHandler, on_event
+from nyuki.handlers import MetaHandler
 from nyuki.bus import Bus
-from nyuki.events import Event
+from nyuki.events import Event, on_event
 from nyuki.capabilities import Exposer
 from nyuki.commands import parse_init, exhaustive_config
 

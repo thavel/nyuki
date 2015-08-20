@@ -6,6 +6,16 @@ import logging
 log = logging.getLogger(__name__)
 
 
+def on_event(*events):
+    """
+    Nyuki method decorator to register a callback for a bus event.
+    """
+    def call(func):
+        func.on_event = set(events)
+        return func
+    return call
+
+
 class Event(Enum):
     """
     Bus events that can be trigger upon reception of an XMPP event.

@@ -1,6 +1,6 @@
 import logging
 
-from nyuki import Nyuki, resource, capability, on_event
+from nyuki import Nyuki, on_event, resource, capability
 from nyuki.events import Event
 from nyuki.capabilities import Response
 
@@ -29,15 +29,8 @@ class Sample(Nyuki):
 
         @capability(name='update_message')
         def post(self, request):
-            self.message = request['message']
-            log.info("Message updated")
-            return Response(status=200)
-
-    @resource(endpoint='/alert')
-    class Alert:
-        @capability(name='alert_someone')
-        def post(self, request):
-            self.send(request, 'toto@localhost', 'do_something')
+            self.send(request, 'nyuki@localhost', 'update_message')
+            log.info("Message forwarded")
             return Response(status=200)
 
 

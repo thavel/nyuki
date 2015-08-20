@@ -1,0 +1,6 @@
+{
+  "bus": {
+    "jid": "echo@localhost",
+    "password": "echo"
+  }
+}

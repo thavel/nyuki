@@ -2,12 +2,37 @@ import json
 import logging
 import asyncio
 
-from nyuki.handlers import on_event
-from nyuki.events import Event
+from nyuki.events import Event, on_event
 from nyuki.api import Api
 
 
 log = logging.getLogger(__name__)
+
+
+
+def resource(endpoint, version=None):
+    """
+    Nyuki resource decorator to register a route.
+    A resource has multiple HTTP methods (get, post, etc).
+    """
+    def decorated(cls):
+        cls.endpoint = endpoint
+        cls.version = version
+        return cls
+    return decorated
+
+
+def capability(name=None):
+    """
+    Nyuki resource method decorator to register a capability.
+    It will be exposed as a HTTP route for the nyuki's API.
+    """
+    def decorated(func):
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+        wrapper.capability = name
+        return wrapper
+    return decorated
 
 
 class Capability(object):

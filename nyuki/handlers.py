@@ -9,40 +9,6 @@ from nyuki.capabilities import Capability
 log = logging.getLogger(__name__)
 
 
-def on_event(*events):
-    """
-    Nyuki method decorator to register a callback for a bus event.
-    """
-    def call(func):
-        func.on_event = set(events)
-        return func
-    return call
-
-
-def resource(endpoint, version=None):
-    """
-    Nyuki resource decorator to register a route.
-    A resource has multiple HTTP methods (get, post, etc).
-    """
-    def decorated(cls):
-        cls.endpoint = endpoint
-        cls.version = version
-        return cls
-    return decorated
-
-
-def capability(name=None):
-    """
-    Nyuki resource method decorator to register a capability.
-    It will be exposed as a HTTP route for the nyuki's API.
-    """
-    def decorated(func):
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
-        wrapper.capability = name
-        return wrapper
-    return decorated
-
 
 class CapabilityHandler(type):
     ALLOWED_METHODS = Method.list()
