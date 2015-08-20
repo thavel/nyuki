@@ -7,6 +7,7 @@ from nyuki.events import EventManager, Event, on_event
 class TestOnEvent(TestCase):
 
     def test_001_call(self):
+        # Ensure the decorated function attribute has been properly set
         @on_event(Event.Connected, Event.Disconnected)
         def test():
             pass
