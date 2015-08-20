@@ -44,6 +44,9 @@ class Bus(object):
     Provide methods to perform communication over the bus.
     Events are handled by the EventManager.
     """
+
+    RESPONSE_TIMEOUT = 60
+
     def __init__(self, jid, password, host=None, port=None):
         self.client = _BusClient(jid, password, host, port)
         self.client.add_event_handler('connecting', self._on_connection)
@@ -157,6 +160,7 @@ class Bus(object):
             self._event.trigger(Event.RequestReceived, request)
         else:
             callback = self._registered_callbacks.pop(event['id'], None)
+            self._loop.cancel_timeout(event['id'])
             event = (body, callback)
             self._event.trigger(Event.ResponseReceived, event)
 
@@ -174,12 +178,31 @@ class Bus(object):
         """
         self.client.disconnect(wait=timeout)
 
+    def _register_response_callback(self, callback):
+        """
+        Prepare the response callback, end it if no response was received
+        after RESPONSE_TIMEOUT seconds.
+        """
+        message_uid = str(uuid4())
+        self._registered_callbacks[message_uid] = callback
+        def remove_callback():
+            log.warning(
+                'No response received after {} seconds'.format(
+                    self.RESPONSE_TIMEOUT))
+            del self._registered_callbacks[message_uid]
+            log.debug(
+                'Remaining callbacks for : {}'.format(
+                    self._registered_callbacks.keys()))
+        self._loop.add_timeout(
+            message_uid, self.RESPONSE_TIMEOUT, remove_callback)
+        return message_uid
+
     def send(self, message, to, capability='process', callback=None):
         """
         Send a unicast message through the bus.
         """
-        message_uid = str(uuid4())
-        self._registered_callbacks[message_uid] = callback
+        log.debug('Sending {} to {}'.format(message, to))
+        message_uid = self._register_response_callback(callback)
         bus_message = self._formatter.unicast(message, to, capability)
         bus_message['id'] = message_uid
         bus_message.send()
