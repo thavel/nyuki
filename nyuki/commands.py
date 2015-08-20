@@ -45,6 +45,7 @@ def _update_config(source, data, path):
         last = last[k]
     last[dest] = data
 
+
 def _merge_config(defaults, updates):
     """
     Tool function to merge conf from defaults to the config file/command args.
@@ -54,6 +55,7 @@ def _merge_config(defaults, updates):
         if isinstance(defaults[k], dict) and k in updates:
             conf[k] = _merge_config(defaults[k], updates[k])
     return conf
+
 
 def _build_args():
     """
@@ -123,6 +125,7 @@ def parse_init():
         _update_config(conf, 'DEBUG', 'log.root.level')
 
     return conf
+
 
 def exhaustive_config(updates):
     """
