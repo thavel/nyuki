@@ -1,6 +1,6 @@
 {
   "bus": {
-    "jid": "nyuki@localhost",
-    "password": "nyuki"
+    "jid": "sample@localhost",
+    "password": "sample"
   }
 }
