@@ -87,11 +87,13 @@ class Nyuki(metaclass=MetaHandler):
             future.add_done_callback(response_callback)
 
     @on_event(Event.ResponseReceived)
-    def _handle_response(self, response):
+    def _handle_response(self, event):
         """
         Handle response for a request sent through the bus.
         """
-        log.debug("Response received, but ignored")
+        body, callback = event
+        if callback:
+            callback(body)
 
     def start(self):
         """

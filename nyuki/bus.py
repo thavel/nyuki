@@ -1,8 +1,8 @@
 import json
 import logging
-
 from slixmpp import ClientXMPP
 from slixmpp.exceptions import XMPPError, IqError, IqTimeout
+from uuid import uuid4
 
 from nyuki.loop import EventLoop
 from nyuki.events import EventManager, Event
@@ -57,6 +57,9 @@ class Bus(object):
         self._loop = EventLoop(loop=self.client.loop)
         self._event = EventManager(self._loop)
         self._formatter = Formatter(factory=self.client)
+
+        # Keep track of bus message callbacks
+        self._registered_callbacks = dict()
 
     @property
     def loop(self):
@@ -131,13 +134,6 @@ class Bus(object):
         Also trigger a bus events: `RequestReceived`, `ResponseReceived`,
         or `MessageReceived` if the message can't be decoded.
         """
-        def response_callback(future):
-            # Fetch returned Response object from a capability and send it.
-            response = future.result()
-            if response:
-                log.debug("Sending request's response: {}".format(response))
-                self.reply(event, response.bus_message)
-
         log.debug("Message received: {}".format(event))
 
         try:
@@ -147,12 +143,22 @@ class Bus(object):
             self._event.trigger(Event.MessageReceived, event)
             return
 
+        def response_callback(future):
+            # Fetch returned Response object from a capability and send it.
+            response = future.result()
+            if response:
+                log.debug("Sending request's response: {}".format(
+                    response))
+                self.reply(event, response.bus_message)
+
         capa_name = event.get('subject')
         if capa_name:
             request = (capa_name, body, response_callback)
             self._event.trigger(Event.RequestReceived, request)
         else:
-            self._event.trigger(Event.ResponseReceived, body)
+            callback = self._registered_callbacks.pop(event['id'], None)
+            event = (body, callback)
+            self._event.trigger(Event.ResponseReceived, event)
 
     def connect(self):
         """
@@ -168,18 +174,23 @@ class Bus(object):
         """
         self.client.disconnect(wait=timeout)
 
-    def send(self, message, to, capability='process'):
+    def send(self, message, to, capability='process', callback=None):
         """
         Send a unicast message through the bus.
         """
+        message_uid = str(uuid4())
+        self._registered_callbacks[message_uid] = callback
         bus_message = self._formatter.unicast(message, to, capability)
+        bus_message['id'] = message_uid
         bus_message.send()
 
     def reply(self, request, response):
         """
         Send a response to a message through the bus.
         """
+        log.debug('Replying {} to {}'.format(response, request['from']))
         bus_message = self._formatter.reply(request, response)
+        bus_message['id'] = request['id']
         bus_message.send()
 
 
