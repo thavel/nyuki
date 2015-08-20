@@ -106,5 +106,6 @@ class TestFormatter(TestCase):
         self.assertEqual(response['body'], json.dumps(resp_body))
 
     def test_003_unicast(self):
+        # Ensure the message is properly formatted
         msg = self.formatter.unicast({'message': 'hello'}, 'login@host', 'test')
         self.assertIsInstance(msg['body'], str)

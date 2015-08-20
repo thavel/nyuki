@@ -2,12 +2,10 @@ import json
 import logging
 import asyncio
 
-from nyuki.events import Event, on_event
 from nyuki.api import Api
 
 
 log = logging.getLogger(__name__)
-
 
 
 def resource(endpoint, version=None):
@@ -52,6 +50,10 @@ class Capability(object):
 
 
 class Response(object):
+    """
+    This class is a generic response (with a body and a status) that can be
+    used by either the bus or the API.
+    """
     ENCODING = 'utf-8'
 
     def __init__(self, body=None, status=200):
@@ -67,12 +69,18 @@ class Response(object):
 
     @property
     def api_payload(self):
+        """
+        Used by the HTTP API.
+        """
         self._is_valid()
         payload = json.dumps(self.body)
         return bytes(payload, self.ENCODING)
 
     @property
     def bus_message(self):
+        """
+        Used by the XMPP bus.
+        """
         self._is_valid()
         self.body.update({'status': self.status})
         return self.body
