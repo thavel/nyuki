@@ -91,9 +91,7 @@ class Nyuki(metaclass=MetaHandler):
         """
         Handle response for a request sent through the bus.
         """
-        body, callback = event
-        if callback:
-            callback(body)
+        log.debug('Nothing to do with that response')
 
     def start(self):
         """
@@ -106,7 +104,7 @@ class Nyuki(metaclass=MetaHandler):
         self._exposer.expose(**self._config['api'])
         self.event_loop.start(block=True)
 
-    def abort(self, signum=signal.SIGINT, frame=None):
+    def abort(self, signum, _):
         """
         Signal handler: gracefully stop the nyuki.
         """

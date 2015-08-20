@@ -1,11 +1,14 @@
 import json
 import logging
+import re
 from slixmpp import ClientXMPP
 from slixmpp.exceptions import XMPPError, IqError, IqTimeout
+from slixmpp.xmlstream import JID
 from uuid import uuid4
 
-from nyuki.loop import EventLoop
 from nyuki.events import EventManager, Event
+from nyuki.loop import EventLoop
+from nyuki.xep_nyuki import XEP_Nyuki
 
 
 log = logging.getLogger(__name__)
@@ -18,16 +21,19 @@ class _BusClient(ClientXMPP):
     """
 
     def __init__(self, jid, password, host=None, port=None):
+
+        jid = JID(jid)
+        jid.resource = 'nyuki'
+
         super().__init__(jid, password)
-        try:
-            host = host or jid.split('@')[1]
-        except IndexError:
-            raise XMPPError("Missing argument: host")
+
+        host = host or jid.domain
         self._address = (host, port or 5222)
 
         self.register_plugin('xep_0045')  # Multi-user chat
         self.register_plugin('xep_0133')  # Service administration
         self.register_plugin('xep_0077')  # In-band registration
+        self.register_plugin('xep_nyuki', module=XEP_Nyuki)  # Nyuki requests
 
         # Disable IPv6 util we really need it
         self.use_ipv6 = False
@@ -55,14 +61,11 @@ class Bus(object):
         self.client.add_event_handler('message', self._on_message)
         self.client.add_event_handler('disconnected', self._on_disconnect)
         self.client.add_event_handler('connection_failed', self._on_failure)
+        self.client.add_event_handler('nyuki_request', self._on_message)
 
         # Wrap asyncio loop for easy usage
         self._loop = EventLoop(loop=self.client.loop)
         self._event = EventManager(self._loop)
-        self._formatter = Formatter(factory=self.client)
-
-        # Keep track of bus message callbacks
-        self._registered_callbacks = dict()
 
     @property
     def loop(self):
@@ -131,38 +134,33 @@ class Bus(object):
         self._event.trigger(Event.ConnectionError, event)
         self.client.abort()
 
-    def _on_message(self, event):
+    def _on_message(self, iq):
         """
         XMPP event handler when a message has been received.
         Also trigger a bus events: `RequestReceived`, `ResponseReceived`,
         or `MessageReceived` if the message can't be decoded.
         """
-        log.debug("Message received: {}".format(event))
-
-        try:
-            body = json.loads(event['body'])
-        except (ValueError, KeyError):
-            log.warning("Unknown message received")
-            self._event.trigger(Event.MessageReceived, event)
-            return
+        log.debug("Message received: {}".format(iq))
 
         def response_callback(future):
             # Fetch returned Response object from a capability and send it.
             response = future.result()
             if response:
-                log.debug("Sending request's response: {}".format(
-                    response))
-                self.reply(event, response.bus_message)
+                status, body = response.bus_message
+                log.debug("Sending request's response: {} - {}".format(
+                    status, body))
+                self.reply(iq, status, body)
 
-        capa_name = event.get('subject')
-        if capa_name:
-            request = (capa_name, body, response_callback)
-            self._event.trigger(Event.RequestReceived, request)
-        else:
-            callback = self._registered_callbacks.pop(event['id'], None)
-            self._loop.cancel_timeout(event['id'])
-            event = (body, callback)
+        if iq['type'] == 'set':
+            request = iq['request']
+            event = (request['capability'], request['body'], response_callback)
+            self._event.trigger(Event.RequestReceived, event)
+        elif iq['type'] == 'result':
+            event = iq['response']
             self._event.trigger(Event.ResponseReceived, event)
+        else:
+            log.warning('Unsupported IQ type received: {}'.format(iq['type']))
+            self._event.trigger(Event.MessageReceived, iq)
 
     def connect(self):
         """
@@ -178,69 +176,26 @@ class Bus(object):
         """
         self.client.disconnect(wait=timeout)
 
-    def _register_response_callback(self, callback):
-        """
-        Prepare the response callback, end it if no response was received
-        after RESPONSE_TIMEOUT seconds.
-        """
-        message_uid = str(uuid4())
-        self._registered_callbacks[message_uid] = callback
-        def remove_callback():
-            log.warning(
-                'No response received after {} seconds'.format(
-                    self.RESPONSE_TIMEOUT))
-            del self._registered_callbacks[message_uid]
-            log.debug(
-                'Remaining callbacks for : {}'.format(
-                    self._registered_callbacks.keys()))
-        self._loop.add_timeout(
-            message_uid, self.RESPONSE_TIMEOUT, remove_callback)
-        return message_uid
-
     def send(self, message, to, capability='process', callback=None):
         """
         Send a unicast message through the bus.
         """
         log.debug('Sending {} to {}'.format(message, to))
-        message_uid = self._register_response_callback(callback)
-        bus_message = self._formatter.unicast(message, to, capability)
-        bus_message['id'] = message_uid
-        bus_message.send()
+        req = self.client.Iq()
+        req['type'] = 'set'
+        req['to'] = '{}/{}'.format(to, self.client.boundjid.resource)
+        req['request']['capability'] = capability
+        req['request']['body'] = message
+        req.send(callback=callback)
 
-    def reply(self, request, response):
+    def reply(self, request, status, body=None):
         """
         Send a response to a message through the bus.
         """
-        log.debug('Replying {} to {}'.format(response, request['from']))
-        bus_message = self._formatter.reply(request, response)
-        bus_message['id'] = request['id']
-        bus_message.send()
-
-
-class Formatter(object):
-    """
-    Format messages to be send through the bus.
-    """
-    DEFAULT_TYPE = 'normal'
-
-    def __init__(self, factory):
-        self._factory = factory
-
-    @staticmethod
-    def _format(message):
-        if not isinstance(message, dict):
-            raise TypeError("Bus message content must be a dictionary")
-        return json.dumps(message)
-
-    def reply(self, request, message):
-        content = self._format(message)
-        response = request.reply(content)
-        return response
-
-    def unicast(self, message, to, subject):
-        """
-        Build a stanza message to send to one nyuki.
-        """
-        content = self._format(message)
-        return self._factory.make_message(mto=to, mtype=self.DEFAULT_TYPE,
-                                          msubject=subject, mbody=content)
+        log.debug('Replying {}:{} to {}'.format(
+            status, body, request['from']))
+        resp = request.reply()
+        resp['response']['status'] = status
+        resp['response']['body'] = body
+        log.debug(resp)
+        resp.send()

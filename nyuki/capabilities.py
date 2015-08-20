@@ -82,8 +82,7 @@ class Response(object):
         Used by the XMPP bus.
         """
         self._is_valid()
-        self.body.update({'status': self.status})
-        return self.body
+        return self.status, self.body
 
 
 class Exposer(object):
