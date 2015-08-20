@@ -131,31 +131,15 @@ class Exposer(object):
             if capa_name == capability.name:
                 return capability
 
-    def _call(self, name, request):
+    def call(self, name, request):
         """
         Call a capability by its name in an asynchronous fashion.
         """
         capa = self._find(name)
         if not capa:
             log.warning("Capability {} is called but doen't exist".format(name))
+            return
 
         # TODO: use asyncio.ensure_future when Python 3.4.4 will be released
         future = asyncio.async(capa.wrapper(request), loop=self._loop)
         return future
-
-    @on_event(Event.RequestReceived)
-    def _handle_request(self, event):
-        """
-        Handle request received from the bus.
-        Call the targeted capability.
-        """
-        capa_name, request, response_callback = event
-        future = self._call(capa_name, request)
-        future.add_done_callback(response_callback)
-
-    @on_event(Event.ResponseReceived)
-    def _handle_response(self, response):
-        """
-        Handle response for a request sent through the bus.
-        """
-        log.debug("Response received, but ignored")

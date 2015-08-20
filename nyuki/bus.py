@@ -149,8 +149,8 @@ class Bus(object):
 
         capa_name = event.get('subject')
         if capa_name:
-            event = (capa_name, body, response_callback)
-            self._event.trigger(Event.RequestReceived, event)
+            request = (capa_name, body, response_callback)
+            self._event.trigger(Event.RequestReceived, request)
         else:
             self._event.trigger(Event.ResponseReceived, body)
 
