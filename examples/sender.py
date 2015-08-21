@@ -21,6 +21,11 @@ class TestNyuki(Nyuki):
             {'message': 'test'}, 'sample@localhost', 'update_message',
             callback=replied)
 
+        # self._bus.client.send_message(
+        #     mto='appt@applications.localhost',
+        #     mbody='yo',
+        #     mtype='groupchat')
+
 
 if __name__ == '__main__':
     n = TestNyuki()

@@ -57,10 +57,12 @@ class Bus(object):
         self.client.add_event_handler('connecting', self._on_connection)
         self.client.add_event_handler('register', self._on_register)
         self.client.add_event_handler('session_start', self._on_start)
-        self.client.add_event_handler('message', self._on_message)
         self.client.add_event_handler('disconnected', self._on_disconnect)
         self.client.add_event_handler('connection_failed', self._on_failure)
-        self.client.add_event_handler('nyuki_request', self._on_message)
+        self.client.add_event_handler('nyuki_request', self._on_request)
+        self.client.add_event_handler('nyuki_response', self._on_response)
+        self.client.add_event_handler(
+            'groupchat_message', self._on_room_message)
 
         # Wrap asyncio loop for easy usage
         self._loop = EventLoop(loop=self.client.loop)
@@ -69,6 +71,10 @@ class Bus(object):
     @property
     def loop(self):
         return self._loop
+
+    @property
+    def nick(self):
+        return self.client.boundjid.user
 
     @property
     def event_manager(self):
@@ -113,6 +119,7 @@ class Bus(object):
         """
         self.client.send_presence()
         self.client.get_roster()
+        # self.client.plugin['xep_0045'].joinMUC('appt@applications.localhost', self.nick)
         log.debug("Connection to the bus succeed")
         self._event.trigger(Event.Connected)
 
@@ -133,13 +140,13 @@ class Bus(object):
         self._event.trigger(Event.ConnectionError, event)
         self.client.abort()
 
-    def _on_message(self, iq):
+    def _on_request(self, iq):
         """
         XMPP event handler when a message has been received.
         Also trigger a bus events: `RequestReceived`, `ResponseReceived`,
         or `MessageReceived` if the message can't be decoded.
         """
-        log.debug("Message received: {}".format(iq))
+        log.debug('Request received: {}'.format(iq))
 
         def response_callback(future):
             # Fetch returned Response object from a capability and send it.
@@ -148,16 +155,17 @@ class Bus(object):
                 status, body = response.bus_message
                 self.reply(iq, status, body)
 
-        if iq['type'] == 'set':
-            request = iq['request']
-            event = (request['capability'], request['body'], response_callback)
-            self._event.trigger(Event.RequestReceived, event)
-        elif iq['type'] == 'result':
-            event = iq['response']
-            self._event.trigger(Event.ResponseReceived, event)
-        else:
-            log.warning('Unsupported IQ type received: {}'.format(iq['type']))
-            self._event.trigger(Event.MessageReceived, iq)
+        request = iq['request']
+        event = (request['capability'], request['body'], response_callback)
+        self._event.trigger(Event.RequestReceived, event)
+
+    def _on_response(self, iq):
+        log.debug('Response received: {}'.format(iq))
+        event = iq['response']
+        self._event.trigger(Event.ResponseReceived, event)
+
+    def _on_room_message(self, event):
+        log.debug('Room message : {}'.format(event))
 
     def connect(self):
         """
@@ -180,6 +188,7 @@ class Bus(object):
         log.debug('Sending {} to {}'.format(message, to))
         req = self.client.Iq()
         req['type'] = 'set'
+        # req['to'] = 'appt@applications.localhost'
         req['to'] = '{}/{}'.format(to, self.client.boundjid.resource)
         req['request']['capability'] = capability
         req['request']['body'] = message

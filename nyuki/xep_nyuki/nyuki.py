@@ -1,4 +1,3 @@
-import json
 import logging
 from slixmpp.plugins import BasePlugin
 from slixmpp.stanza import Iq
@@ -22,15 +21,23 @@ class XEP_Nyuki(BasePlugin):
 
     def plugin_init(self):
         self.xmpp.register_handler(Callback(
-            'request decoder',
+            'nyuki request',
             StanzaPath('iq@type=set/request'),
-            self._decode_request))
+            self._nyuki_request))
+
+        self.xmpp.register_handler(Callback(
+            'nyuki response',
+            StanzaPath('iq@type=set/response'),
+            self._nyuki_request))
 
         register_stanza_plugin(Iq, Request)
         register_stanza_plugin(Iq, Response)
 
-    def _decode_request(self, iq):
+    def _nyuki_request(self, iq):
         self.xmpp.event('nyuki_request', iq)
+
+    def _nyuki_response(self, iq):
+        self.xmpp.event('nyuki_response', iq)
 
     def plugin_end(self):
         self.xmpp.remove_handler('request decoder')

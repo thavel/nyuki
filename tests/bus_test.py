@@ -64,34 +64,27 @@ class TestBus(TestCase):
         self.bus._on_failure(None)
         self.assertIn(Event.ConnectionError, self.events)
 
-    def test_005a_message(self):
-        # Message that can't be decoded will trigger a MessageReceived event.
-        event = self.bus.client.Iq()
-        event['type'] = 'get'
-        self.bus._on_message(event)
-        self.assertIn(Event.MessageReceived, self.events)
-
-    def test_005b_request(self):
+    def test_005a_request(self):
         # Message with a subject (capability) will trigger a RequestReceived.
         # Also test the proper Request stanza format
         event = self.bus.client.Iq()
         event['type'] = 'set'
         event['request']['body'] = {'key': 'value'}
         event['request']['capability'] = 'test_capability'
-        self.bus._on_message(event)
+        self.bus._on_request(event)
         self.assertIn(Event.RequestReceived, self.events)
         encoded_xml = escape('{"key": "value"}', entities={'"': '&quot;'})
         self.assertIn(encoded_xml, str(event))
         self.assertIn('test_capability', str(event))
 
-    def test_005c_response(self):
+    def test_005b_response(self):
         # Message without a subject will trigger a ResponseReceived.
         # Also test the proper Response stanza format
         event = self.bus.client.Iq()
         event['type'] = 'result'
         event['response']['body'] = {'key': 'value'}
         event['response']['status'] = 200
-        self.bus._on_message(event)
+        self.bus._on_response(event)
         self.assertIn(Event.ResponseReceived, self.events)
         encoded_xml = escape('{"key": "value"}', entities={'"': '&quot;'})
         self.assertIn(encoded_xml, str(event))
