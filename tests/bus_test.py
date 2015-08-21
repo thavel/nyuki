@@ -1,10 +1,12 @@
 import json
 from unittest import TestCase
-from mock import Mock
-
+from mock import Mock, patch
 from slixmpp.exceptions import XMPPError
-from nyuki.bus import _BusClient, Bus, Formatter
+from xml.sax.saxutils import escape
+
+from nyuki.bus import _BusClient, Bus
 from nyuki.events import Event
+from nyuki.xep_nyuki.stanza import Request, Response
 
 
 class TestBusClient(TestCase):
@@ -30,14 +32,13 @@ class TestBusClient(TestCase):
         self.assertRaises(XMPPError, _BusClient, 'login', 'password')
 
 
+@patch('nyuki.bus.Bus', 'connect')
 class TestBus(TestCase):
 
     def setUp(self):
         self.events = list()
         self.bus = Bus('login@localhost', 'password')
-
         self.bus._event.trigger = (lambda x, *y: self.events.append(x))
-        self.bus.client = Mock()
 
     def tearDown(self):
         self.events = list()
@@ -49,7 +50,8 @@ class TestBus(TestCase):
 
     def test_002_start(self):
         # When the callback _on_start is called, an event is triggered.
-        self.bus._on_start(None)
+        with patch.object(self.bus, 'client'):
+            self.bus._on_start(None)
         self.assertIn(Event.Connected, self.events)
 
     def test_003_disconnect(self):
@@ -64,48 +66,33 @@ class TestBus(TestCase):
 
     def test_005a_message(self):
         # Message that can't be decoded will trigger a MessageReceived event.
-        event = dict()
-        event['body'] = 'message'
+        event = self.bus.client.Iq()
+        event['type'] = 'get'
         self.bus._on_message(event)
         self.assertIn(Event.MessageReceived, self.events)
 
     def test_005b_request(self):
         # Message with a subject (capability) will trigger a RequestReceived.
-        event = dict()
-        event['body'] = '{"message": "test"}'
-        event['subject'] = 'update_message'
+        # Also test the proper Request stanza format
+        event = self.bus.client.Iq()
+        event['type'] = 'set'
+        event['request']['body'] = {'key': 'value'}
+        event['request']['capability'] = 'test_capability'
         self.bus._on_message(event)
         self.assertIn(Event.RequestReceived, self.events)
+        encoded_xml = escape('{"key": "value"}', entities={'"': '&quot;'})
+        self.assertIn(encoded_xml, str(event))
+        self.assertIn('test_capability', str(event))
 
     def test_005c_response(self):
         # Message without a subject will trigger a ResponseReceived.
-        event = dict()
-        event['body'] = '{"message": "test"}'
+        # Also test the proper Response stanza format
+        event = self.bus.client.Iq()
+        event['type'] = 'result'
+        event['response']['body'] = {'key': 'value'}
+        event['response']['status'] = 200
         self.bus._on_message(event)
         self.assertIn(Event.ResponseReceived, self.events)
-
-
-class TestFormatter(TestCase):
-
-    def setUp(self):
-        self.from_jid = 'login@host'
-        self.formatter = Formatter(_BusClient(self.from_jid, 'password'))
-
-    def test_001_format(self):
-        # Format is working properly
-        result = self.formatter._format({'message': 'hello'})
-        self.assertIsInstance(result, str)
-        self.assertRaises(TypeError, self.formatter._format, 'hello')
-
-    def test_002_reply(self):
-        # Create a valid response for a given request
-        to_jid = 'sender@host'
-        resp_body = {'status': 200}
-        request = self.formatter.unicast({'message': 'hello'}, to_jid, 'test')
-        response = self.formatter.reply(request, resp_body)
-        self.assertEqual(response['body'], json.dumps(resp_body))
-
-    def test_003_unicast(self):
-        # Ensure the message is properly formatted
-        msg = self.formatter.unicast({'message': 'hello'}, 'login@host', 'test')
-        self.assertIsInstance(msg['body'], str)
+        encoded_xml = escape('{"key": "value"}', entities={'"': '&quot;'})
+        self.assertIn(encoded_xml, str(event))
+        self.assertIn('200', str(event))

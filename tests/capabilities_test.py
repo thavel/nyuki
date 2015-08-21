@@ -63,8 +63,10 @@ class TestResponse(TestCase):
 
     def test_003_message(self):
         message = self.response.bus_message
-        self.assertIsInstance(message, dict)
-        self.assertEqual(message['status'], self.response.status)
+        self.assertIsInstance(message, tuple)
+        status, body = message
+        self.assertEqual(status, self.response.status)
+        self.assertEqual(body, self.response.body)
 
 
 class TestExposer(TestCase):

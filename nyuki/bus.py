@@ -1,10 +1,7 @@
-import json
 import logging
-import re
 from slixmpp import ClientXMPP
-from slixmpp.exceptions import XMPPError, IqError, IqTimeout
+from slixmpp.exceptions import IqError, IqTimeout, XMPPError
 from slixmpp.xmlstream import JID
-from uuid import uuid4
 
 from nyuki.events import EventManager, Event
 from nyuki.loop import EventLoop
@@ -23,6 +20,8 @@ class _BusClient(ClientXMPP):
     def __init__(self, jid, password, host=None, port=None):
 
         jid = JID(jid)
+        if not host and not jid.user:
+            raise XMPPError('Wrong JID format given (use user@host/nyuki)')
         jid.resource = 'nyuki'
 
         super().__init__(jid, password)
@@ -147,8 +146,6 @@ class Bus(object):
             response = future.result()
             if response:
                 status, body = response.bus_message
-                log.debug("Sending request's response: {} - {}".format(
-                    status, body))
                 self.reply(iq, status, body)
 
         if iq['type'] == 'set':
@@ -192,7 +189,7 @@ class Bus(object):
         """
         Send a response to a message through the bus.
         """
-        log.debug('Replying {}:{} to {}'.format(
+        log.debug('Replying {} - {} to {}'.format(
             status, body, request['from']))
         resp = request.reply()
         resp['response']['status'] = status

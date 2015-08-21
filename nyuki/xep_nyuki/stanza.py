@@ -14,7 +14,8 @@ class Request(ElementBase):
         return json.loads(self._get_sub_text('body', '{}'))
 
     def setBody(self, body):
-        self._set_sub_text('body', json.dumps(body))
+        if body:
+            self._set_sub_text('body', json.dumps(body))
 
 
 class Response(ElementBase):
@@ -29,7 +30,8 @@ class Response(ElementBase):
         return json.loads(self._get_sub_text('body', '{}'))
 
     def setBody(self, body):
-        self._set_sub_text('body', json.dumps(body))
+        if body:
+            self._set_sub_text('body', json.dumps(body))
 
     def getStatus(self):
         status = self._get_sub_text('status', '')
