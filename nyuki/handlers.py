@@ -9,7 +9,6 @@ from nyuki.capabilities import Capability
 log = logging.getLogger(__name__)
 
 
-
 class CapabilityHandler(type):
     ALLOWED_METHODS = Method.list()
 
