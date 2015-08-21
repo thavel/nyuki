@@ -45,6 +45,7 @@ class _BusClient(ClientXMPP):
 
 
 class Bus(object):
+
     """
     Provide methods to perform communication over the bus.
     Events are handled by the EventManager.
@@ -52,7 +53,7 @@ class Bus(object):
 
     RESPONSE_TIMEOUT = 60
 
-    def __init__(self, jid, password, host=None, port=None):
+    def __init__(self, jid, password, host=None, port=None, room=None):
         self.client = _BusClient(jid, password, host, port)
         self.client.add_event_handler('connecting', self._on_connection)
         self.client.add_event_handler('register', self._on_register)
@@ -61,12 +62,13 @@ class Bus(object):
         self.client.add_event_handler('connection_failed', self._on_failure)
         self.client.add_event_handler('nyuki_request', self._on_request)
         self.client.add_event_handler('nyuki_response', self._on_response)
-        self.client.add_event_handler(
-            'groupchat_message', self._on_room_message)
 
         # Wrap asyncio loop for easy usage
         self._loop = EventLoop(loop=self.client.loop)
         self._event = EventManager(self._loop)
+
+        # The application MUC
+        self.room = '{}@applications.localhost'.format(room) if room else None
 
     @property
     def loop(self):
@@ -119,8 +121,11 @@ class Bus(object):
         """
         self.client.send_presence()
         self.client.get_roster()
-        # self.client.plugin['xep_0045'].joinMUC('appt@applications.localhost', self.nick)
-        log.debug("Connection to the bus succeed")
+        if self.room:
+            self.client.plugin['xep_0045'].joinMUC(self.room, self.nick)
+            log.debug(
+                'Entered room {} with nick {}'.format(self.room, self.nick))
+        log.debug('Connection to the bus succeed')
         self._event.trigger(Event.Connected)
 
     def _on_disconnect(self, event):
@@ -142,9 +147,8 @@ class Bus(object):
 
     def _on_request(self, iq):
         """
-        XMPP event handler when a message has been received.
-        Also trigger a bus events: `RequestReceived`, `ResponseReceived`,
-        or `MessageReceived` if the message can't be decoded.
+        XMPP event handler when a Nyuki Request has been received.
+        Also trigger a bus event `RequestReceived`.
         """
         log.debug('Request received: {}'.format(iq))
 
@@ -160,12 +164,13 @@ class Bus(object):
         self._event.trigger(Event.RequestReceived, event)
 
     def _on_response(self, iq):
+        """
+        XMPP event handler when a Nyuki Response has been received.
+        Also trigger a bus event `ResponseReceived`.
+        """
         log.debug('Response received: {}'.format(iq))
         event = iq['response']
         self._event.trigger(Event.ResponseReceived, event)
-
-    def _on_room_message(self, event):
-        log.debug('Room message : {}'.format(event))
 
     def connect(self):
         """
@@ -181,18 +186,37 @@ class Bus(object):
         """
         self.client.disconnect(wait=timeout)
 
-    def send(self, message, to, capability='process', callback=None):
+    def send(self, message, to, capability, callback=None):
         """
         Send a unicast message through the bus.
         """
         log.debug('Sending {} to {}'.format(message, to))
         req = self.client.Iq()
         req['type'] = 'set'
-        # req['to'] = 'appt@applications.localhost'
-        req['to'] = '{}/{}'.format(to, self.client.boundjid.resource)
         req['request']['capability'] = capability
         req['request']['body'] = message
+
+        if self.room:
+            req['to'] = '{}/{}'.format(self.room, to)
+        else:
+            req['to'] = '{}/{}'.format(to, self.client.boundjid.resource)
+
+        log.debug(req)
         req.send(callback=callback)
+
+    def send_all(self, message, capability='process', callback=None):
+        """
+        Send a unicast message independently to each nyuki in the room.
+        TODO: A muc seems to not understand xep_nyuki stanzas, hence is not
+        able to broadcast a single message to each nyuki itself.
+        """
+        if not self.room:
+            log.error('Trying to send to an non-existant room')
+            return
+
+        for user in self.client.plugin['xep_0045'].rooms[self.room]:
+            if user != self.nick:
+                self.send(message, user, capability, callback)
 
     def reply(self, request, status, body=None):
         """

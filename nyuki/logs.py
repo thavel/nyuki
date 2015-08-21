@@ -21,7 +21,7 @@ DEFAULT_LOGGING = {
             "level": "WARNING"
         },
         "slixmpp": {
-            "level": "DEBUG"
+            "level": "WARNING"
         },
         "aiohttp.web": {
             "level": "WARNING"

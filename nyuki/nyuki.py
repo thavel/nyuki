@@ -34,7 +34,9 @@ class Nyuki(metaclass=MetaHandler):
         self.load_config(**kwargs)
         logging.config.dictConfig(self._config['log'])
 
-        self._bus = Bus(**self._config['bus'])
+        self._bus = Bus(
+            room=self._config.get('application'),
+            **self._config['bus'])
         self._exposer = Exposer(self.event_loop.loop)
 
     @property
@@ -61,6 +63,10 @@ class Nyuki(metaclass=MetaHandler):
     def send(self):
         return self._bus.send
 
+    @property
+    def send_all(self):
+        return self._bus.send_all
+
     @on_event(Event.Connected)
     def _on_connection(self):
         log.info("Nyuki connected to the bus")
@@ -71,7 +77,7 @@ class Nyuki(metaclass=MetaHandler):
         The direct result of a disconnection from the bus is the shut down of
         the event loop (that eventually makes the nyuki process to exit).
         """
-        # Might need a bit of retry here before exiting...
+        # TODO: Might need a bit of retry here before exiting...
         self.event_loop.stop()
         log.info("Nyuki exiting")
 

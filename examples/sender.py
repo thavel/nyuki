@@ -15,16 +15,12 @@ class TestNyuki(Nyuki):
 
         def replied(response):
             log.info('Received response : {}'.format(response))
-            self.stop()
 
-        self.send(
-            {'message': 'test'}, 'sample@localhost', 'update_message',
-            callback=replied)
+        def send():
+            self.send_all(
+                {'message': 'test'}, 'update_message', callback=replied)
 
-        # self._bus.client.send_message(
-        #     mto='appt@applications.localhost',
-        #     mbody='yo',
-        #     mtype='groupchat')
+        self.event_loop.schedule(1, send)
 
 
 if __name__ == '__main__':
