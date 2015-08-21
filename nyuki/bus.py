@@ -186,7 +186,7 @@ class Bus(object):
         """
         self.client.disconnect(wait=timeout)
 
-    def send(self, message, to, capability, callback=None):
+    def send(self, message, to, capability='process', callback=None):
         """
         Send a unicast message through the bus.
         """
