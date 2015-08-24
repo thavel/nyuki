@@ -61,6 +61,7 @@ class Bus(object):
         self.client.add_event_handler('session_start', self._on_start)
         self.client.add_event_handler('disconnected', self._on_disconnect)
         self.client.add_event_handler('connection_failed', self._on_failure)
+        self.client.add_event_handler('groupchat_invite', self._on_invite)
         self.client.add_event_handler('nyuki_request', self._on_request)
         self.client.add_event_handler('nyuki_response', self._on_response)
 
@@ -127,6 +128,7 @@ class Bus(object):
         self.client.send_presence()
         self.client.get_roster()
         for room in self.rooms:
+            room = '{}@{}'.format(room, self.APPLICATION_MUC_SERVER)
             self.enter_room(room)
         self.rooms = None
         log.debug('Connection to the bus succeed')
@@ -148,6 +150,12 @@ class Bus(object):
         log.error("Connection to the bus has failed")
         self._event.trigger(Event.ConnectionError, event)
         self.client.abort()
+
+    def _on_invite(self, event):
+        """
+        Enter room on invitation.
+        """
+        self.enter_room(event['from'])
 
     def _on_request(self, iq):
         """
@@ -192,15 +200,15 @@ class Bus(object):
 
     def enter_room(self, room):
         """
-        Enter into a new room using xep_0045
+        Enter into a new room using xep_0045.
+        Room format must be '{name}@applications.localhost'
         """
-        room = '{}@{}'.format(room, self.APPLICATION_MUC_SERVER)
         self.mucs.joinMUC(room, self.nick)
         log.debug('Entered room {} with nick {}'.format(room, self.nick))
 
     def _send_request_iq(self, message, to, capability, callback):
         """
-        Generate and send the Nyuki Request IQ from the given args
+        Generate and send the Nyuki Request IQ from the given args.
         """
         req = self.client.Iq()
         req['type'] = 'set'
