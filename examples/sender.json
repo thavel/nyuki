@@ -3,5 +3,7 @@
     "jid": "sender@localhost",
     "password": "sender"
   },
-  "application": "sample"
+  "applications": [
+    "sample"
+  ]
 }

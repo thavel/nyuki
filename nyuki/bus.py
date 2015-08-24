@@ -52,8 +52,9 @@ class Bus(object):
     """
 
     RESPONSE_TIMEOUT = 60
+    APPLICATION_MUC_SERVER = 'applications.localhost'
 
-    def __init__(self, jid, password, host=None, port=None, room=None):
+    def __init__(self, jid, password, host=None, port=None, rooms=None):
         self.client = _BusClient(jid, password, host, port)
         self.client.add_event_handler('connecting', self._on_connection)
         self.client.add_event_handler('register', self._on_register)
@@ -67,8 +68,8 @@ class Bus(object):
         self._loop = EventLoop(loop=self.client.loop)
         self._event = EventManager(self._loop)
 
-        # The application MUC
-        self.room = '{}@applications.localhost'.format(room) if room else None
+        # Applications MUCs
+        self.rooms = rooms or list()
 
     @property
     def loop(self):
@@ -81,6 +82,10 @@ class Bus(object):
     @property
     def event_manager(self):
         return self._event
+
+    @property
+    def mucs(self):
+        return self.client.plugin['xep_0045']
 
     def _on_connection(self, event):
         """
@@ -121,10 +126,9 @@ class Bus(object):
         """
         self.client.send_presence()
         self.client.get_roster()
-        if self.room:
-            self.client.plugin['xep_0045'].joinMUC(self.room, self.nick)
-            log.debug(
-                'Entered room {} with nick {}'.format(self.room, self.nick))
+        for room in self.rooms:
+            self.enter_room(room)
+        self.rooms = None
         log.debug('Connection to the bus succeed')
         self._event.trigger(Event.Connected)
 
@@ -186,37 +190,50 @@ class Bus(object):
         """
         self.client.disconnect(wait=timeout)
 
-    def send(self, message, to, capability='process', callback=None):
+    def enter_room(self, room):
         """
-        Send a unicast message through the bus.
+        Enter into a new room using xep_0045
         """
-        log.debug('Sending {} to {}'.format(message, to))
+        room = '{}@{}'.format(room, self.APPLICATION_MUC_SERVER)
+        self.mucs.joinMUC(room, self.nick)
+        log.debug('Entered room {} with nick {}'.format(room, self.nick))
+
+    def _send_request_iq(self, message, to, capability, callback):
+        """
+        Generate and send the Nyuki Request IQ from the given args
+        """
         req = self.client.Iq()
         req['type'] = 'set'
         req['request']['capability'] = capability
         req['request']['body'] = message
-
-        if self.room:
-            req['to'] = '{}/{}'.format(self.room, to)
-        else:
-            req['to'] = '{}/{}'.format(to, self.client.boundjid.resource)
-
+        req['to'] = to
         log.debug(req)
         req.send(callback=callback)
 
-    def send_all(self, message, capability='process', callback=None):
+    def send(self, message, to, capability='process', callback=None):
+        """
+        Send a unicast message through the bus.
+        """
+        to = '{}/{}'.format(to, self.client.boundjid.resource)
+        log.debug('Sending {} to {}'.format(message, to))
+        self._send_request_iq(message, to, capability, callback)
+
+    def send_to_room(self, message, room, capability='process', callback=None):
         """
         Send a unicast message independently to each nyuki in the room.
         TODO: A muc seems to not understand xep_nyuki stanzas, hence is not
         able to broadcast a single message to each nyuki itself.
         """
-        if not self.room:
-            log.error('Trying to send to an non-existant room')
+        room = '{}@{}'.format(room, self.APPLICATION_MUC_SERVER)
+        if room not in self.mucs.rooms:
+            log.error('Trying to send to an unknown room : %s', room)
             return
 
-        for user in self.client.plugin['xep_0045'].rooms[self.room]:
+        log.debug('Sending {} to room {}'.format(message, room))
+        for user in self.mucs.rooms[room]:
             if user != self.nick:
-                self.send(message, user, capability, callback)
+                to = '{}/{}'.format(room, user)
+                self._send_request_iq(message, to, capability, callback)
 
     def reply(self, request, status, body=None):
         """

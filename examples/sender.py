@@ -17,8 +17,9 @@ class TestNyuki(Nyuki):
             log.info('Received response : {}'.format(response))
 
         def send():
-            self.send_all(
-                {'message': 'test'}, 'update_message', callback=replied)
+            self.send_to_room(
+                {'message': 'test'}, 'sample', 'update_message',
+                callback=replied)
 
         self.event_loop.schedule(1, send)
 

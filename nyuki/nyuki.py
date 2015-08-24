@@ -35,7 +35,7 @@ class Nyuki(metaclass=MetaHandler):
         logging.config.dictConfig(self._config['log'])
 
         self._bus = Bus(
-            room=self._config.get('application'),
+            rooms=self._config.get('applications'),
             **self._config['bus'])
         self._exposer = Exposer(self.event_loop.loop)
 
@@ -64,8 +64,8 @@ class Nyuki(metaclass=MetaHandler):
         return self._bus.send
 
     @property
-    def send_all(self):
-        return self._bus.send_all
+    def send_to_room(self):
+        return self._bus.send_to_room
 
     @on_event(Event.Connected)
     def _on_connection(self):
