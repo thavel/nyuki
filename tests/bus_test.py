@@ -90,7 +90,7 @@ class TestBus(TestCase):
         self.assertIn(encoded_xml, str(event))
         self.assertIn('200', str(event))
 
-    def test_006_send_with_room(self):
+    def test_006_send(self):
         self.bus.room = 'test'
         with patch('slixmpp.stanza.iq.Iq.send') as mock:
             self.bus.send({'key': 'value'}, 'first')
@@ -98,10 +98,9 @@ class TestBus(TestCase):
 
     def test_007_send_to_room(self):
         self.bus.room = 'test'
-        xep = self.bus.client.plugin['xep_0045']
         m = MagicMock()
         m.__iter__.return_value = ['first', 'second']
-        xep.rooms['test'] = m
-        with patch.object(self.bus, 'send') as mock:
-            self.bus.send_all({'key': 'value'})
+        self.bus.mucs.rooms['test@applications.localhost'] = m
+        with patch('slixmpp.stanza.iq.Iq.send') as mock:
+            self.bus.send_to_room({'key': 'value'}, 'test')
             self.assertEqual(mock.call_count, 2)
