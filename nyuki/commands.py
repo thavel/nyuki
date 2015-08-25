@@ -37,7 +37,7 @@ BASE_CONF = {
 }
 
 
-def _update_config(source, data, path):
+def update_config(source, data, path):
     """
     Tool function to update nested dict values.
     It creates sub-dictionaries to eventually end up with the proper dest key.
@@ -62,7 +62,7 @@ def _merge_config(defaults, updates):
     return conf
 
 
-def _build_args():
+def build_args():
     """
     Build argument parser and actually parse them at runtime.
     """
@@ -98,45 +98,7 @@ def _read_file(path):
         return json.loads(file.read())
 
 
-def parse_init():
-    """
-    Build, parse and merge configs into a unique dictionary
-    that would be passed as nyuki default argument.
-    """
-    args = _build_args()
-    conf = _read_file(args.cfg)
-
-    # Updates for jid and password are straightforward
-    if args.jid is not None:
-        _update_config(conf, args.jid, 'bus.jid')
-    if args.pwd is not None:
-        _update_config(conf, args.pwd, 'bus.password')
-
-    # Add the bus port and host if needed
-    if args.srv:
-        try:
-            host, port = args.srv.split(':')
-            _update_config(conf, int(port), 'bus.port')
-        except ValueError:
-            host = args.srv
-        _update_config(conf, host, 'bus.host')
-
-    # Ensure the api section is always there, update if needed
-    if args.api:
-        try:
-            host, port = args.api.split(':')
-            _update_config(conf, int(port), 'api.port')
-        except ValueError:
-            host = args.api
-        _update_config(conf, host, 'api.host')
-
-    # Override root logger level
-    _update_config(conf, args.logging, 'log.root.level')
-
-    return conf
-
-
-def exhaustive_config(updates):
+def _exhaustive_config(updates):
     """
     Return an exhaustive version of configs based on the defaults and the
     initial values (both specified through the configuration file and the
@@ -150,3 +112,48 @@ def exhaustive_config(updates):
         log.error("Invalid configuration: {}".format(error.message))
         exit(1)
     return conf
+
+
+def read_conf_json(filename, args):
+    """
+    Build, parse and merge configs into a unique dictionary
+    that would be passed as nyuki default argument.
+    """
+    conf = _read_file(filename)
+
+    # Updates for jid and password are straightforward
+    if args.jid is not None:
+        update_config(conf, args.jid, 'bus.jid')
+    if args.password is not None:
+        update_config(conf, args.password, 'bus.password')
+
+    # Add the bus port and host if needed
+    if args.server:
+        try:
+            host, port = args.server.split(':')
+            update_config(conf, int(port), 'bus.port')
+        except ValueError:
+            host = args.server
+        update_config(conf, host, 'bus.host')
+
+    # Ensure the api section is always there, update if needed
+    if args.api:
+        try:
+            host, port = args.api.split(':')
+            update_config(conf, int(port), 'api.port')
+        except ValueError:
+            host = args.api
+        update_config(conf, host, 'api.host')
+
+    # Override root logger level
+    update_config(conf, args.logging, 'log.root.level')
+
+    return _exhaustive_config(conf)
+
+
+def write_conf_json(config, filename):
+    """
+    Save the given configuration to a file in json format.
+    """
+    with open(filename, 'w') as jsonfile:
+        json.dump(config, jsonfile)
