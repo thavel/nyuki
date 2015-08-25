@@ -21,6 +21,12 @@ class RequestError(XMPPError):
         self.message = message
 
 
+class TimeoutError(XMPPError):
+    def __init__(self, message):
+        super().__init__(condition='request-response-timeout', etype='cancel')
+        self.message = message
+
+
 class _BusClient(ClientXMPP):
     """
     XMPP client to connect to the bus.
@@ -62,7 +68,7 @@ class Bus(object):
     """
 
     RESPONSE_TIMEOUT = 60
-    APPLICATION_MUC_SERVER = 'mucs.localhost'
+    MUC_SERVER = 'mucs.localhost'
 
     def __init__(self, jid, password, host=None, port=None, rooms=None):
         self.client = _BusClient(jid, password, host, port)
@@ -79,7 +85,7 @@ class Bus(object):
         self._loop = EventLoop(loop=self.client.loop)
         self._event = EventManager(self._loop)
 
-        # Applications MUCs
+        # Statup MUCs
         self.rooms = rooms or list()
 
     @property
@@ -138,7 +144,7 @@ class Bus(object):
         self.client.send_presence()
         self.client.get_roster()
         for room in self.rooms:
-            room = '{}@{}'.format(room, self.APPLICATION_MUC_SERVER)
+            room = '{}@{}'.format(room, self.MUC_SERVER)
             self.enter_room(room)
         self.rooms = None
         log.debug('Connection to the bus succeed')
@@ -221,16 +227,32 @@ class Bus(object):
         future = Future()
         matcher = MatcherId(message['id'])
 
+        timeout_name = 'RequestTimeout_{}'.format(message['id'])
+        handler_name = 'RequestCallback_{}'.format(message['id'])
+
         def callback_success(result):
             if result['type'] == 'error':
                 future.set_exception(RequestError(result))
             else:
                 future.set_result(result)
 
+            self.client.cancel_schedule(timeout_name)
+
             if callback is not None:
                 callback(result)
 
-        handler_name = 'RequestCallback_%s' % message['id']
+        def callback_timeout():
+            future.set_exception(TimeoutError(message))
+            self.client.remove_handler(handler_name)
+            log.info('No longer waiting for a response')
+            log.debug('cancel response handler id {}'.format(message['id']))
+
+        self.client.schedule(
+            timeout_name,
+            self.RESPONSE_TIMEOUT,
+            callback_timeout,
+            repeat=False)
+
         handler = Callback(
             handler_name, matcher, callback_success, once=True)
         self.client.register_handler(handler)
@@ -257,7 +279,7 @@ class Bus(object):
         TODO: A muc seems to not understand xep_nyuki stanzas, hence is not
         able to broadcast a single message to each nyuki itself.
         """
-        room = '{}@{}'.format(room, self.APPLICATION_MUC_SERVER)
+        room = '{}@{}'.format(room, self.MUC_SERVER)
         if room not in self.mucs.rooms:
             log.error('Trying to send to an unknown room : %s', room)
             return
