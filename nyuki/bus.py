@@ -1,7 +1,11 @@
+from asyncio import Future
 import logging
 from slixmpp import ClientXMPP
 from slixmpp.exceptions import IqError, IqTimeout, XMPPError
 from slixmpp.xmlstream import JID
+from slixmpp.xmlstream.handler import Callback
+from slixmpp.xmlstream.matcher import MatcherId
+from uuid import uuid4
 
 from nyuki.events import EventManager, Event
 from nyuki.loop import EventLoop
@@ -9,6 +13,12 @@ from nyuki.xep_nyuki import XEP_Nyuki
 
 
 log = logging.getLogger(__name__)
+
+
+class RequestError(XMPPError):
+    def __init__(self, message):
+        super().__init__()
+        self.message = message
 
 
 class _BusClient(ClientXMPP):
@@ -52,7 +62,7 @@ class Bus(object):
     """
 
     RESPONSE_TIMEOUT = 60
-    APPLICATION_MUC_SERVER = 'applications.localhost'
+    APPLICATION_MUC_SERVER = 'mucs.localhost'
 
     def __init__(self, jid, password, host=None, port=None, rooms=None):
         self.client = _BusClient(jid, password, host, port)
@@ -63,7 +73,7 @@ class Bus(object):
         self.client.add_event_handler('connection_failed', self._on_failure)
         self.client.add_event_handler('groupchat_invite', self._on_invite)
         self.client.add_event_handler('nyuki_request', self._on_request)
-        self.client.add_event_handler('nyuki_response', self._on_response)
+        self.client.add_event_handler('nyuki_event', self._on_event)
 
         # Wrap asyncio loop for easy usage
         self._loop = EventLoop(loop=self.client.loop)
@@ -157,32 +167,29 @@ class Bus(object):
         """
         self.enter_room(event['from'])
 
-    def _on_request(self, iq):
+    def _on_request(self, message):
         """
         XMPP event handler when a Nyuki Request has been received.
         Also trigger a bus event `RequestReceived`.
         """
-        log.debug('Request received: {}'.format(iq))
+        log.debug('Request received: {}'.format(message))
 
         def response_callback(future):
             # Fetch returned Response object from a capability and send it.
             response = future.result()
             if response:
                 status, body = response.bus_message
-                self.reply(iq, status, body)
+                self.reply(message, status, body)
 
-        request = iq['request']
-        event = (request['capability'], request['body'], response_callback)
+        request = message['request']
+        event = (request['capability'], request['json'], response_callback)
         self._event.trigger(Event.RequestReceived, event)
 
-    def _on_response(self, iq):
+    def _on_event(self, event):
         """
-        XMPP event handler when a Nyuki Response has been received.
-        Also trigger a bus event `ResponseReceived`.
+        XMPP event handler when a Nyuki Event has been received.
         """
-        log.debug('Response received: {}'.format(iq))
-        event = iq['response']
-        self._event.trigger(Event.ResponseReceived, event)
+        log.debug('Event received: {}'.format(event))
 
     def connect(self):
         """
@@ -206,27 +213,45 @@ class Bus(object):
         self.mucs.joinMUC(room, self.nick)
         log.debug('Entered room {} with nick {}'.format(room, self.nick))
 
-    def _send_request_iq(self, message, to, capability, callback):
+    def _send_with_callback(self, message, callback):
         """
-        Generate and send the Nyuki Request IQ from the given args.
+        Send a bus message, waiting for a matching ID response to trigger
+        the given callback.
         """
-        req = self.client.Iq()
-        req['type'] = 'set'
-        req['request']['capability'] = capability
-        req['request']['body'] = message
-        req['to'] = to
-        log.debug(req)
-        req.send(callback=callback)
+        future = Future()
+        matcher = MatcherId(message['id'])
 
-    def send(self, message, to, capability='process', callback=None):
+        def callback_success(result):
+            if result['type'] == 'error':
+                future.set_exception(RequestError(result))
+            else:
+                future.set_result(result)
+
+            if callback is not None:
+                callback(result)
+
+        handler_name = 'RequestCallback_%s' % message['id']
+        handler = Callback(
+            handler_name, matcher, callback_success, once=True)
+        self.client.register_handler(handler)
+
+        message.send()
+        return future
+
+    def send(self, message, to, capability, callback=None):
         """
         Send a unicast message through the bus.
         """
-        to = '{}/{}'.format(to, self.client.boundjid.resource)
         log.debug('Sending {} to {}'.format(message, to))
-        self._send_request_iq(message, to, capability, callback)
+        msg = self.client.Message()
+        msg['type'] = 'message'
+        msg['to'] = '{}/{}'.format(to, self.client.boundjid.resource)
+        msg['id'] = str(uuid4())
+        msg['request']['capability'] = capability
+        msg['request']['json'] = message
+        self._send_with_callback(msg, callback)
 
-    def send_to_room(self, message, room, capability='process', callback=None):
+    def send_to_room(self, message, room):
         """
         Send a unicast message independently to each nyuki in the room.
         TODO: A muc seems to not understand xep_nyuki stanzas, hence is not
@@ -238,10 +263,11 @@ class Bus(object):
             return
 
         log.debug('Sending {} to room {}'.format(message, room))
-        for user in self.mucs.rooms[room]:
-            if user != self.nick:
-                to = '{}/{}'.format(room, user)
-                self._send_request_iq(message, to, capability, callback)
+        msg = self.client.Message()
+        msg['type'] = 'groupchat'
+        msg['to'] = room
+        msg['event']['json'] = message
+        msg.send()
 
     def reply(self, request, status, body=None):
         """
@@ -250,7 +276,8 @@ class Bus(object):
         log.debug('Replying {} - {} to {}'.format(
             status, body, request['from']))
         resp = request.reply()
-        resp['response']['status'] = status
-        resp['response']['body'] = body
+        resp['id'] = request['id']
+        resp['response']['json'] = body
+        resp['response']['status'] = str(status)
         log.debug(resp)
         resp.send()

@@ -6,7 +6,7 @@ from xml.sax.saxutils import escape
 
 from nyuki.bus import _BusClient, Bus
 from nyuki.events import Event
-from nyuki.xep_nyuki.stanza import Request, Response
+from nyuki.xep_nyuki.stanza import NyukiRequest, NyukiEvent
 
 
 class TestBusClient(TestCase):
@@ -67,40 +67,24 @@ class TestBus(TestCase):
     def test_005a_request(self):
         # Message with a subject (capability) will trigger a RequestReceived.
         # Also test the proper Request stanza format
-        event = self.bus.client.Iq()
-        event['type'] = 'set'
-        event['request']['body'] = {'key': 'value'}
-        event['request']['capability'] = 'test_capability'
-        self.bus._on_request(event)
+        msg = self.bus.client.Message()
+        msg['type'] = 'message'
+        msg['request']['json'] = {'key': 'value'}
+        msg['request']['capability'] = 'test_capability'
+        self.bus._on_request(msg)
         self.assertIn(Event.RequestReceived, self.events)
         encoded_xml = escape('{"key": "value"}', entities={'"': '&quot;'})
-        self.assertIn(encoded_xml, str(event))
-        self.assertIn('test_capability', str(event))
+        self.assertIn(encoded_xml, str(msg))
+        self.assertIn('test_capability', str(msg))
 
-    def test_005b_response(self):
+    def test_005b_event(self):
         # Message without a subject will trigger a ResponseReceived.
         # Also test the proper Response stanza format
-        event = self.bus.client.Iq()
-        event['type'] = 'result'
-        event['response']['body'] = {'key': 'value'}
-        event['response']['status'] = 200
-        self.bus._on_response(event)
-        self.assertIn(Event.ResponseReceived, self.events)
+        msg = self.bus.client.Message()
+        msg['type'] = 'groupchat'
+        msg['response']['json'] = {'key': 'value'}
+        msg['response']['status'] = 200
+        self.bus._on_event(msg)
         encoded_xml = escape('{"key": "value"}', entities={'"': '&quot;'})
-        self.assertIn(encoded_xml, str(event))
-        self.assertIn('200', str(event))
-
-    def test_006_send(self):
-        self.bus.room = 'test'
-        with patch('slixmpp.stanza.iq.Iq.send') as mock:
-            self.bus.send({'key': 'value'}, 'first')
-            mock.assert_called_once_with(callback=None)
-
-    def test_007_send_to_room(self):
-        self.bus.room = 'test'
-        m = MagicMock()
-        m.__iter__.return_value = ['first', 'second']
-        self.bus.mucs.rooms['test@applications.localhost'] = m
-        with patch('slixmpp.stanza.iq.Iq.send') as mock:
-            self.bus.send_to_room({'key': 'value'}, 'test')
-            self.assertEqual(mock.call_count, 2)
+        self.assertIn(encoded_xml, str(msg))
+        self.assertIn('200', str(msg))

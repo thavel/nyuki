@@ -1,41 +1,60 @@
 import json
+
 from slixmpp.xmlstream import ElementBase
 
 
-class Request(ElementBase):
+class NyukiRequest(ElementBase):
 
-    namespace = 'nyuki:request'
     name = 'request'
+    namespace = 'nyuki'
+    interfaces = set(['capability', 'json'])
+    sub_interfaces = set(['json'])
     plugin_attrib = 'request'
-    interfaces = set(['capability', 'body'])
-    sub_interfaces = interfaces
 
-    def getBody(self):
-        return json.loads(self._get_sub_text('body', '{}'))
+    def getJson(self):
+        return json.loads(self._get_sub_text('json', '{}'))
 
-    def setBody(self, body):
+    def setJson(self, body):
         if body:
-            self._set_sub_text('body', json.dumps(body))
+            self._set_sub_text('json', json.dumps(body))
 
 
-class Response(ElementBase):
+class NyukiResponse(ElementBase):
 
-    namespace = 'nyuki:request'
     name = 'response'
+    namespace = 'nyuki'
+    interfaces = set(['status', 'json'])
+    sub_interfaces = set(['json'])
     plugin_attrib = 'response'
-    interfaces = set(['status', 'body'])
-    sub_interfaces = interfaces
 
-    def getBody(self):
-        return json.loads(self._get_sub_text('body', '{}'))
+    def getJson(self):
+        return json.loads(self._get_sub_text('json', '{}'))
 
-    def setBody(self, body):
+    def setJson(self, body):
         if body:
-            self._set_sub_text('body', json.dumps(body))
+            self._set_sub_text('json', json.dumps(body))
 
     def getStatus(self):
-        status = self._get_sub_text('status', '')
-        return int(status) if status else None
+        try:
+            return int(self._get_sub_text('status', ''))
+        except ValueError:
+            return None
 
     def setStatus(self, status):
         self._set_sub_text('status', str(status))
+
+
+class NyukiEvent(ElementBase):
+
+    name = 'event'
+    namespace = 'nyuki'
+    interfaces = set(['json'])
+    sub_interfaces = interfaces
+    plugin_attrib = 'event'
+
+    def getJson(self):
+        return json.loads(self._get_sub_text('json', '{}'))
+
+    def setJson(self, body):
+        if body:
+            self._set_sub_text('json', json.dumps(body))
