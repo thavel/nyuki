@@ -19,5 +19,4 @@ setup(
     author_email='rand@surycat.com',
     install_requires=reqs,
     packages=find_packages(exclude=['tests']),
-    test_suite="tests",
 )
