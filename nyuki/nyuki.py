@@ -6,10 +6,10 @@ from nyuki.handlers import MetaHandler
 from nyuki.bus import Bus
 from nyuki.events import Event, on_event
 from nyuki.capabilities import Exposer
-from nyuki.commands import (
-    build_args, read_conf_json, write_conf_json, update_config
+from nyuki.commands import get_command_kwargs
+from nyuki.config import (
+    get_full_config, write_conf_json, update_config, DEFAULT_CONF_FILE
 )
-
 
 log = logging.getLogger(__name__)
 
@@ -28,10 +28,10 @@ class Nyuki(metaclass=MetaHandler):
     A wrapper is also provide to ease the use of asynchronous calls
     over the actions nyukis are inteded to do.
     """
-    def __init__(self, args=None):
-        args = args or build_args()
-        self.config_filename = args.config
-        self.load_config(args)
+    def __init__(self, **kwargs):
+        kwargs = kwargs or get_command_kwargs()
+        self.config_filename = kwargs.get('config', DEFAULT_CONF_FILE)
+        self.load_config(**kwargs)
         logging.config.dictConfig(self._config['log'])
 
         self._bus = Bus(**self._config['bus'])
@@ -119,11 +119,11 @@ class Nyuki(metaclass=MetaHandler):
         self._exposer.shutdown()
         self._bus.disconnect(timeout=timeout)
 
-    def load_config(self, args):
-        self._config = read_conf_json(self.config_filename, args)
+    def load_config(self, **kwargs):
+        self._config = get_full_config(**kwargs)
 
-    def save_config(filename=None):
-        write_conf_json(self.config, filename or self.config_filename)
+    def save_config(self):
+        write_conf_json(self.config, self.config_filename)
 
     def update_config(self, value, path):
         update_config(self._config, value, path)
