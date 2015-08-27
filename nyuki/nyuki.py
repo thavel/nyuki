@@ -79,24 +79,6 @@ class Nyuki(metaclass=MetaHandler):
         self.event_loop.stop()
         log.info("Nyuki exiting")
 
-    @on_event(Event.RequestReceived)
-    def _handle_request(self, event):
-        """
-        Handle request received from the bus.
-        Call the targeted capability.
-        """
-        capa_name, request, response_callback = event
-        future = self._exposer.call(capa_name, request)
-        if future:
-            future.add_done_callback(response_callback)
-
-    @on_event(Event.ResponseReceived)
-    def _handle_response(self, event):
-        """
-        Handle response for a request sent through the bus.
-        """
-        log.debug('Nothing to do with that response')
-
     def start(self):
         """
         Start the nyuki: launch the bus client and expose capabilities.

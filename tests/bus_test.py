@@ -64,20 +64,7 @@ class TestBus(TestCase):
         self.bus._on_failure(None)
         self.assertIn(Event.ConnectionError, self.events)
 
-    def test_005a_request(self):
-        # Message with a subject (capability) will trigger a RequestReceived.
-        # Also test the proper Request stanza format
-        msg = self.bus.client.Message()
-        msg['type'] = 'message'
-        msg['request']['json'] = {'key': 'value'}
-        msg['request']['capability'] = 'test_capability'
-        self.bus._on_request(msg)
-        self.assertIn(Event.RequestReceived, self.events)
-        encoded_xml = escape('{"key": "value"}', entities={'"': '&quot;'})
-        self.assertIn(encoded_xml, str(msg))
-        self.assertIn('test_capability', str(msg))
-
-    def test_005b_event(self):
+    def test_005_on_event(self):
         # Message without a subject will trigger a ResponseReceived.
         # Also test the proper Response stanza format
         msg = self.bus.client.Message()
@@ -88,3 +75,4 @@ class TestBus(TestCase):
         encoded_xml = escape('{"key": "value"}', entities={'"': '&quot;'})
         self.assertIn(encoded_xml, str(msg))
         self.assertIn('200', str(msg))
+        self.assertIn(Event.EventReceived, self.events)
