@@ -205,20 +205,22 @@ class Bus(object):
             method, url, data=data, headers=headers)
         status = response.status
         try:
-            content = yield from response.json()
+            body = yield from response.json()
         except ValueError:
             log.error('Response was not a json')
-            content = '{}'
-        return (status, content)
+            body = '{}'
+        return (status, body)
 
     def send_request(self, nyuki, endpoint, method, data=None, callback=None):
         """
         Send a P2P request to another nyuki, async a callback if given.
         """
+        if nyuki:
+            endpoint = 'http://localhost:8080/{}/api/'.format(nyuki)
         future = asyncio.async(self._request(endpoint, method, data))
         def send_ok(future):
             try:
-                status, json = future.result()
+                status, body = future.result()
             except (aiohttp.HttpProcessingError,
                     aiohttp.ServerDisconnectedError,
                     aiohttp.ClientOSError) as exc:
@@ -226,7 +228,7 @@ class Bus(object):
                 log.error('Failed to send request')
             else:
                 if callback:
-                    self._loop.async(callback, status, json)
+                    self._loop.async(callback, status, body)
         future.add_done_callback(send_ok)
 
     def send_event(self, message, muc):
