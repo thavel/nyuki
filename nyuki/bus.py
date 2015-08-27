@@ -1,5 +1,6 @@
 import aiohttp
 import asyncio
+from functools import partial
 import json
 import logging
 from slixmpp import ClientXMPP
@@ -12,18 +13,6 @@ from nyuki.xep_nyuki import XEP_Nyuki
 
 
 log = logging.getLogger(__name__)
-
-
-class RequestError(XMPPError):
-    def __init__(self, message):
-        super().__init__()
-        self.message = message
-
-
-class TimeoutError(XMPPError):
-    def __init__(self, message):
-        super().__init__(condition='request-response-timeout', etype='cancel')
-        self.message = message
 
 
 class _BusClient(ClientXMPP):
@@ -211,25 +200,34 @@ class Bus(object):
             body = '{}'
         return (status, body)
 
+    def _handle_response(self, callback, future):
+        """
+        Check the response of a request using its Future object.
+        Also call asynchronously the response callback, if given.
+        """
+        try:
+            status, body = future.result()
+        except (aiohttp.HttpProcessingError,
+                aiohttp.ServerDisconnectedError,
+                aiohttp.ClientOSError) as exc:
+            log.exception(exc)
+            log.error('Failed to send request')
+            return
+
+        if callback:
+            log.info('Calling response callback with ({}, {})'.format(
+                     status, body))
+            self._loop.async(callback, status, body)
+
     def send_request(self, nyuki, endpoint, method, data=None, callback=None):
         """
         Send a P2P request to another nyuki, async a callback if given.
+        The callback is called with two args 'status' and 'body' (json).
         """
         if nyuki:
             endpoint = 'http://localhost:8080/{}/api/'.format(nyuki)
         future = asyncio.async(self._request(endpoint, method, data))
-        def send_ok(future):
-            try:
-                status, body = future.result()
-            except (aiohttp.HttpProcessingError,
-                    aiohttp.ServerDisconnectedError,
-                    aiohttp.ClientOSError) as exc:
-                log.exception(exc)
-                log.error('Failed to send request')
-            else:
-                if callback:
-                    self._loop.async(callback, status, body)
-        future.add_done_callback(send_ok)
+        future.add_done_callback(partial(self._handle_response, callback))
 
     def send_event(self, message, muc):
         """
