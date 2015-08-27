@@ -46,7 +46,6 @@ class _BusClient(ClientXMPP):
         self._address = (host, port or 5222)
 
         self.register_plugin('xep_0045')  # Multi-user chat
-        self.register_plugin('xep_0133')  # Service administration
         self.register_plugin('xep_0077')  # In-band registration
         self.register_plugin('xep_nyuki', module=XEP_Nyuki)  # Nyuki requests
 
@@ -70,7 +69,7 @@ class Bus(object):
     RESPONSE_TIMEOUT = 60
     MUC_SERVER = 'mucs.localhost'
 
-    def __init__(self, jid, password, host=None, port=None, rooms=None):
+    def __init__(self, jid, password, host=None, port=None):
         self.client = _BusClient(jid, password, host, port)
         self.client.add_event_handler('connecting', self._on_connection)
         self.client.add_event_handler('register', self._on_register)
@@ -78,15 +77,11 @@ class Bus(object):
         self.client.add_event_handler('disconnected', self._on_disconnect)
         self.client.add_event_handler('connection_failed', self._on_failure)
         self.client.add_event_handler('groupchat_invite', self._on_invite)
-        self.client.add_event_handler('nyuki_request', self._on_request)
         self.client.add_event_handler('nyuki_event', self._on_event)
 
         # Wrap asyncio loop for easy usage
         self._loop = EventLoop(loop=self.client.loop)
         self._event = EventManager(self._loop)
-
-        # Statup MUCs
-        self.rooms = rooms or list()
 
     @property
     def loop(self):
@@ -143,10 +138,6 @@ class Bus(object):
         """
         self.client.send_presence()
         self.client.get_roster()
-        for room in self.rooms:
-            room = '{}@{}'.format(room, self.MUC_SERVER)
-            self.enter_room(room)
-        self.rooms = None
         log.debug('Connection to the bus succeed')
         self._event.trigger(Event.Connected)
 
@@ -171,31 +162,14 @@ class Bus(object):
         """
         Enter room on invitation.
         """
-        self.enter_room(event['from'])
-
-    def _on_request(self, message):
-        """
-        XMPP event handler when a Nyuki Request has been received.
-        Also trigger a bus event `RequestReceived`.
-        """
-        log.debug('Request received: {}'.format(message))
-
-        def response_callback(future):
-            # Fetch returned Response object from a capability and send it.
-            response = future.result()
-            if response:
-                status, body = response.bus_message
-                self.reply(message, status, body)
-
-        request = message['request']
-        event = (request['capability'], request['json'], response_callback)
-        self._event.trigger(Event.RequestReceived, event)
+        self.join_muc(event['from'])
 
     def _on_event(self, event):
         """
         XMPP event handler when a Nyuki Event has been received.
         """
         log.debug('Event received: {}'.format(event))
+        self._event.trigger(Event.EventReceived, event)
 
     def connect(self):
         """
@@ -211,83 +185,30 @@ class Bus(object):
         """
         self.client.disconnect(wait=timeout)
 
-    def enter_room(self, room):
+    def join_muc(self, muc):
         """
         Enter into a new room using xep_0045.
         Room format must be '{name}@applications.localhost'
         """
-        self.mucs.joinMUC(room, self.nick)
-        log.debug('Entered room {} with nick {}'.format(room, self.nick))
+        muc = '{}@{}'.format(muc, self.MUC_SERVER)
+        self.mucs.joinMUC(muc, self.nick)
+        log.debug('Entered MUC {} with nick {}'.format(muc, self.nick))
 
-    def _send_with_callback(self, message, callback):
-        """
-        Send a bus message, waiting for a matching ID response to trigger
-        the given callback.
-        """
-        future = Future()
-        matcher = MatcherId(message['id'])
-
-        timeout_name = 'RequestTimeout_{}'.format(message['id'])
-        handler_name = 'RequestCallback_{}'.format(message['id'])
-
-        def callback_success(result):
-            if result['type'] == 'error':
-                future.set_exception(RequestError(result))
-            else:
-                future.set_result(result)
-
-            self.client.cancel_schedule(timeout_name)
-
-            if callback is not None:
-                callback(result)
-
-        def callback_timeout():
-            future.set_exception(TimeoutError(message))
-            self.client.remove_handler(handler_name)
-            log.info('No longer waiting for a response')
-            log.debug('cancel response handler id {}'.format(message['id']))
-
-        self.client.schedule(
-            timeout_name,
-            self.RESPONSE_TIMEOUT,
-            callback_timeout,
-            repeat=False)
-
-        handler = Callback(
-            handler_name, matcher, callback_success, once=True)
-        self.client.register_handler(handler)
-
-        message.send()
-        return future
-
-    def send(self, message, to, capability, callback=None):
-        """
-        Send a unicast message through the bus.
-        """
-        log.debug('Sending {} to {}'.format(message, to))
-        msg = self.client.Message()
-        msg['type'] = 'message'
-        msg['to'] = '{}/{}'.format(to, self.client.boundjid.resource)
-        msg['id'] = str(uuid4())
-        msg['request']['capability'] = capability
-        msg['request']['json'] = message
-        self._send_with_callback(msg, callback)
-
-    def send_to_room(self, message, room):
+    def send_event(self, message, muc):
         """
         Send a unicast message independently to each nyuki in the room.
         TODO: A muc seems to not understand xep_nyuki stanzas, hence is not
         able to broadcast a single message to each nyuki itself.
         """
-        room = '{}@{}'.format(room, self.MUC_SERVER)
-        if room not in self.mucs.rooms:
-            log.error('Trying to send to an unknown room : %s', room)
+        muc = '{}@{}'.format(muc, self.MUC_SERVER)
+        if muc not in self.mucs.rooms:
+            log.error('Trying to send to an unknown room : %s', muc)
             return
 
-        log.debug('Sending {} to room {}'.format(message, room))
+        log.debug('Sending {} to room {}'.format(message, muc))
         msg = self.client.Message()
         msg['type'] = 'groupchat'
-        msg['to'] = room
+        msg['to'] = muc
         msg['event']['json'] = message
         msg.send()
 

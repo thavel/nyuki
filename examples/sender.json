@@ -2,8 +2,5 @@
   "bus": {
     "jid": "sender@localhost",
     "password": "sender"
-  },
-  "applications": [
-    "sample"
-  ]
+  }
 }

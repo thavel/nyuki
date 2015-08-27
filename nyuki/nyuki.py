@@ -34,9 +34,7 @@ class Nyuki(metaclass=MetaHandler):
         self.load_config(**kwargs)
         logging.config.dictConfig(self._config['log'])
 
-        self._bus = Bus(
-            rooms=self._config.get('applications'),
-            **self._config['bus'])
+        self._bus = Bus(**self._config['bus'])
         self._exposer = Exposer(self.event_loop.loop)
 
     @property
@@ -60,12 +58,12 @@ class Nyuki(metaclass=MetaHandler):
         return self._exposer
 
     @property
-    def send(self):
-        return self._bus.send
+    def send_event(self):
+        return self._bus.send_event
 
     @property
-    def send_to_room(self):
-        return self._bus.send_to_room
+    def join_muc(self):
+        return self._bus.join_muc
 
     @on_event(Event.Connected)
     def _on_connection(self):

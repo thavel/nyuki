@@ -12,12 +12,13 @@ class TestNyuki(Nyuki):
     @on_event(Event.Connected)
     def _run(self):
         log.info('Sending message')
+        self.join_muc('sample')
 
         def replied(response):
             log.info('Received response : {}'.format(response))
 
         def send():
-            self.send({'message': 'test'}, 'sample@localhost', 'last_message', callback=replied)
+            self.send_event({'message': 'test'}, 'sample')
 
         # def send():
         #     self.send_to_room({'message': 'test'}, 'sample')
