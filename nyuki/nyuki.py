@@ -58,6 +58,10 @@ class Nyuki(metaclass=MetaHandler):
         return self._exposer
 
     @property
+    def send_request(self):
+        return self._bus.send_request
+
+    @property
     def send_event(self):
         return self._bus.send_event
 

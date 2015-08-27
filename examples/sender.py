@@ -14,14 +14,22 @@ class TestNyuki(Nyuki):
         log.info('Sending message')
         self.join_muc('sample')
 
-        def replied(response):
-            log.info('Received response : {}'.format(response))
+        # def send():
+        #     self.send_event({'message': 'test'}, 'sample')
 
         def send():
-            self.send_event({'message': 'test'}, 'sample')
-
-        # def send():
-        #     self.send_to_room({'message': 'test'}, 'sample')
+            def after(status, response):
+                log.info('Received status : {}'.format(status))
+                log.info('Received response : {}'.format(response))
+            self.send_request(
+                'nyuki', 'http://localhost:5558/message', 'get',
+                callback=after)
+            self.send_request(
+                'nyuki', 'http://localhost:5558/message', 'post',
+                data={'message': 'zzzz'}, callback=after)
+            self.send_request(
+                'nyuki', 'http://localhost:5558/message', 'get',
+                callback=after)
 
         self.event_loop.schedule(1, send)
 

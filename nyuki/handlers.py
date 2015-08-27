@@ -21,7 +21,7 @@ class CapabilityHandler(type):
             version = desc.version
             endpoint = desc.endpoint
             for method, handler in cls._filter_capability(desc):
-                name = handler.capability or '{}_{}'.format(method, resrc)
+                name = '{}_{}'.format(method, resrc)
                 wrapper = cls._build_wrapper(nyuki, handler)
                 nyuki.capability_exposer.register(Capability(
                     name=name.lower(),
@@ -52,8 +52,7 @@ class CapabilityHandler(type):
             method = name.upper()
             if method not in mcs.ALLOWED_METHODS:
                 raise ValueError("{} is not a valid HTTP method".format(method))
-            if hasattr(handler, 'capability'):
-                yield method, handler
+            yield method, handler
 
     @staticmethod
     def _filter_resource(obj):

@@ -1,11 +1,10 @@
-from asyncio import Future
+import aiohttp
+import asyncio
+import json
 import logging
 from slixmpp import ClientXMPP
 from slixmpp.exceptions import IqError, IqTimeout, XMPPError
 from slixmpp.xmlstream import JID
-from slixmpp.xmlstream.handler import Callback
-from slixmpp.xmlstream.matcher import MatcherId
-from uuid import uuid4
 
 from nyuki.events import EventManager, Event
 from nyuki.loop import EventLoop
@@ -193,6 +192,42 @@ class Bus(object):
         muc = '{}@{}'.format(muc, self.MUC_SERVER)
         self.mucs.joinMUC(muc, self.nick)
         log.debug('Entered MUC {} with nick {}'.format(muc, self.nick))
+
+    @asyncio.coroutine
+    def _request(self, url, method, data=None):
+        """
+        Asynchronously send a request to method/url.
+        """
+        if isinstance(data, dict):
+            data = json.dumps(data)
+        headers = {'Content-Type': 'application/json'}
+        response = yield from aiohttp.request(
+            method, url, data=data, headers=headers)
+        status = response.status
+        try:
+            content = yield from response.json()
+        except ValueError:
+            log.error('Response was not a json')
+            content = '{}'
+        return (status, content)
+
+    def send_request(self, nyuki, endpoint, method, data=None, callback=None):
+        """
+        Send a P2P request to another nyuki, async a callback if given.
+        """
+        future = asyncio.async(self._request(endpoint, method, data))
+        def send_ok(future):
+            try:
+                status, json = future.result()
+            except (aiohttp.HttpProcessingError,
+                    aiohttp.ServerDisconnectedError,
+                    aiohttp.ClientOSError) as exc:
+                log.exception(exc)
+                log.error('Failed to send request')
+            else:
+                if callback:
+                    self._loop.async(callback, status, json)
+        future.add_done_callback(send_ok)
 
     def send_event(self, message, muc):
         """

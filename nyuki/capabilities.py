@@ -20,19 +20,6 @@ def resource(endpoint, version=None):
     return decorated
 
 
-def capability(name=None):
-    """
-    Nyuki resource method decorator to register a capability.
-    It will be exposed as a HTTP route for the nyuki's API.
-    """
-    def decorated(func):
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
-        wrapper.capability = name
-        return wrapper
-    return decorated
-
-
 class Capability(object):
     """
     A capability is unique (hashable object, based on capability's name).

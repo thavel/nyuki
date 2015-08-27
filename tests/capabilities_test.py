@@ -1,9 +1,7 @@
-from unittest import TestCase
 from mock import Mock, patch
+from unittest import TestCase
 
-
-from nyuki.capabilities import (resource, capability,
-                                Capability, Response, Exposer)
+from nyuki.capabilities import (resource, Capability, Response, Exposer)
 
 
 class TestResourceDecorator(TestCase):
@@ -14,15 +12,6 @@ class TestResourceDecorator(TestCase):
             pass
         self.assertEqual(Test.endpoint, '/test')
         self.assertEqual(Test.version, 'v1')
-
-
-class TestCapabilityDecorator(TestCase):
-
-    def test_001_call(self):
-        @capability(name='test')
-        def test():
-            pass
-        self.assertEqual(test.capability, 'test')
 
 
 class TestCapability(TestCase):

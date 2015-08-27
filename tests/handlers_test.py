@@ -3,7 +3,7 @@ import inspect
 from unittest import TestCase
 
 from nyuki.handlers import CapabilityHandler, EventHandler
-from nyuki.capabilities import capability, resource
+from nyuki.capabilities import resource
 from nyuki.events import on_event, Event
 
 
@@ -23,9 +23,7 @@ class TestCapabilityHandler(TestCase):
         # Test resource
         @resource('/list', 'v1')
         class List:
-
-            # Test capability
-            @capability()
+            # Test method
             def get(self):
                 pass
 
