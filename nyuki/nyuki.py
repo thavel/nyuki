@@ -1,15 +1,18 @@
-import signal
+import asyncio
 import logging
 import logging.config
+import signal
 
-from nyuki.handlers import MetaHandler
 from nyuki.bus import Bus
-from nyuki.events import Event, on_event
 from nyuki.capabilities import Exposer
 from nyuki.commands import get_command_kwargs
 from nyuki.config import (
     get_full_config, write_conf_json, update_config, DEFAULT_CONF_FILE
 )
+from nyuki.events import Event, on_event
+from nyuki.handlers import MetaHandler
+from nyuki.loop import EventLoop
+
 
 log = logging.getLogger(__name__)
 
@@ -34,16 +37,14 @@ class Nyuki(metaclass=MetaHandler):
         self.load_config(**kwargs)
         logging.config.dictConfig(self._config['log'])
 
-        self._bus = Bus(**self._config['bus'])
+        self.event_loop = EventLoop(loop=asyncio.get_event_loop())
+
+        self._bus = Bus(loop=self.event_loop, **self._config['bus'])
         self._exposer = Exposer(self.event_loop.loop)
 
     @property
     def config(self):
         return self._config
-
-    @property
-    def event_loop(self):
-        return self._bus.loop
 
     @property
     def capabilities(self):
@@ -58,16 +59,16 @@ class Nyuki(metaclass=MetaHandler):
         return self._exposer
 
     @property
-    def send_request(self):
-        return self._bus.send_request
+    def request(self):
+        return self._bus.request
 
     @property
-    def send_event(self):
-        return self._bus.send_event
+    def publish(self):
+        return self._bus.publish
 
     @property
-    def join_muc(self):
-        return self._bus.join_muc
+    def subscribe(self):
+        return self._bus.subscribe
 
     @on_event(Event.Connected)
     def _on_connection(self):

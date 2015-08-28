@@ -16,7 +16,7 @@ class Sample(Nyuki):
     @on_event(Event.Connected)
     def _on_start(self):
         log.info("Oh great, I'm connected and ready to do what I want!")
-        self.join_muc('sample')
+        self.subscribe('sender')
 
     @on_event(Event.Disconnected)
     def _on_stop(self):

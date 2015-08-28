@@ -30,7 +30,7 @@ class Event(Enum):
 class EventManager(object):
     """
     Manager that helps to perform asynchronous callbacks when a bus event is
-    triggered. This class use asyncio event loop.
+    triggered. This class use our asyncio event loop wrapper EventLoop.
     """
     def __init__(self, loop):
         self._loop = loop

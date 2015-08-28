@@ -6,7 +6,6 @@ from xml.sax.saxutils import escape
 
 from nyuki.bus import _BusClient, Bus
 from nyuki.events import Event
-from nyuki.xep_nyuki.stanza import NyukiRequest, NyukiEvent
 
 
 class TestBusClient(TestCase):
