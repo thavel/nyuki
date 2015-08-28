@@ -192,7 +192,7 @@ class Bus(object):
             body = yield from response.json()
         except ValueError:
             log.error('Response was not a json')
-            body = '{}'
+            body = {}
         return (status, body)
 
     def _handle_response(self, callback, future):
