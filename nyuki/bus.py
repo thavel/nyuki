@@ -50,7 +50,7 @@ class Bus(object):
     def __init__(self, jid, password, host=None, port=None, loop=None):
         if not isinstance(loop, EventLoop):
             log.error('loop must be an EventLoop object')
-            return
+            raise TypeError
 
         self._loop = loop
 
@@ -223,16 +223,3 @@ class Bus(object):
             endpoint = 'http://localhost:8080/{}/api/'.format(nyuki)
         future = asyncio.async(self._request(endpoint, method, data))
         future.add_done_callback(partial(self._handle_response, callback))
-
-    def reply(self, request, status, body=None):
-        """
-        Send a response to a message through the bus.
-        """
-        log.debug('Replying {} - {} to {}'.format(
-            status, body, request['from']))
-        resp = request.reply()
-        resp['id'] = request['id']
-        resp['response']['json'] = body
-        resp['response']['status'] = str(status)
-        log.debug(resp)
-        resp.send()
