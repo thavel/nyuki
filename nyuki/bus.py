@@ -18,42 +18,44 @@ class _BusClient(ClientXMPP):
     XMPP client to connect to the bus.
     This class is based on Slixmpp (fork of Sleexmpp) using asyncio event loop.
     """
-
-    def __init__(self, jid, password, host=None, port=None):
+    def __init__(self, jid, password, host=None, port=5222):
         super().__init__(jid, password)
-
         host = host or self.boundjid.domain
-        self._address = (host, port or 5222)
+        self._address = (host, port)
 
         self.register_plugin('xep_0045')  # Multi-user chat
         self.register_plugin('xep_0077')  # In-band registration
 
-        # Disable IPv6 util we really need it
+        # Disable IPv6 until we really need it
         self.use_ipv6 = False
 
     def connect(self, **kwargs):
         """
-        Schedule the connection process.
+        Connect to the XMPP server using the default address computed at init
+        if not passed as argument.
         """
+        try:
+            self._address = kwargs.pop('address')
+        except KeyError:
+            pass
         super().connect(address=self._address, **kwargs)
+        self.init_plugins()
 
 
 class Bus(object):
-
     """
-    Provide methods to perform communication over the bus.
-    Events are handled by the EventManager.
+    A simple class that implements Publish/Subscribe-like communications over
+    XMPP. This communication layer is also called "bus".
+    Each nyuki has its own "topic" (actually a MUC) to publish events. And it
+    can publish events to that topic only. In the meantime, each nyuki can
+    subscribe to any other topics to process events from other nyukis.
     """
+    MUC_DOMAIN = 'mucs.localhost'
 
-    MUC_SERVER = 'mucs.localhost'
-
-    def __init__(self, jid, password, host=None, port=None, loop=None):
+    def __init__(self, jid, password, host=None, port=5222, loop=None):
         if not isinstance(loop, EventLoop):
-            log.error('loop must be an EventLoop object')
-            raise TypeError
-
+            raise TypeError('loop must be an EventLoop object')
         self._loop = loop
-
         self.client = _BusClient(jid, password, host, port)
         self.client.loop = self._loop.loop
         self.client.add_event_handler('connection_failed', self._on_failure)
@@ -69,7 +71,7 @@ class Bus(object):
         self._mucs = self.client.plugin['xep_0045']
 
     def _muc_address(self, topic):
-        return '{}@{}'.format(topic, self.MUC_SERVER)
+        return '{}@{}'.format(topic, self.MUC_DOMAIN)
 
     def _on_register(self, event):
         """
@@ -100,9 +102,12 @@ class Bus(object):
         XMPP event handler when the connection has been made.
         Also trigger a bus event: `Connected`.
         """
+        log.debug('Connected to XMPP server {}:{}'.format(
+                  *self.client._address))
         self.client.send_presence()
         self.client.get_roster()
-        log.debug('Connection to the bus succeed')
+        # Auto-subscribe to the topic where the nyuki could publish events.
+        self.subscribe(self._topic)
         self.event_manager.trigger(Event.Connected)
 
     def _on_disconnect(self, event):
@@ -118,7 +123,8 @@ class Bus(object):
         XMPP event handler when something is going wrong with the connection.
         Also trigger a bus event: `ConnectionError`.
         """
-        log.error("Connection to the bus has failed")
+        log.error("Connection to XMPP server {}:{} failed".format(
+                  *self.client._address))
         self.event_manager.trigger(Event.ConnectionError, event)
         self.client.abort()
 
@@ -139,43 +145,44 @@ class Bus(object):
 
     def connect(self):
         """
-        Connect to the XMPP server and init pluggins.
+        Connect to the bus.
         """
         self.client.connect()
-        self.client.init_plugins()
 
     def disconnect(self, timeout=5):
         """
-        Disconnect to the XMPP server.
-        Abort after a timeout (in seconds) if the action is too long.
+        Disconnect from the bus with a default timeout set to 5s.
         """
         self.client.disconnect(wait=timeout)
 
-    def publish(self, message):
+    def publish(self, event):
         """
-        Send an event on nyuki's topic muc.
+        Send an event in the nyuki's own MUC so that other nyukis that joined
+        the MUC can process it.
         """
-        if not isinstance(message, dict):
-            log.error('Message must be a dict')
-            return
-
-        if self._muc_address(self._topic) not in self._mucs.rooms:
-            self.subscribe(self._topic)
-
-        log.debug('Publishing {} to {}'.format(message, self._topic))
+        if not isinstance(event, dict):
+            raise TypeError('Message must be a dict')
+        log.debug('Publishing to {}: {}'.format(self._topic, event))
         msg = self.client.Message()
         msg['type'] = 'groupchat'
         msg['to'] = self._muc_address(self._topic)
-        msg['body'] = json.dumps(message)
+        msg['body'] = json.dumps(event)
         msg.send()
 
     def subscribe(self, topic):
         """
-        Enter into a new room using xep_0045.
-        Room format must be '{name}@applications.localhost'
+        Enter into a new chatroom using xep_0045.
+        Room address format must be like '{topic}@mucs.localhost'
         """
         self._mucs.joinMUC(self._muc_address(topic), self._topic)
-        log.info('Subscribed to "{}"'.format(topic))
+        log.info("Subscribed to '{}'".format(topic))
+
+    def unsubscribe(self, topic):
+        """
+        Leave a chatroom.
+        """
+        self._mucs.leaveMUC(self._muc_address(topic), self._topic)
+        log.info("Unsubscribed to '{}'".format(topic))
 
     @asyncio.coroutine
     def _request(self, url, method, data=None):

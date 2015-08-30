@@ -84,11 +84,10 @@ class TestBus(TestCase):
     def test_007a_publish(self, send_mock):
         with patch.object(self.bus, 'subscribe') as sub_mock:
             self.bus.publish({'message': 'test'})
-            sub_mock.assert_called_once_with(self.bus._topic)
             send_mock.assert_called_once_with()
 
     def test_007b_publish_no_dict(self):
-        assert_is_none(self.bus.publish('not a dict'), None)
+        assert_raises(TypeError, self.bus.publish, 'not a dict')
 
     def test_008_subscribe(self):
         with patch.object(self.bus._mucs, 'joinMUC') as mock:
