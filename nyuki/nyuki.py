@@ -1,10 +1,11 @@
 import asyncio
+from jsonschema import ValidationError
 import logging
 import logging.config
 import signal
 
 from nyuki.bus import Bus
-from nyuki.capabilities import Exposer
+from nyuki.capabilities import Exposer, Response, resource
 from nyuki.commands import get_command_kwargs
 from nyuki.config import (
     get_full_config, write_conf_json, update_config, DEFAULT_CONF_FILE
@@ -95,7 +96,7 @@ class Nyuki(metaclass=MetaHandler):
         self._exposer.expose(**self._config['api'])
         self.event_loop.start(block=True)
 
-    def abort(self, signum, _):
+    def abort(self, signum, frame):
         """
         Signal handler: gracefully stop the nyuki.
         """
@@ -118,3 +119,21 @@ class Nyuki(metaclass=MetaHandler):
 
     def update_config(self, value, path):
         update_config(self._config, value, path)
+
+    @resource(endpoint='/config')
+    class Configuration:
+
+        def get(self, request):
+            return Response(self._config)
+
+        def post(self, request):
+            try:
+                self.load_config(**request)
+            except ValidationError as error:
+                return Response({'error': error.message}, 400)
+            return Response(self._config)
+
+        def put(self, request):
+            for key, value in request.items():
+                self.update_config(value, key)
+            return Response(self._config)

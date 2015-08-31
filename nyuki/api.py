@@ -1,9 +1,8 @@
-import logging
-import asyncio
-from enum import Enum
-
 from aiohttp import web
 from aiohttp import HttpBadRequest, BadHttpMessage
+import asyncio
+from enum import Enum
+import logging
 
 
 log = logging.getLogger(__name__)
@@ -100,5 +99,9 @@ def mw_capability(app, capa_handler):
         else:
             data = dict(getattr(request, request.method))
         capa_resp = yield from capa_handler(data)
-        return web.Response(body=capa_resp.api_payload, status=capa_resp.status)
+        headers = {'Content-Type': 'application/json'}
+        return web.Response(
+            body=capa_resp.api_payload,
+            status=capa_resp.status,
+            headers=headers)
     return middleware
