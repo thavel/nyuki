@@ -8,7 +8,8 @@ from nyuki.bus import Bus
 from nyuki.capabilities import Exposer, Response, resource
 from nyuki.commands import get_command_kwargs
 from nyuki.config import (
-    get_full_config, write_conf_json, update_config, DEFAULT_CONF_FILE
+    get_full_config, write_conf_json, update_config, DEFAULT_CONF_FILE,
+    merge_config
 )
 from nyuki.events import Event, on_event
 from nyuki.handlers import MetaHandler
@@ -134,6 +135,9 @@ class Nyuki(metaclass=MetaHandler):
             return Response(self._config)
 
         def put(self, request):
-            for key, value in request.items():
-                self.update_config(value, key)
+            try:
+                new_conf = merge_config(self._config, request, check=True)
+            except ValidationError as error:
+                return Response({'error': error.message}, 400)
+            self._config = new_conf
             return Response(self._config)

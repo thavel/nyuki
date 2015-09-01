@@ -2,7 +2,7 @@ from unittest import TestCase
 from mock import patch
 
 from nyuki.config import (
-    update_config, _merge_config, get_full_config
+    update_config, merge_config, get_full_config
 )
 from nyuki.logs import DEFAULT_LOGGING
 
@@ -27,7 +27,7 @@ class TestMergeConfig(TestCase):
     def test_001_call(self):
         dict1 = {'a': 1, 'b': {'c': 2}}
         dict2 = {'b': {'d': 3}}
-        result = _merge_config(dict1, dict2)
+        result = merge_config(dict1, dict2)
         self.assertEqual(result, {'a': 1, 'b': {'c': 2, 'd': 3}})
 
 

@@ -50,14 +50,16 @@ def update_config(source, data, path):
     last[dest] = data
 
 
-def _merge_config(defaults, updates):
+def merge_config(defaults, updates, check=False):
     """
     Tool function to merge conf from defaults to the config file/command args.
     """
     conf = dict(defaults, **updates)
     for k in defaults.keys():
         if isinstance(defaults[k], dict) and k in updates:
-            conf[k] = _merge_config(defaults[k], updates[k])
+            conf[k] = merge_config(defaults[k], updates[k])
+    if check:
+        validate(conf, CONF_SCHEMA)
     return conf
 
 
@@ -84,7 +86,7 @@ def get_full_config(**kwargs):
     # We load the conf json if any
     if 'config' in kwargs:
         file_config = read_conf_json(kwargs['config'])
-        conf = _merge_config(conf, file_config)
+        conf = merge_config(conf, file_config)
 
     # Updates for jid and password are straightforward
     if 'jid' in kwargs:
