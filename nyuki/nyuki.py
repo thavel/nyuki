@@ -127,13 +127,6 @@ class Nyuki(metaclass=MetaHandler):
         def get(self, request):
             return Response(self._config)
 
-        def post(self, request):
-            try:
-                self.load_config(**request)
-            except ValidationError as error:
-                return Response({'error': error.message}, 400)
-            return Response(self._config)
-
         def put(self, request):
             try:
                 new_conf = merge_config(self._config, request, check=True)

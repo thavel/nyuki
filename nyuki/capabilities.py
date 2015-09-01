@@ -63,14 +63,6 @@ class Response(object):
         payload = json.dumps(self.body)
         return bytes(payload, self.ENCODING)
 
-    @property
-    def bus_message(self):
-        """
-        Used by the XMPP bus.
-        """
-        self._is_valid()
-        return self.status, self.body
-
 
 class Exposer(object):
     """

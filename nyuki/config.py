@@ -89,10 +89,13 @@ def get_full_config(**kwargs):
         conf = merge_config(conf, file_config)
 
     # Updates for jid and password are straightforward
-    if 'jid' in kwargs:
-        update_config(conf, kwargs['jid'], 'bus.jid')
-    if 'password' in kwargs:
-        update_config(conf, kwargs['password'], 'bus.password')
+    if 'bus' in kwargs:
+        update_config(conf, kwargs['bus'], 'bus')
+    else:
+        if 'jid' in kwargs:
+            update_config(conf, kwargs['jid'], 'bus.jid')
+        if 'password' in kwargs:
+            update_config(conf, kwargs['password'], 'bus.password')
 
     # Add the bus port and host if needed
     if 'server' in kwargs:
