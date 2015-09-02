@@ -1,10 +1,10 @@
 from jsonschema import ValidationError
 from nose.tools import assert_raises
 from unittest import TestCase
-from unittest.mock import patch, Mock
+from unittest.mock import patch
 
 from nyuki.config import (
-    update_config, get_full_config, merge_configs
+    update_config, nested_update, get_full_config, merge_configs
 )
 from nyuki.logs import DEFAULT_LOGGING
 
@@ -23,6 +23,44 @@ class TestUpdateConfig(TestCase):
         update_config(source, 4, 'b.d')
         self.assertEqual(source['b']['d'], 4)
 
+    def test_002_nested_update(self):
+        config = {'k1': 'val_1', 'k2': {'sk_1': 'v_1'}, 'k3': {}}
+
+        self.assertEquals(
+            nested_update(config, {'k4': 'val_4', 'k1': 'toto'}),
+            {
+                'k1': 'toto',
+                'k2': {'sk_1': 'v_1'},
+                'k3': {},
+                'k4': 'val_4'
+            }
+        )
+
+    def test_003_nested_update(self):
+        config = {'k1': 'val_1', 'k2': {'sk_1': 'v_1'}, 'k3': {}}
+        self.assertEquals(
+            nested_update(config, {'k1': 'toto', 'k2': {}}),
+            {'k1': 'toto', 'k2': {'sk_1': 'v_1'}, 'k3': {}}
+        )
+
+    def test_004_nested_update(self):
+        config = {'k1': 'val_1', 'k2': {'sk_1': 'v_1'}, 'k3': {}}
+        self.assertEquals(
+            nested_update(config, {'k2': {'sk_1': '10', 'sk_2': {'1': '1'}}}),
+            {
+                'k1': 'val_1',
+                'k2': {'sk_1': '10', 'sk_2': {'1': '1'}},
+                'k3': {}
+            }
+        )
+
+    def test_005_nested_update(self):
+        config = {'k1': 'val_1', 'k2': {'sk_1': 'v_1'}, 'k3': {}}
+        self.assertEquals(
+            nested_update(config, {'k2': {}}),
+            {'k1': 'val_1', 'k2': {'sk_1': 'v_1'}, 'k3': {}}
+        )
+
 
 class TestMergeConfigs(TestCase):
 
@@ -31,7 +69,7 @@ class TestMergeConfigs(TestCase):
         dict2 = {'b': {'d': 3}}
         dict3 = {'a': {'e': 2}}
         with assert_raises(ValidationError):
-            result = merge_configs(dict1, dict2, dict3)
+            merge_configs(dict1, dict2, dict3)
 
 
 class TestGetFullConfig(TestCase):

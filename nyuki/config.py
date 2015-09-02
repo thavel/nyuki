@@ -53,18 +53,11 @@ def nested_update(defaults, updates):
     """
     Recursively updates nested config dicts.
     """
-    for key, value in updates.items():
-        if isinstance(defaults, dict):
-            if isinstance(value, dict):
-                defaults[key] = nested_update(defaults.get(key, {}), value)
-            else:
-                defaults[key] = updates[key]
-        else:
-            if isinstance(value, dict):
-                defaults = nested_update(defaults, value)
-            else:
-                defaults = updates[key]
+    if not isinstance(defaults, dict) or not isinstance(updates, dict):
+        return updates
 
+    for key, value in updates.items():
+        defaults[key] = nested_update(defaults.get(key, {}), value)
     return defaults
 
 
