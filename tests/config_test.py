@@ -1,10 +1,10 @@
 from jsonschema import ValidationError
-from nose.tools import assert_raises
+from nose.tools import assert_raises, assert_dict_equal
 from unittest import TestCase
 from unittest.mock import patch
 
 from nyuki.config import (
-    update_config, nested_update, get_full_config, merge_configs
+     get_full_config, merge_configs, nested_update, update_config
 )
 from nyuki.logs import DEFAULT_LOGGING
 
@@ -133,3 +133,62 @@ class TestGetFullConfig(TestCase):
             api={'host': 'localhost', 'port': 5152},
             log={'root': {'level': 'DEBUG'}}
         ), expected)
+
+
+class TestNestedUpdate(TestCase):
+
+    def setUp(self):
+        self.defaults = {
+            'bus': {
+                'jid': 'test@localhost',
+                'password': 'test',
+                'host': '127.0.0.1',
+                'port': 5555
+            }
+        }
+
+    def test_001_update_defaults_dict_with_dict(self):
+        updates = {
+            'bus': {
+                'password': 'new_password'
+            },
+        }
+        expected = {
+            'bus': {
+                'jid': 'test@localhost',
+                'password': 'new_password',
+                'host': '127.0.0.1',
+                'port': 5555
+            }
+        }
+        d = nested_update(self.defaults, updates)
+        assert_dict_equal(d, expected)
+
+    def test_002_update_defaults_dict_with_flat_val(self):
+        updates = {
+            'new_key': 'new_val',
+            'bus': None
+        }
+        expected = {
+            'bus': None,
+            'new_key': 'new_val'
+        }
+        d = nested_update(self.defaults, updates)
+        assert_dict_equal(d, expected)
+
+    def test_003_update_defaults_flat_with_dict(self):
+        self.defaults.update({'flat_key': 'flat_val'})
+        updates = {
+            'flat_key': {'nkey': 'nval'}
+        }
+        expected = {
+            'bus': {
+                'jid': 'test@localhost',
+                'password': 'test',
+                'host': '127.0.0.1',
+                'port': 5555
+            },
+            'flat_key': {'nkey': 'nval'}
+        }
+        d = nested_update(self.defaults, updates)
+        assert_dict_equal(d, expected)
