@@ -1,5 +1,7 @@
+from jsonschema import ValidationError
+from nose.tools import assert_raises
 from unittest import TestCase
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 from nyuki.config import (
     update_config, get_full_config, merge_configs
@@ -20,6 +22,16 @@ class TestUpdateConfig(TestCase):
         # Create
         update_config(source, 4, 'b.d')
         self.assertEqual(source['b']['d'], 4)
+
+
+class TestMergeConfigs(TestCase):
+
+    def test_001_call_error(self):
+        dict1 = {'a': 1, 'b': {'c': 2}}
+        dict2 = {'b': {'d': 3}}
+        dict3 = {'a': {'e': 2}}
+        with assert_raises(ValidationError):
+            result = merge_configs(dict1, dict2, dict3)
 
 
 class TestGetFullConfig(TestCase):

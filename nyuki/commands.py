@@ -38,10 +38,8 @@ def get_command_kwargs():
 
     if args.jid:
         command_args['bus'].update(jid=args.jid)
-        del args.jid
     if args.password:
         command_args['bus'].update(password=args.password)
-        del args.password
 
     # Split XMPP host/port
     if args.server:
@@ -50,7 +48,6 @@ def get_command_kwargs():
             command_args['bus'].update(host=server[0], port=int(server[1]))
         except IndexError:
             command_args['bus'].update(host=args.server)
-        del args.server
 
     # Split API host/port
     if args.api:
@@ -59,7 +56,6 @@ def get_command_kwargs():
             command_args['api'].update(host=api[0], port=int(api[1]))
         except IndexError:
             command_args['api'].update(host=args.api)
-        del args.api
 
     # Set logging root level
     command_args['log'] = {
