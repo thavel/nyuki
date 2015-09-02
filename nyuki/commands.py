@@ -30,11 +30,45 @@ def _build_args():
 
 def get_command_kwargs():
     args = _build_args()
-    available = ['logging', 'config', 'jid', 'password', 'server', 'api']
 
-    return {
-        arg: getattr(args, arg)
-        for arg
-        in available
-        if getattr(args, arg) is not None
+    command_args = {
+        'bus': {},
+        'api': {}
     }
+
+    if args.jid:
+        command_args['bus'].update(jid=args.jid)
+        del args.jid
+    if args.password:
+        command_args['bus'].update(password=args.password)
+        del args.password
+
+    # Split XMPP host/port
+    if args.server:
+        server = args.server.split(':')
+        try:
+            command_args['bus'].update(host=server[0], port=int(server[1]))
+        except IndexError:
+            command_args['bus'].update(host=args.server)
+        del args.server
+
+    # Split API host/port
+    if args.api:
+        api = args.api.split(':')
+        try:
+            command_args['api'].update(host=api[0], port=int(api[1]))
+        except IndexError:
+            command_args['api'].update(host=args.api)
+        del args.api
+
+    # Set logging root level
+    command_args['log'] = {
+        'root': {
+            'level': args.logging
+        }
+    }
+
+    if args.config:
+        command_args['config'] = args.config
+
+    return command_args

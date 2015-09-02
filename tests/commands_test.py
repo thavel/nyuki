@@ -1,5 +1,5 @@
 from unittest import TestCase
-from mock import Mock, patch
+from unittest.mock import Mock, patch
 
 from nyuki.commands import get_command_kwargs
 
@@ -21,11 +21,21 @@ class TestCommand(TestCase):
         # Result
         kwargs = get_command_kwargs()
         expected = {
+            'bus': {
+                'host': '127.0.0.1',
+                'port': 5555,
+                'jid': 'test@localhost',
+                'password': 'test'
+            },
+            'api': {
+                'host': 'localhost',
+                'port': 8082
+            },
             'config': 'config.json',
-            'jid': 'test@localhost',
-            'password': 'test',
-            'server': '127.0.0.1:5555',
-            'api': 'localhost:8082',
-            'logging': 'DEBUG'
+            'log': {
+                'root': {
+                    'level': 'DEBUG'
+                }
+            }
         }
         self.assertEqual(kwargs, expected)

@@ -1,6 +1,6 @@
 from asyncio import get_event_loop
-from mock import Mock
 from unittest import TestCase
+from unittest.mock import Mock
 
 from nyuki.loop import EventLoop
 

@@ -8,8 +8,7 @@ from nyuki.bus import Bus
 from nyuki.capabilities import Exposer, Response, resource
 from nyuki.commands import get_command_kwargs
 from nyuki.config import (
-    get_full_config, write_conf_json, update_config, DEFAULT_CONF_FILE,
-    merge_config
+    get_full_config, write_conf_json, merge_configs, DEFAULT_CONF_FILE
 )
 from nyuki.events import Event, on_event
 from nyuki.handlers import MetaHandler
@@ -36,7 +35,7 @@ class Nyuki(metaclass=MetaHandler):
     def __init__(self, **kwargs):
         kwargs = kwargs or get_command_kwargs()
         self.config_filename = kwargs.get('config', DEFAULT_CONF_FILE)
-        self.load_config(**kwargs)
+        self._config = get_full_config(**kwargs)
         logging.config.dictConfig(self._config['log'])
 
         self.event_loop = EventLoop(loop=asyncio.get_event_loop())
@@ -112,14 +111,11 @@ class Nyuki(metaclass=MetaHandler):
         self._exposer.shutdown()
         self._bus.disconnect(timeout=timeout)
 
-    def load_config(self, **kwargs):
-        self._config = get_full_config(**kwargs)
+    def update_config(self, *new_confs):
+        self._config = merge_configs(self._config, *new_confs)
 
     def save_config(self):
         write_conf_json(self.config, self.config_filename)
-
-    def update_config(self, value, path):
-        update_config(self._config, value, path)
 
     @resource(endpoint='/config')
     class Configuration:
@@ -127,10 +123,9 @@ class Nyuki(metaclass=MetaHandler):
         def get(self, request):
             return Response(self._config)
 
-        def put(self, request):
+        def patch(self, request):
             try:
-                new_conf = merge_config(self._config, request, check=True)
+                self.update_config(request)
             except ValidationError as error:
-                return Response({'error': error.message}, 400)
-            self._config = new_conf
+                return Response(body={'error': error.message}, status=400)
             return Response(self._config)

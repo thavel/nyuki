@@ -1,5 +1,5 @@
-from mock import Mock, patch
 from unittest import TestCase
+from unittest.mock import Mock, patch
 
 from nyuki.capabilities import (resource, Capability, Response, Exposer)
 

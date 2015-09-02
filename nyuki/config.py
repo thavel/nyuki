@@ -1,8 +1,7 @@
-import os
 import json
-import logging
-
 from jsonschema import validate, ValidationError
+import logging
+import os
 
 from nyuki.logs import DEFAULT_LOGGING
 
@@ -50,17 +49,31 @@ def update_config(source, data, path):
     last[dest] = data
 
 
-def merge_config(defaults, updates, check=False):
+def nested_update(defaults, updates):
     """
-    Tool function to merge conf from defaults to the config file/command args.
+    Recursively updates nested config dicts.
     """
-    conf = dict(defaults, **updates)
-    for k in defaults.keys():
-        if isinstance(defaults[k], dict) and k in updates:
-            conf[k] = merge_config(defaults[k], updates[k])
-    if check:
-        validate(conf, CONF_SCHEMA)
-    return conf
+    for key, value in updates.items():
+        if isinstance(value, dict):
+            defaults[key] = nested_update(defaults.get(key, {}), value)
+        else:
+            defaults[key] = updates[key]
+    return defaults
+
+
+def merge_configs(*configs):
+    """
+    Merge all dict configs passed as argument.
+    """
+    new_conf = dict()
+    for conf in configs:
+        new_conf = nested_update(new_conf, conf)
+    try:
+        validate(new_conf, CONF_SCHEMA)
+    except ValidationError as error:
+        log.error("Invalid configuration: {}".format(error.message))
+        raise
+    return new_conf
 
 
 def read_conf_json(path):
@@ -82,48 +95,14 @@ def get_full_config(**kwargs):
     command arguments). Configs should be valid (based on a json schema).
     """
     conf = BASE_CONF
+    file_config = dict()
 
     # We load the conf json if any
     if 'config' in kwargs:
         file_config = read_conf_json(kwargs['config'])
-        conf = merge_config(conf, file_config)
+        del kwargs['config']
 
-    # Updates for jid and password are straightforward
-    if 'bus' in kwargs:
-        update_config(conf, kwargs['bus'], 'bus')
-    else:
-        if 'jid' in kwargs:
-            update_config(conf, kwargs['jid'], 'bus.jid')
-        if 'password' in kwargs:
-            update_config(conf, kwargs['password'], 'bus.password')
-
-    # Add the bus port and host if needed
-    if 'server' in kwargs:
-        try:
-            host, port = kwargs['server'].split(':')
-            update_config(conf, int(port), 'bus.port')
-        except ValueError:
-            host = kwargs['server']
-        update_config(conf, host, 'bus.host')
-
-    # Ensure the api section is always there, update if needed
-    if 'api' in kwargs:
-        try:
-            host, port = kwargs['api'].split(':')
-            update_config(conf, int(port), 'api.port')
-        except ValueError:
-            host = kwargs['api']
-        update_config(conf, host, 'api.host')
-
-    # Override root logger level
-    if 'logging' in kwargs:
-        update_config(conf, kwargs['logging'], 'log.root.level')
-
-    try:
-        validate(conf, CONF_SCHEMA)
-    except ValidationError as error:
-        log.error("Invalid configuration: {}".format(error.message))
-        raise
+    conf = merge_configs(conf, file_config, kwargs)
 
     return conf
 

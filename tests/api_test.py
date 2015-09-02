@@ -1,12 +1,12 @@
-from json import dumps, loads
-from mock import Mock, patch
-
 from aiohttp import errors, web
-from nose.tools import (assert_is, assert_is_not_none, assert_raises,
-                        assert_true, eq_)
+from json import dumps, loads
+from nose.tools import (
+    assert_is, assert_is_not_none, assert_raises, assert_true, eq_
+)
+from tests import AsyncTestCase, fake_future
+from unittest.mock import Mock, patch
 
 from nyuki.api import Api, mw_capability, mw_json
-from tests import AsyncTestCase, fake_future
 
 
 class TestApi(AsyncTestCase):
