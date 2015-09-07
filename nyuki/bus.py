@@ -1,6 +1,5 @@
 import aiohttp
 import asyncio
-from functools import partial
 import json
 import logging
 from slixmpp import ClientXMPP
@@ -142,8 +141,12 @@ class Bus(object):
         Fire EventReceived with (from, body).
         """
         log.debug('Event received: {}'.format(event))
-        event = (event['from'], json.loads(event['body']))
-        self.event_manager.trigger(Event.EventReceived, event)
+        try:
+            body = json.loads(event['body'])
+        except ValueError:
+            body = {}
+        self.event_manager.trigger(
+            Event.EventReceived, event['from'], body)
 
     def connect(self):
         """
@@ -187,42 +190,38 @@ class Bus(object):
         log.info("Unsubscribed to '{}'".format(topic))
 
     @asyncio.coroutine
-    def _request(self, url, method, data=None):
+    def _execute_request(self, url, method, data=None):
         """
         Asynchronously send a request to method/url.
         """
         if isinstance(data, dict):
             data = json.dumps(data)
-        headers = {'Content-Type': 'application/json'}
-        response = yield from aiohttp.request(
-            method, url, data=data, headers=headers)
-        status = response.status
-        try:
-            body = yield from response.json()
-        except ValueError:
-            log.error('Response was not a json')
-            body = {}
-        return (status, body)
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
 
-    def _handle_response(self, callback, future):
-        """
-        Check the response of a request using its Future object.
-        Also call asynchronously the response callback, if given.
-        """
         try:
-            status, body = future.result()
+            response = yield from aiohttp.request(
+                method, url, data=data, headers=headers)
         except (aiohttp.HttpProcessingError,
                 aiohttp.ServerDisconnectedError,
                 aiohttp.ClientOSError) as exc:
             log.exception(exc)
             log.error('Failed to send request')
-            return
+            status = 500
+            body = {}
+        else:
+            status = response.status
+            try:
+                body = yield from response.json()
+            except ValueError:
+                log.error('Response was not a json')
+                body = {}
 
-        if callback:
-            log.info('Calling response callback with ({}, {})'.format(
-                     status, body))
-            self._loop.async(callback, status, body)
+        return (status, body)
 
+    @asyncio.coroutine
     def request(self, nyuki, endpoint, method, data=None, callback=None):
         """
         Send a P2P request to another nyuki, async a callback if given.
@@ -230,5 +229,13 @@ class Bus(object):
         """
         if nyuki:
             endpoint = 'http://localhost:8080/{}/api/'.format(nyuki)
-        future = asyncio.async(self._request(endpoint, method, data))
-        future.add_done_callback(partial(self._handle_response, callback))
+
+        status, body = yield from self._execute_request(endpoint, method, data)
+
+        if callback:
+            log.info('Calling response callback with ({}, {})'.format(
+                     status, body))
+            callback = asyncio.coroutine(callback)
+            return (yield from callback(status, body))
+
+        return (status, body)

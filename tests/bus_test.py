@@ -110,22 +110,6 @@ class TestBus(TestCase):
         self.bus._on_register(None)
         assert_in(Event.ConnectionError, self.events)
 
-    def test_010a_handle_response(self):
-        future = Mock()
-        future.result.return_value = 200, {'response': 'text'}
-        cb = Mock()
-        with patch.object(self.bus._loop, 'async') as async:
-            self.bus._handle_response(cb, future)
-            async.assert_called_once_with(cb, 200, {'response': 'text'})
-
-    def test_010b_handle_response_error(self):
-        future = Mock()
-        future.result.side_effect = ClientOSError()
-        cb = Mock()
-        with patch.object(self.bus._loop, 'async') as async:
-            self.bus._handle_response(cb, future)
-            eq_(async.call_count, 0)
-
 
 class TestBusRequest(AsyncTestCase):
 
@@ -139,7 +123,10 @@ class TestBusRequest(AsyncTestCase):
             eq_(method, 'get')
             eq_(url, 'url')
             eq_(data, '{"message": "text"}')
-            eq_(headers, {'Content-Type': 'application/json'})
+            eq_(headers, {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            })
             m = Mock()
             m.status = 200
             @fake_future
@@ -149,9 +136,11 @@ class TestBusRequest(AsyncTestCase):
             return m
 
         with patch('aiohttp.request', request):
-            status, body = self._loop.run_until_complete(self.bus._request(
-                'url', 'get', {'message': 'text'}
-            ))
+            status, body = self._loop.run_until_complete(
+                self.bus._execute_request(
+                    'url', 'get', {'message': 'text'}
+                )
+            )
             eq_(status, 200)
             eq_(body, {'response': 'text'})
 
@@ -161,7 +150,10 @@ class TestBusRequest(AsyncTestCase):
             eq_(method, 'get')
             eq_(url, 'url')
             eq_(data, '{"message": "text"}')
-            eq_(headers, {'Content-Type': 'application/json'})
+            eq_(headers, {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            })
             m = Mock()
             m.status = 200
             @fake_future
@@ -171,8 +163,20 @@ class TestBusRequest(AsyncTestCase):
             return m
 
         with patch('aiohttp.request', request):
-            status, body = self._loop.run_until_complete(self.bus._request(
-                'url', 'get', {'message': 'text'}
-            ))
+            status, body = self._loop.run_until_complete(
+                self.bus._execute_request(
+                    'url', 'get', {'message': 'text'}
+                )
+            )
             eq_(status, 200)
+            eq_(body, {})
+
+    def test_001c_request_error(self):
+        with patch('aiohttp.request', side_effect=ClientOSError):
+            status, body = self._loop.run_until_complete(
+                self.bus._execute_request(
+                    'url', 'get', {'message': 'text'}
+                )
+            )
+            eq_(status, 500)
             eq_(body, {})
