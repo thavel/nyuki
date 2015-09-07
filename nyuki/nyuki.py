@@ -112,16 +112,36 @@ class Nyuki(metaclass=MetaHandler):
         self._bus.disconnect(timeout=timeout)
 
     def update_config(self, *new_confs):
+        """
+        Update the current configuration with the given list of dicts.
+        """
         self._config = merge_configs(self._config, *new_confs)
 
     def save_config(self):
+        """
+        Save the current configuration dict to its JSON file.
+        """
         write_conf_json(self.config, self.config_filename)
 
-    @resource(endpoint='/config')
+    def reload(self):
+        """
+        Override this to implement a reloading to your Nyuki.
+        (called on POST /config)
+        """
+        raise NotImplementedError
+
+    @resource(endpoint='/config', version='v1')
     class Configuration:
 
         def get(self, request):
             return Response(self._config)
+
+        def post(self, request):
+            try:
+                self.reload()
+            except NotImplementedError:
+                return Response(status=501)
+            return Response()
 
         def patch(self, request):
             try:
