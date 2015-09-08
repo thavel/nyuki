@@ -190,16 +190,18 @@ class Bus(object):
         log.info("Unsubscribed to '{}'".format(topic))
 
     @asyncio.coroutine
-    def _execute_request(self, url, method, data=None):
+    def _execute_request(self, url, method, data=None, headers=None):
         """
         Asynchronously send a request to method/url.
         """
         if isinstance(data, dict):
             data = json.dumps(data)
-        headers = {
+
+        headers = headers or {}
+        headers.update({
             'Content-Type': 'application/json',
             'Accept': 'application/json'
-        }
+        })
 
         try:
             response = yield from aiohttp.request(
@@ -222,7 +224,8 @@ class Bus(object):
         return (status, body)
 
     @asyncio.coroutine
-    def request(self, nyuki, endpoint, method, data=None, callback=None):
+    def request(self, nyuki, endpoint, method,
+                data=None, headers=None, callback=None):
         """
         Send a P2P request to another nyuki, async a callback if given.
         The callback is called with two args 'status' and 'body' (json).
@@ -230,7 +233,8 @@ class Bus(object):
         if nyuki:
             endpoint = 'http://localhost:8080/{}/api/'.format(nyuki)
 
-        status, body = yield from self._execute_request(endpoint, method, data)
+        status, body = yield from self._execute_request(
+            endpoint, method, data, headers)
 
         if callback:
             log.info('Calling response callback with ({}, {})'.format(
