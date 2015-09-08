@@ -82,7 +82,6 @@ class Nyuki(metaclass=MetaHandler):
         the event loop (that eventually makes the nyuki process to exit).
         """
         # TODO: Might need a bit of retry here before exiting...
-        self.event_loop.stop()
         log.info("Nyuki exiting")
 
     def start(self):
@@ -103,13 +102,15 @@ class Nyuki(metaclass=MetaHandler):
         log.warning("Caught signal {}".format(signum))
         self.stop()
 
-    def stop(self, timeout=5):
+    def stop(self, timeout=5, restart=False):
         """
         Stop the nyuki. Basically, disconnect to the bus. That will eventually
         trigger a `Disconnected` event.
         """
         self._exposer.shutdown()
         self._bus.disconnect(timeout=timeout)
+        if not restart:
+            self.event_loop.stop()
 
     def update_config(self, *new_confs):
         """
@@ -126,9 +127,14 @@ class Nyuki(metaclass=MetaHandler):
     def reload(self):
         """
         Override this to implement a reloading to your Nyuki.
-        (called on POST /config)
+        (called on PATCH /config)
         """
-        raise NotImplementedError
+        self.save_config()
+        self.stop(restart=True)
+        logging.config.dictConfig(self._config['log'])
+        self._bus = Bus(loop=self.event_loop, **self._config['bus'])
+        self._bus.connect()
+        self._exposer.restart(**self._config['api'])
 
     @resource(endpoint='/config', version='v1')
     class Configuration:
@@ -136,16 +142,11 @@ class Nyuki(metaclass=MetaHandler):
         def get(self, request):
             return Response(self._config)
 
-        def post(self, request):
-            try:
-                self.reload()
-            except NotImplementedError:
-                return Response(status=501)
-            return Response()
-
         def patch(self, request):
             try:
                 self.update_config(request)
             except ValidationError as error:
                 return Response(body={'error': error.message}, status=400)
+            else:
+                self.reload()
             return Response(self._config)

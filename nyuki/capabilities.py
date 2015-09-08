@@ -102,12 +102,22 @@ class Exposer(object):
         log.info("Starting the http server on {}:{}".format(host, port))
         self._loop.run_until_complete(self._api.build(host, port))
 
+    def restart(self, host='0.0.0.0', port=8080):
+        """
+        Restart the HTTP server.
+        """
+        # Stopping the API server
+        fut = self.shutdown()
+        # Rebuilding the API server afterwards
+        fut.add_done_callback(
+            lambda x: asyncio.async(self._api.build(host, port)))
+
     def shutdown(self):
         """
         Shutdown capabilities exposure by destroying the HTTP server.
         """
         log.debug("Stopping the http server")
-        asyncio.async(self._api.destroy(), loop=self._loop)
+        return asyncio.async(self._api.destroy(), loop=self._loop)
 
     def _find(self, capa_name):
         """
