@@ -10,7 +10,7 @@ A lightweigh tool to build a nyuki. It provides features that shall help the dev
 * Capabilities exposure through a REST API.
 
 This library has been written to perform the features above in a reliable, single-threaded, asynchronous and concurrent-safe environment.
-The core engine of a nyuki implementation is the asyncio event loop (a single loop is used for all features). A wrapper is also provide to ease the use of asynchronous calls over the actions nyukis are inteded to do.
+The core engine of a nyuki implementation is the asyncio event loop (a single loop is used for all features). A wrapper is also provided to ease the use of asynchronous calls over the actions nyukis are inteded to do.
 
 ## Usage
 You can see Nyukis examples into the examples folder.  
