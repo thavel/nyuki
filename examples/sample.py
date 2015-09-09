@@ -18,10 +18,6 @@ class Sample(Nyuki):
         log.info("Oh great, I'm connected and ready to do what I want!")
         self.subscribe('sender')
 
-    @on_event(Event.Disconnected)
-    def _on_stop(self):
-        log.info("Alright, this is the end of my existence.")
-
     @resource(endpoint='/message')
     class Message:
         def get(self, request):

@@ -50,9 +50,11 @@ class Bus(object):
     can publish events to that topic only. In the meantime, each nyuki can
     subscribe to any other topics to process events from other nyukis.
     """
+
     MUC_DOMAIN = 'mucs.localhost'
 
-    def __init__(self, jid, password, host=None, port=5222, loop=None):
+    def __init__(self, jid, password, host=None, port=5222, loop=None,
+                 event_manager=None):
         if not isinstance(loop, EventLoop):
             raise TypeError('loop must be an EventLoop object')
         self._loop = loop
@@ -65,7 +67,7 @@ class Bus(object):
         self.client.add_event_handler('register', self._on_register)
         self.client.add_event_handler('session_start', self._on_start)
 
-        self.event_manager = EventManager(self._loop)
+        self.event_manager = event_manager
 
         self._topic = self.client.boundjid.user
         self._mucs = self.client.plugin['xep_0045']
@@ -102,8 +104,8 @@ class Bus(object):
         XMPP event handler when the connection has been made.
         Also trigger a bus event: `Connected`.
         """
-        log.debug('Connected to XMPP server {}:{}'.format(
-                  *self.client._address))
+        log.info('Connected to XMPP server {}:{}'.format(
+                 *self.client._address))
         self.client.send_presence()
         self.client.get_roster()
         # Auto-subscribe to the topic where the nyuki could publish events.
@@ -125,8 +127,8 @@ class Bus(object):
         """
         log.error("Connection to XMPP server {}:{} failed".format(
                   *self.client._address))
-        self.event_manager.trigger(Event.ConnectionError, event)
         self.client.abort()
+        self.event_manager.trigger(Event.ConnectionError)
 
     def _on_invite(self, event):
         """

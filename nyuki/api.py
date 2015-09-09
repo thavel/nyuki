@@ -52,6 +52,7 @@ class Api(object):
         """
         Create a HTTP server to expose the API.
         """
+        log.info("Starting the http server on {}:{}".format(host, port))
         self._handler = self._app.make_handler(log=log, access_log=access_log)
         self._server = yield from self._loop.create_server(self._handler,
                                                            host=host, port=port)
@@ -64,6 +65,7 @@ class Api(object):
         self._server.close()
         yield from self._handler.finish_connections()
         yield from self._server.wait_closed()
+        log.info('Stopped the http server')
 
 
 @asyncio.coroutine

@@ -10,7 +10,7 @@ from nyuki.commands import get_command_kwargs
 from nyuki.config import (
     get_full_config, write_conf_json, merge_configs, DEFAULT_CONF_FILE
 )
-from nyuki.events import Event, on_event
+from nyuki.events import Event, on_event, EventManager
 from nyuki.handlers import MetaHandler
 from nyuki.loop import EventLoop
 
@@ -39,8 +39,9 @@ class Nyuki(metaclass=MetaHandler):
         logging.config.dictConfig(self._config['log'])
 
         self.event_loop = EventLoop(loop=asyncio.get_event_loop())
+        self.event_manager = EventManager(self.event_loop)
 
-        self._bus = Bus(loop=self.event_loop, **self._config['bus'])
+        self._bus = self._make_bus()
         self._exposer = Exposer(self.event_loop.loop)
 
     @property
@@ -50,10 +51,6 @@ class Nyuki(metaclass=MetaHandler):
     @property
     def capabilities(self):
         return self._exposer.capabilities
-
-    @property
-    def event_manager(self):
-        return self._bus.event_manager
 
     @property
     def capability_exposer(self):
@@ -71,18 +68,14 @@ class Nyuki(metaclass=MetaHandler):
     def subscribe(self):
         return self._bus.subscribe
 
-    @on_event(Event.Connected)
-    def _on_connection(self):
-        log.info("Nyuki connected to the bus")
-
-    @on_event(Event.Disconnected, Event.ConnectionError)
-    def _on_disconnection(self, event=None):
+    def _make_bus(self):
         """
-        The direct result of a disconnection from the bus is the shut down of
-        the event loop (that eventually makes the nyuki process to exit).
+        Returns a new Bus object attribute.
         """
-        # TODO: Might need a bit of retry here before exiting...
-        log.info("Nyuki exiting")
+        return Bus(
+            loop=self.event_loop,
+            event_manager=self.event_manager,
+            **self._config['bus'])
 
     def start(self):
         """
@@ -102,15 +95,14 @@ class Nyuki(metaclass=MetaHandler):
         log.warning("Caught signal {}".format(signum))
         self.stop()
 
-    def stop(self, timeout=5, restart=False):
+    def stop(self, timeout=5):
         """
         Stop the nyuki. Basically, disconnect to the bus. That will eventually
         trigger a `Disconnected` event.
         """
         self._exposer.shutdown()
         self._bus.disconnect(timeout=timeout)
-        if not restart:
-            self.event_loop.stop()
+        self.event_loop.stop()
 
     def update_config(self, *new_confs):
         """
@@ -130,9 +122,9 @@ class Nyuki(metaclass=MetaHandler):
         (called on PATCH /config)
         """
         self.save_config()
-        self.stop(restart=True)
+        self._bus.disconnect()
         logging.config.dictConfig(self._config['log'])
-        self._bus = Bus(loop=self.event_loop, **self._config['bus'])
+        self._bus = self._make_bus()
         self._bus.connect()
         self._exposer.restart(**self._config['api'])
 

@@ -9,7 +9,7 @@ from unittest import TestCase
 from xml.sax.saxutils import escape
 
 from nyuki.bus import _BusClient, Bus
-from nyuki.events import Event
+from nyuki.events import Event, EventManager
 from nyuki.loop import EventLoop
 
 from tests import AsyncTestCase, fake_future
@@ -39,7 +39,12 @@ class TestBus(TestCase):
 
     def setUp(self):
         self.events = list()
-        self.bus = Bus('login@localhost', 'password', loop=EventLoop())
+        loop = EventLoop()
+        self.bus = Bus(
+            'login@localhost',
+            'password',
+            loop=loop,
+            event_manager=EventManager(loop=loop))
         self.bus.event_manager.trigger = (lambda x, *y: self.events.append(x))
 
     def tearDown(self):

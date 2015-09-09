@@ -99,7 +99,6 @@ class Exposer(object):
         Expose capabilities by building the HTTP server.
         The server will be started with the event loop.
         """
-        log.info("Starting the http server on {}:{}".format(host, port))
         self._loop.run_until_complete(self._api.build(host, port))
 
     def restart(self, host='0.0.0.0', port=8080):
