@@ -118,14 +118,14 @@ class Nyuki(metaclass=MetaHandler):
         log.warning("Caught signal {}".format(signum))
         self.stop()
 
-    def stop(self, timeout=5):
+    def stop(self, wait=0):
         """
         Stop the nyuki. Basically, disconnect to the bus. That will eventually
         trigger a `Disconnected` event.
         """
         self._exposer.shutdown()
-        self._bus.disconnect(timeout=timeout)
-        self.event_loop.stop()
+        self._bus.disconnect(wait=wait)
+        self._bus.client.disconnected.add_done_callback(self.event_loop.stop)
 
     def register_schema(self, schema, format_checker=None):
         """
@@ -162,12 +162,15 @@ class Nyuki(metaclass=MetaHandler):
         Override this to implement a reloading to your Nyuki.
         (called on PATCH /config)
         """
+        def reconnect(future):
+            self._bus = self._make_bus()
+            self._bus.connect()
+
         self.save_config()
         logging.config.dictConfig(self._config['log'])
         if services:
             self._bus.disconnect()
-            self._bus = self._make_bus()
-            self._bus.connect()
+            self._bus.client.disconnected.add_done_callback(reconnect)
             self._exposer.restart(**self._config['api'])
 
     @resource(endpoint='/config', version='v1')

@@ -157,11 +157,11 @@ class Bus(object):
         """
         self.client.connect()
 
-    def disconnect(self, timeout=5):
+    def disconnect(self, wait=2):
         """
         Disconnect from the bus with a default timeout set to 5s.
         """
-        self.client.disconnect(wait=timeout)
+        self.client.disconnect(wait=wait)
 
     def publish(self, event):
         """
