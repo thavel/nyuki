@@ -124,7 +124,11 @@ class Nyuki(metaclass=MetaHandler):
         trigger a `Disconnected` event.
         """
         self._exposer.shutdown()
-        self._bus.client.disconnected.add_done_callback(self.event_loop.stop)
+
+        def teardown(future):
+            self.teardown()
+            self.event_loop.stop()
+        self._bus.client.disconnected.add_done_callback(teardown)
         self._bus.disconnect(wait=wait)
 
     def register_schema(self, schema, format_checker=None):
@@ -142,6 +146,12 @@ class Nyuki(metaclass=MetaHandler):
         config = config or self._config
         for schema, checker in self._schemas:
             validate(config, schema, format_checker=checker)
+
+    def teardown(self):
+        """
+        Called right before closing the event_loop, stopping the Nyuki.
+        """
+        pass
 
     def update_config(self, *new_confs):
         """

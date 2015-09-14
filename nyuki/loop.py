@@ -12,7 +12,7 @@ class EventLoop(object):
     A generic thread-safe asyncio event loop wrapper.
     """
 
-    def __init__(self, loop=None, setup=None, teardown=None):
+    def __init__(self, loop=None):
         """
         Init the event loop using an existing (non-running) loop or a new one,
         and define optional callbacks that would be executed at the beginning
@@ -23,9 +23,6 @@ class EventLoop(object):
         self._timeouts = dict()
 
         self._loop = self._init_loop(loop)
-
-        self._setup = setup or (lambda: None)
-        self._teardown = teardown or (lambda: None)
 
     def __str__(self):
         alive = 'alive' if self.is_running() else 'down'
@@ -78,11 +75,7 @@ class EventLoop(object):
         """
         def run():
             log.debug("The event loop is starting")
-            try:
-                self._setup()
-                self._loop.run_forever()
-            finally:
-                self._teardown()
+            self._loop.run_forever()
             self._loop.close()
             log.debug("The event loop has been stopped")
 
