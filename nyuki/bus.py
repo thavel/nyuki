@@ -197,15 +197,15 @@ class Bus(object):
         if isinstance(data, dict):
             data = json.dumps(data)
 
-        headers = headers or {}
-        headers.update({
+        base_headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
-        })
+        }
+        base_headers.update(headers or {})
 
         try:
             response = yield from aiohttp.request(
-                method, url, data=data, headers=headers)
+                method, url, data=data, headers=base_headers)
         except (aiohttp.HttpProcessingError,
                 aiohttp.ServerDisconnectedError,
                 aiohttp.ClientOSError) as exc:
@@ -221,7 +221,7 @@ class Bus(object):
                 log.error('Response was not a json')
                 body = {'error': 'Could not decode JSON'}
 
-        log.debug(body)
+        log.debug('received body from request : {}'.format(body))
 
         return (status, body)
 
