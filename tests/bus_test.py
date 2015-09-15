@@ -169,7 +169,7 @@ class TestBusRequest(AsyncTestCase):
                 )
             )
             eq_(status, 200)
-            eq_(body, {})
+            eq_(body, {'error': 'Could not decode JSON'})
 
     def test_001c_request_error(self):
         with patch('aiohttp.request', side_effect=ClientOSError):
@@ -179,4 +179,4 @@ class TestBusRequest(AsyncTestCase):
                 )
             )
             eq_(status, 500)
-            eq_(body, {})
+            eq_(body, {'error': 'Could not connect to the server'})
