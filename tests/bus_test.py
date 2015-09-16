@@ -130,9 +130,9 @@ class TestBusRequest(AsyncTestCase):
             m = Mock()
             m.status = 200
             @fake_future
-            def to_dict():
+            def to_json():
                 return {'response': 'text'}
-            m.json = to_dict
+            m.json = to_json
             return m
 
         with patch('aiohttp.request', request):
@@ -157,9 +157,13 @@ class TestBusRequest(AsyncTestCase):
             m = Mock()
             m.status = 200
             @fake_future
-            def to_dict():
+            def to_json():
                 raise ValueError
-            m.json = to_dict
+            m.json = to_json
+            @fake_future
+            def to_text():
+                return 'something'
+            m.text = to_text
             return m
 
         with patch('aiohttp.request', request):
@@ -168,8 +172,8 @@ class TestBusRequest(AsyncTestCase):
                     'url', 'get', {'message': 'text'}
                 )
             )
-            eq_(status, 406)
-            eq_(body, {'error': 'Could not decode JSON'})
+            eq_(status, 200)
+            eq_(body, 'something')
 
     def test_001c_request_error(self):
         with patch('aiohttp.request', side_effect=ClientOSError):

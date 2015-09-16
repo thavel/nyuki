@@ -194,18 +194,18 @@ class Bus(object):
         """
         Asynchronously send a request to method/url.
         """
-        if isinstance(data, dict):
-            data = json.dumps(data)
+        data = json.dumps(data)
 
         base_headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
         }
-        base_headers.update(headers or {})
+        headers = headers or {}
+        headers.update(base_headers or {})
 
         try:
             response = yield from aiohttp.request(
-                method, url, data=data, headers=base_headers)
+                method, url, data=data, headers=headers)
         except (aiohttp.HttpProcessingError,
                 aiohttp.ServerDisconnectedError,
                 aiohttp.ClientOSError) as exc:
@@ -218,23 +218,24 @@ class Bus(object):
             try:
                 body = yield from response.json()
             except ValueError:
-                log.error('Response was not a json')
-                status = 406
-                body = {'error': 'Could not decode JSON'}
+                log.debug('Response was not a json')
+                body = yield from response.text()
 
         log.debug('received body from request : {}'.format(body))
 
         return (status, body)
 
     @asyncio.coroutine
-    def request(self, nyuki, endpoint, method,
+    def request(self, nyuki, endpoint, method, out=False,
                 data=None, headers=None, callback=None):
         """
         Send a P2P request to another nyuki, async a callback if given.
         The callback is called with two args 'status' and 'body' (json).
         """
-        if nyuki:
-            endpoint = 'http://localhost:8080/{}/api/'.format(nyuki)
+        if not out:
+            endpoint = 'http://localhost:8080/{}/api/{}'.format(
+                nyuki, endpoint
+            )
 
         status, body = yield from self._execute_request(
             endpoint, method, data, headers)
