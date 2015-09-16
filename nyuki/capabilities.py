@@ -50,7 +50,7 @@ class Response(object):
 
     def _is_valid(self):
         if not isinstance(self.body, dict) and not isinstance(self.body, list):
-            raise ValueError("Response body should be a dictionary")
+            raise ValueError("Response body should be a dictionary or a list")
         if not isinstance(self.status, int):
             raise ValueError("Response status code should be a integer")
 

@@ -168,7 +168,7 @@ class TestBusRequest(AsyncTestCase):
                     'url', 'get', {'message': 'text'}
                 )
             )
-            eq_(status, 200)
+            eq_(status, 406)
             eq_(body, {'error': 'Could not decode JSON'})
 
     def test_001c_request_error(self):

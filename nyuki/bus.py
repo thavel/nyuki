@@ -210,7 +210,7 @@ class Bus(object):
                 aiohttp.ServerDisconnectedError,
                 aiohttp.ClientOSError) as exc:
             log.exception(exc)
-            log.error('Failed to send request')
+            log.error('Connection with the server failed')
             status = 500
             body = {'error': 'Could not connect to the server'}
         else:
@@ -219,6 +219,7 @@ class Bus(object):
                 body = yield from response.json()
             except ValueError:
                 log.error('Response was not a json')
+                status = 406
                 body = {'error': 'Could not decode JSON'}
 
         log.debug('received body from request : {}'.format(body))
