@@ -3,7 +3,7 @@ import asyncio
 import json
 from unittest.mock import patch, Mock
 from nose.tools import (
-    assert_in, assert_is_none, assert_raises, assert_true, eq_)
+    assert_in, assert_is_none, assert_raises, assert_true, eq_, ok_)
 from slixmpp.exceptions import IqError, IqTimeout
 from unittest import TestCase
 from xml.sax.saxutils import escape
@@ -136,13 +136,11 @@ class TestBusRequest(AsyncTestCase):
             return m
 
         with patch('aiohttp.request', request):
-            status, body = self._loop.run_until_complete(
-                self.bus._execute_request(
-                    'url', 'get', {'message': 'text'}
+            response = self._loop.run_until_complete(
+                self.bus._execute_request('url', 'get', {'message': 'text'})
                 )
-            )
-            eq_(status, 200)
-            eq_(body, {'response': 'text'})
+        eq_(response.status, 200)
+        eq_(response.json, {'response': 'text'})
 
     def test_001b_request_no_json(self):
         @fake_future
@@ -167,20 +165,21 @@ class TestBusRequest(AsyncTestCase):
             return m
 
         with patch('aiohttp.request', request):
-            status, body = self._loop.run_until_complete(
-                self.bus._execute_request(
-                    'url', 'get', {'message': 'text'}
+            response = self._loop.run_until_complete(
+                self.bus._execute_request('url', 'get', {'message': 'text'})
                 )
-            )
-            eq_(status, 200)
-            eq_(body, 'something')
+        eq_(response.status, 200)
+        eq_(response.json, None)
+        eq_(response.text().result(), 'something')
 
     def test_001c_request_error(self):
+        run = self._loop.run_until_complete
+        error = {'endpoint': 'http://localhost:8080/None/api/url',
+                 'error': 'ClientOSError()',
+                 'data': {'message': 'text'}}
         with patch('aiohttp.request', side_effect=ClientOSError):
-            status, body = self._loop.run_until_complete(
-                self.bus._execute_request(
-                    'url', 'get', {'message': 'text'}
-                )
-            )
-            eq_(status, 500)
-            eq_(body, {'error': 'Could not connect to the server'})
+            with patch.object(self.bus, 'publish') as publish:
+                exc = run(self.bus.request(None, 'url', 'get',
+                          data={'message': 'text'}))
+            publish.assert_called_once_with(error)
+            ok_(isinstance(exc, ClientOSError))

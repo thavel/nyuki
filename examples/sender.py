@@ -1,4 +1,6 @@
 import logging
+import asyncio
+import json
 
 from nyuki import Nyuki, on_event
 from nyuki.events import Event
@@ -13,24 +15,23 @@ class TestNyuki(Nyuki):
     def _run(self):
         log.info('Sending message')
 
-        def send():
-            self.publish({'message': 'test'})
-
         # def send():
-        #     def after(status, response):
-        #         log.info('Received status : {}'.format(status))
-        #         log.info('Received response : {}'.format(response))
-        #     self.request(
-        #         None, 'http://localhost:5558/message', 'get',
-        #         callback=after)
-        #     self.request(
-        #         None, 'http://localhost:5558/message', 'post',
-        #         data={'message': 'zzzz'}, callback=after)
-        #     self.request(
-        #         None, 'http://localhost:5558/message', 'get',
-        #         callback=after)
+        #     self.publish({'message': 'test'})
 
-        self.event_loop.schedule(1, send)
+        def send():
+            def after(response):
+                if isinstance(response, Exception):
+                    log.error('got exception: {}'.format(response))
+                else:
+                    log.info('received response: {}'.format(response.json))
+            asyncio.async(self.request(None, 'http://localhost:5558/message',
+                                       'get', callback=after, out=True))
+            asyncio.async(self.request(None, 'http://localhost:5558/message',
+                                       'post', data={'message': 'zzzz'},
+                                       callback=after, out=True))
+            asyncio.async(self.request(None, 'http://localhost:5559/message',
+                                       'get', callback=after, out=True))
+
         self.event_loop.schedule(2, send)
 
 

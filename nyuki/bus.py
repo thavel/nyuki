@@ -140,7 +140,10 @@ class Bus(object):
         XMPP event handler when a Nyuki Event has been received.
         Fire EventReceived with (from, body).
         """
-        log.debug('Event received: {}'.format(event))
+        # ignore events from the nyuki itself
+        if event['from'].user == self.client.boundjid.user:
+            return
+        log.debug('event received: {}'.format(event))
         try:
             body = json.loads(event['body'])
         except ValueError:
@@ -167,7 +170,7 @@ class Bus(object):
         """
         if not isinstance(event, dict):
             raise TypeError('Message must be a dict')
-        log.debug('Publishing to {}: {}'.format(self._topic, event))
+        log.debug(">> publishing to '{}': {}".format(self._topic, event))
         msg = self.client.Message()
         msg['type'] = 'groupchat'
         msg['to'] = self._muc_address(self._topic)
@@ -180,70 +183,63 @@ class Bus(object):
         Room address format must be like '{topic}@mucs.localhost'
         """
         self._mucs.joinMUC(self._muc_address(topic), self._topic)
-        log.info("Subscribed to '{}'".format(topic))
+        log.info("subscribed to '{}'".format(topic))
 
     def unsubscribe(self, topic):
         """
         Leave a chatroom.
         """
         self._mucs.leaveMUC(self._muc_address(topic), self._topic)
-        log.info("Unsubscribed to '{}'".format(topic))
+        log.info("unsubscribed to '{}'".format(topic))
 
     @asyncio.coroutine
     def _execute_request(self, url, method, data=None, headers=None):
         """
-        Asynchronously send a request to method/url.
+        Asynchronously send a request of type 'application/json' to method/url.
+        If data is not None, it is supposed to be a dict.
         """
         data = json.dumps(data)
-
         base_headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
         }
         headers = headers or {}
-        headers.update(base_headers or {})
-
+        headers.update(base_headers)
+        log.debug('>> sending {} request to {}'.format(method.upper(), url))
+        response = yield from aiohttp.request(method, url, data=data,
+                                              headers=headers)
         try:
-            response = yield from aiohttp.request(
-                method, url, data=data, headers=headers)
-        except (aiohttp.HttpProcessingError,
-                aiohttp.ServerDisconnectedError,
-                aiohttp.ClientOSError) as exc:
-            log.exception(exc)
-            log.error('Connection with the server failed')
-            status = 500
-            body = {'error': 'Could not connect to the server'}
-        else:
-            status = response.status
-            try:
-                body = yield from response.json()
-            except ValueError:
-                log.debug('Response was not a json')
-                body = yield from response.text()
-
-        log.debug('received body from request : {}'.format(body))
-
-        return (status, body)
+            data = yield from response.json()
+        except ValueError:
+            data = None
+        response.json = data
+        log.debug('<< received response from {}: {}'.format(url, data))
+        return response
 
     @asyncio.coroutine
     def request(self, nyuki, endpoint, method, out=False,
                 data=None, headers=None, callback=None):
         """
         Send a P2P request to another nyuki, async a callback if given.
-        The callback is called with two args 'status' and 'body' (json).
+        The callback is called with the response object (json).
         """
         if not out:
-            endpoint = 'http://localhost:8080/{}/api/{}'.format(
-                nyuki, endpoint
-            )
-
-        status, body = yield from self._execute_request(
-            endpoint, method, data, headers)
-
+            endpoint = 'http://localhost:8080/{}/api/{}'.format(nyuki,
+                                                                endpoint)
+        try:
+            response = yield from self._execute_request(endpoint, method,
+                                                        data, headers)
+        except (aiohttp.HttpProcessingError,
+                aiohttp.ServerDisconnectedError,
+                aiohttp.ClientOSError) as exc:
+            log.error('failed to send request to {}'.format(endpoint))
+            response = exc
+            error = {'error': repr(exc), 'endpoint': endpoint, 'data': data}
+            self.publish(error)
         if callback:
-            log.info('Calling response callback with ({}, {})'.format(
-                     status, body))
-            callback = asyncio.coroutine(callback)
-            return (yield from callback(status, body))
-
-        return (status, body)
+            log.debug('calling response callback with {}'.format(response))
+            if asyncio.iscoroutinefunction(callback):
+                asyncio.async(callback(response))
+            else:
+                self._loop.async(callback, response)
+        return response
