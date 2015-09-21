@@ -1,6 +1,9 @@
 import json
+from jsonschema import ValidationError
 import os
-from nose.tools import eq_, assert_true, assert_false, assert_not_equal
+from nose.tools import (
+    eq_, assert_true, assert_false, assert_not_equal, assert_raises
+)
 from unittest import TestCase
 
 from nyuki import Nyuki
@@ -63,3 +66,28 @@ class TestNyuki(TestCase):
         })
         eq_(self.nyuki._config['new'], True)
         eq_(self.nyuki._config['bus']['jid'], 'updated@localhost')
+
+    def test_006a_custom_schema_fail(self):
+        with assert_raises(ValidationError):
+            self.nyuki.register_schema({
+                'type': 'object',
+                'required': ['port'],
+                'properties': {
+                    'port': {
+                        'type': 'integer',
+                    }
+                }
+            })
+
+    def test_006b_custom_schema_ok(self):
+        self.nyuki._config['port'] = 4000
+        self.nyuki.register_schema({
+            'type': 'object',
+            'required': ['port'],
+            'properties': {
+                'port': {
+                    'type': 'integer',
+                }
+            }
+        })
+        eq_(len(self.nyuki._schemas), 2)

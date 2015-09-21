@@ -1,4 +1,3 @@
-from jsonschema import ValidationError
 from nose.tools import assert_raises, assert_dict_equal
 from unittest import TestCase
 from unittest.mock import patch
@@ -60,16 +59,6 @@ class TestUpdateConfig(TestCase):
             nested_update(config, {'k2': {}}),
             {'k1': 'val_1', 'k2': {'sk_1': 'v_1'}, 'k3': {}}
         )
-
-
-class TestMergeConfigs(TestCase):
-
-    def test_001_call_error(self):
-        dict1 = {'a': 1, 'b': {'c': 2}}
-        dict2 = {'b': {'d': 3}}
-        dict3 = {'a': {'e': 2}}
-        with assert_raises(ValidationError):
-            merge_configs(dict1, dict2, dict3)
 
 
 class TestGetFullConfig(TestCase):

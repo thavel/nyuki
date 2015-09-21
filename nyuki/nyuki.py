@@ -1,5 +1,5 @@
 import asyncio
-from jsonschema import ValidationError
+from jsonschema import validate, ValidationError
 import logging
 import logging.config
 import signal
@@ -10,7 +10,7 @@ from nyuki.commands import get_command_kwargs
 from nyuki.config import (
     get_full_config, write_conf_json, merge_configs, DEFAULT_CONF_FILE
 )
-from nyuki.events import Event, on_event, EventManager
+from nyuki.events import Event, EventManager
 from nyuki.handlers import MetaHandler
 from nyuki.loop import EventLoop
 
@@ -32,15 +32,38 @@ class Nyuki(metaclass=MetaHandler):
     A wrapper is also provide to ease the use of asynchronous calls
     over the actions nyukis are inteded to do.
     """
+
+    # Configuration schema must follow jsonschema rules.
+    BASE_CONF_SCHEMA = {
+        "type": "object",
+        "required": ["bus", "api", "log"],
+        "properties": {
+            "bus": {
+                "type": "object",
+                "required": ["jid", "password"],
+                "properties": {
+                    "jid": {"type": "string"},
+                    "password": {"type": "string"}
+                }
+            }
+        }
+    }
+
     def __init__(self, **kwargs):
+        # List of configuration schemas
+        self._schemas = []
+
+        # Get configuration from multiple sources and register base schema
         kwargs = kwargs or get_command_kwargs()
         self.config_filename = kwargs.get('config', DEFAULT_CONF_FILE)
         self._config = get_full_config(**kwargs)
+        self.register_schema(self.BASE_CONF_SCHEMA)
+
+        # Initialize logging
         logging.config.dictConfig(self._config['log'])
 
         self.event_loop = EventLoop(loop=asyncio.get_event_loop())
         self.event_manager = EventManager(self.event_loop)
-
         self._bus = self._make_bus()
         self._exposer = Exposer(self.event_loop.loop)
 
@@ -104,11 +127,29 @@ class Nyuki(metaclass=MetaHandler):
         self._bus.disconnect(timeout=timeout)
         self.event_loop.stop()
 
+    def register_schema(self, schema):
+        """
+        Add a jsonschema to validate on configuration update.
+        """
+        self._schemas.append(schema)
+        self._validate_config()
+
+    def _validate_config(self, config=None):
+        """
+        Validate on all registered configuration schemas.
+        """
+        log.debug('Validating configuration')
+        config = config or self._config
+        for schema in self._schemas:
+            validate(config, schema)
+
     def update_config(self, *new_confs):
         """
         Update the current configuration with the given list of dicts.
         """
-        self._config = merge_configs(self._config, *new_confs)
+        config = merge_configs(self._config, *new_confs)
+        self._validate_config(config)
+        self._config = config
 
     def save_config(self):
         """
@@ -116,17 +157,18 @@ class Nyuki(metaclass=MetaHandler):
         """
         write_conf_json(self.config, self.config_filename)
 
-    def reload(self):
+    def reload(self, services=False):
         """
         Override this to implement a reloading to your Nyuki.
         (called on PATCH /config)
         """
         self.save_config()
-        self._bus.disconnect()
         logging.config.dictConfig(self._config['log'])
-        self._bus = self._make_bus()
-        self._bus.connect()
-        self._exposer.restart(**self._config['api'])
+        if services:
+            self._bus.disconnect()
+            self._bus = self._make_bus()
+            self._bus.connect()
+            self._exposer.restart(**self._config['api'])
 
     @resource(endpoint='/config', version='v1')
     class Configuration:
@@ -138,7 +180,10 @@ class Nyuki(metaclass=MetaHandler):
             try:
                 self.update_config(request)
             except ValidationError as error:
-                return Response(body={'error': error.message}, status=400)
+                error = {'error': error.message}
+                log.error('Bad configuration received : {}'.format(request))
+                log.debug(error)
+                return Response(body=error, status=400)
             else:
-                self.reload()
+                self.reload('api' in request or 'bus' in request)
             return Response(self._config)

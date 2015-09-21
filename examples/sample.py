@@ -9,9 +9,20 @@ log = logging.getLogger(__name__)
 
 
 class Sample(Nyuki):
+
+    CONF_SCHEMA = {
+        'type': 'object',
+        'required': ['port'],
+        'properties': {
+            'port': {
+                'type': 'integer',
+            }
+        }
+    }
+
     def __init__(self):
         super().__init__()
-        self.message = 'Hello world!'
+        self.register_schema(self.CONF_SCHEMA)
 
     @on_event(Event.Connected)
     def _on_start(self):

@@ -1,5 +1,4 @@
 import json
-from jsonschema import validate, ValidationError
 import logging
 import os
 
@@ -7,22 +6,6 @@ from nyuki.logs import DEFAULT_LOGGING
 
 
 log = logging.getLogger(__name__)
-
-# Configuration schema must follow jsonschema rules.
-CONF_SCHEMA = {
-    "type": "object",
-    "required": ["bus", "api", "log"],
-    "properties": {
-        "bus": {
-            "type": "object",
-            "required": ["jid", "password"],
-            "properties": {
-                "jid": {"type": "string"},
-                "password": {"type": "string"}
-            }
-        }
-    }
-}
 
 # Nyuki default config file
 DEFAULT_CONF_FILE = 'conf.json'
@@ -68,11 +51,6 @@ def merge_configs(*configs):
     new_conf = dict()
     for conf in configs:
         new_conf = nested_update(new_conf, conf)
-    try:
-        validate(new_conf, CONF_SCHEMA)
-    except ValidationError as error:
-        log.error("Invalid configuration: {}".format(error.message))
-        raise
     return new_conf
 
 
