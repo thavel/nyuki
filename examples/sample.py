@@ -45,6 +45,9 @@ class Sample(Nyuki):
             self.send(request, 'toto@localhost', 'do_something')
             return Response(status=200)
 
+    def teardown(self):
+        log.info('goodbye !')
+
 
 if __name__ == '__main__':
     nyuki = Sample()

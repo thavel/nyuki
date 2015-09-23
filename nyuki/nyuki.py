@@ -10,7 +10,7 @@ from nyuki.commands import get_command_kwargs
 from nyuki.config import (
     get_full_config, write_conf_json, merge_configs, DEFAULT_CONF_FILE
 )
-from nyuki.events import Event, EventManager
+from nyuki.events import EventManager
 from nyuki.handlers import MetaHandler
 from nyuki.loop import EventLoop
 
@@ -67,6 +67,8 @@ class Nyuki(metaclass=MetaHandler):
         self._bus = self._make_bus()
         self._exposer = Exposer(self.event_loop.loop)
 
+        self.is_stopping = False
+
     @property
     def config(self):
         return self._config
@@ -93,12 +95,15 @@ class Nyuki(metaclass=MetaHandler):
 
     def _make_bus(self):
         """
-        Returns a new Bus object attribute.
+        Returns a new set up Bus object.
         """
-        return Bus(
+        bus = Bus(
             loop=self.event_loop,
             event_manager=self.event_manager,
-            **self._config['bus'])
+            **self._config['bus']
+        )
+        bus.client.disconnected.add_done_callback(self._bus_disconnected)
+        return bus
 
     def start(self):
         """
@@ -111,6 +116,21 @@ class Nyuki(metaclass=MetaHandler):
         self._exposer.expose(**self._config['api'])
         self.event_loop.start(block=True)
 
+    def _bus_disconnected(self, future):
+        """
+        Handle bus disconnection.
+        If it was manual stop the nyuki, else try to reconnect.
+        """
+        log.info('Bus disconnected')
+        if self.is_stopping:
+            log.info('Tearing down nyuki')
+            self.teardown()
+            self.event_loop.stop()
+        else:
+            log.info('Reconnecting...')
+            self._bus = self._make_bus()
+            self._bus.connect()
+
     def abort(self, signum, frame):
         """
         Signal handler: gracefully stop the nyuki.
@@ -118,18 +138,26 @@ class Nyuki(metaclass=MetaHandler):
         log.warning("Caught signal {}".format(signum))
         self.stop()
 
-    def stop(self, wait=2):
+    def stop(self, timeout=5):
         """
         Stop the nyuki. Basically, disconnect to the bus. That will eventually
         trigger a `Disconnected` event.
         """
-        self._exposer.shutdown()
-
-        def teardown(future):
-            self.teardown()
+        if self.is_stopping:
+            log.warning('Forcing the nyuki stopping')
             self.event_loop.stop()
-        self._bus.client.disconnected.add_done_callback(teardown)
-        self._bus.disconnect(wait=wait)
+            return
+
+        self.is_stopping = True
+
+        def timed_out():
+            log.warning('Could not stop nyuki after '
+                        '{} seconds, killing'.format(timeout))
+            self.event_loop.stop()
+
+        self.event_loop.schedule(timeout, timed_out)
+        self._exposer.shutdown()
+        self._bus.disconnect()
 
     def register_schema(self, schema, format_checker=None):
         """
@@ -172,14 +200,9 @@ class Nyuki(metaclass=MetaHandler):
         Override this to implement a reloading to your Nyuki.
         (called on PATCH /config)
         """
-        def reconnect(future):
-            self._bus = self._make_bus()
-            self._bus.connect()
-
         self.save_config()
         logging.config.dictConfig(self._config['log'])
         if services:
-            self._bus.client.disconnected.add_done_callback(reconnect)
             self._bus.disconnect()
             self._exposer.restart(**self._config['api'])
 

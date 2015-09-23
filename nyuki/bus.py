@@ -5,7 +5,7 @@ import logging
 from slixmpp import ClientXMPP
 from slixmpp.exceptions import IqError, IqTimeout
 
-from nyuki.events import EventManager, Event
+from nyuki.events import Event
 from nyuki.loop import EventLoop
 
 
@@ -161,7 +161,11 @@ class Bus(object):
         """
         Disconnect from the bus with a default timeout set to 5s.
         """
-        self.client.disconnect(wait=wait)
+        if not self.client.transport:
+            log.error('XMPP client is not connected')
+            self.client.disconnected.set_result(True)
+        else:
+            self.client.disconnect(wait=wait)
 
     def publish(self, event):
         """
