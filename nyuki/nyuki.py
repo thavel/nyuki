@@ -127,11 +127,11 @@ class Nyuki(metaclass=MetaHandler):
         self._bus.disconnect(timeout=timeout)
         self.event_loop.stop()
 
-    def register_schema(self, schema):
+    def register_schema(self, schema, format_checker=None):
         """
         Add a jsonschema to validate on configuration update.
         """
-        self._schemas.append(schema)
+        self._schemas.append((schema, format_checker))
         self._validate_config()
 
     def _validate_config(self, config=None):
@@ -140,8 +140,8 @@ class Nyuki(metaclass=MetaHandler):
         """
         log.debug('Validating configuration')
         config = config or self._config
-        for schema in self._schemas:
-            validate(config, schema)
+        for schema, checker in self._schemas:
+            validate(config, schema, format_checker=checker)
 
     def update_config(self, *new_confs):
         """
