@@ -162,7 +162,7 @@ class Bus(object):
         Disconnect from the bus with a default timeout set to 5s.
         """
         if not self.client.transport:
-            log.error('XMPP client is not connected')
+            log.warning('XMPP client is already disconnected')
             self.client.disconnected.set_result(True)
         else:
             self.client.disconnect(wait=wait)
