@@ -7,6 +7,9 @@ from setuptools import setup, find_packages
 with open('VERSION.txt', 'r') as v:
     version = v.read()
 
+with open('DESCRIPTION', 'r') as d:
+    long_description = d.read()
+
 # Requirements
 install_reqs = parse_requirements('requirements.txt', session='dummy')
 reqs = [str(ir.req) for ir in install_reqs]
@@ -14,6 +17,7 @@ reqs = [str(ir.req) for ir in install_reqs]
 setup(
     name='nyuki',
     description='Nyuki library',
+    long_description=long_description,
     url='http://www.surycat.com',
     author='Optiflows R&D',
     author_email='rand@surycat.com',
