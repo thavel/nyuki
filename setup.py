@@ -26,7 +26,7 @@ setup(
     packages=find_packages(exclude=['tests']),
     license='Apache 2.0',
     classifiers=(
-        'Development Status :: 5 - Production/Stable',
+        'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
         'Natural Language :: English',
         'License :: OSI Approved :: Apache Software License',
