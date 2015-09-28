@@ -16,7 +16,7 @@ reqs = [str(ir.req) for ir in install_reqs]
 
 setup(
     name='nyuki',
-    description='Nyuki library',
+    description='Allowing the creation of independent unit to deal with stream processing while exposing an XMPP and REST API.',
     long_description=long_description,
     url='http://www.surycat.com',
     author='Optiflows R&D',
