@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 
 with open('VERSION.txt', 'r') as v:
-    version = v.read()
+    version = v.read().strip()
 
 with open('DESCRIPTION', 'r') as d:
     long_description = d.read()
@@ -25,12 +25,12 @@ setup(
     install_requires=reqs,
     packages=find_packages(exclude=['tests']),
     license='Apache 2.0',
-    classifiers=(
+    classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
         'Natural Language :: English',
         'License :: OSI Approved :: Apache Software License',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3 :: Only',
-    ),
+    ],
 )
