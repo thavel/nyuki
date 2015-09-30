@@ -7,4 +7,4 @@ username = $PYPI_USER
 password = $PYPI_PASSWORD
 " > ~/.pypirc
 
-python setup.py sdist upload -r pypitest
+python setup.py sdist upload
