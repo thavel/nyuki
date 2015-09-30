@@ -1,6 +1,6 @@
 # Nyuki :bee:
 
-[![Circle CI](https://circleci.com/gh/optiflows/nyuki.svg?style=svg&circle-token=13ac14e1fa136c3488cb48b32ce52347d398e08b)](https://circleci.com/gh/optiflows/nyuki)
+[![Circle CI](https://img.shields.io/circleci/project/optiflows/nyuki/master.svg)](https://circleci.com/gh/optiflows/nyuki) [![pypi version](http://img.shields.io/pypi/v/nyuki.svg)](https://pypi.python.org/pypi/nyuki) [![pypi download week](http://img.shields.io/pypi/dw/nyuki.svg)](https://pypi.python.org/pypi/nyuki)
 
 ## tl;dr
 A lightweight library designed to build nyukis (Python 3.4 only!). It provides features that shall help developers with managing the following topics while developing a nyuki:
