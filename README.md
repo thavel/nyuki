@@ -3,16 +3,17 @@
 [![Circle CI](https://img.shields.io/circleci/project/optiflows/nyuki/master.svg)](https://circleci.com/gh/optiflows/nyuki) [![pypi version](http://img.shields.io/pypi/v/nyuki.svg)](https://pypi.python.org/pypi/nyuki) [![pypi download week](http://img.shields.io/pypi/dw/nyuki.svg)](https://pypi.python.org/pypi/nyuki)
 
 ## tl;dr
-A lightweight library designed to build nyukis (Python 3.4 only!). It provides features that shall help developers with managing the following topics while developing a nyuki:
+A lightweight Python library designed to implement agents (aka nyukis). It provides features that shall help developers with managing the following topics:
 
-* Expose features through the own nyuki RESTful API
+* Expose service features through a RESTful API
 * Communication between nyukis (over HTTP and XMPP)
 * Helpers for asyncio-based programming
 
-This library has been written with a focus on reliability and developer-friendliness. Its design promotes single-threaded and asynchronous coding style through the extensive use of the [Python asyncio](https://docs.python.org/3/library/asyncio.html) event loop. A single loop is used to manage HTTP and XMPP-based communications as well as executing internal logic.
+This library has been written with a focus on reliability and developer-friendliness. Its design promotes single-threaded and asynchronous coding style through the extensive use of the [Python asyncio](https://docs.python.org/3/library/asyncio.html) event loop. A single loop is used to manage HTTP and XMPP-based communications as well as executing internal logic. Nyukis are suited for Agent-Oriented Programming and very useful to build distributed systems and scalable services.
 
 ## What is a nyuki?
-A nyuki (a bee in Swahili) is an entity designed for real-time data processing (stream processing). Tying together several nyukis allows nearly unlimited use cases: from home automation (e.g. warm up my home when I'm <5 miles away) to smart industries (lower down pressure and notify staff upon reaching a temperature threshold). This is up to the developer to write his own user story! Following that philosophy, nyukis are the nuts and bolts that helped design [Surycat](http://www.surycat.com).
+A nyuki (a bee in Swahili) is an entity designed for real-time data processing (stream processing). Tying together several nyukis allows nearly unlimited use cases: from home automation (e.g. warm up my home when you're less than 5 miles away) to smart industries (lower down pressure and notify staff upon reaching a temperature threshold). This is up to the developer to write his own user story! Following that philosophy, nyukis are the nuts and bolts that helped design [Surycat](http://www.surycat.com).
+
 Here is a list of core concepts tied to a nyuki:
 
 * A nyuki runs as a standalone process
@@ -20,22 +21,26 @@ Here is a list of core concepts tied to a nyuki:
 * A nyuki provides its own HTTP RESTful API
 * A nyuki is connected to a bus for 1-to-many communication with other nyukis (currently using XMPP MUC)
 
+## Requirements
+All you need is a Python interpreter. At the moment, only **Python 3.4** is supported.
+
 ## Getting started
-Don't bother with installing and configuring your own XMPP server at once! Run this preconfigured docker image instead:
+Don't bother with installing and configuring your own XMPP server at once! Run this preconfigured Docker image instead:
 
 ```bash
-> docker pull surycat/prosody
-> docker run -d surycat/prosody
+docker pull surycat/prosody
+docker run -d surycat/prosody
 ```
 
-Install the nyuki library (requires Python 3.4 only!):
+Install the nyuki library:
 
 ```bash
-> pip install nyuki
+pip install nyuki
 ```
+
+Nyuki's paradigms are convenient for Docker-based environment. We recommend using one container per nyuki implementation.
 
 Let's now write two nyukis, namely `timon` and `pumbaa`. Each time `timon` gets a new message, `pumbaa` eats a larva (`timon.py` and `pumbaa.py` available in folder *examples*):
-
 ```python
 """
 This is 'timon'
@@ -112,24 +117,28 @@ if __name__ == '__main__':
 Run your nyukis:
 
 ```bash
-> python timon.py -j timon@localhost -p timon -a localhost:8080
-> python pumbaa.py -j pumbaa@localhost -p pumbaa -a localhost:8081
+python timon.py -j timon@localhost -p timon -a localhost:8080
+python pumbaa.py -j pumbaa@localhost -p pumbaa -a localhost:8081
 ```
 
 Play with it! Use your favorite HTTP tool (e.g. [Postman](https://chrome.google.com/webstore/detail/postman/fhbjgbiflinjbdggehcddcbncdddomop) or `curl`):
 
 ```bash
-> curl -H "Content-Type: application/json" http://localhost:8080/message
+curl -H "Content-Type: application/json" http://localhost:8080/message
 {"message": "hello world!"}
-> curl -H "Content-Type: application/json" http://localhost:8081/eaten
+
+curl -H "Content-Type: application/json" http://localhost:8081/eaten
 {"eaten": 0}
-> curl -H "Content-Type: application/json" -X POST -d '{"message": "hello timon #1"}' http://localhost:8080/message
-> curl -H "Content-Type: application/json" http://localhost:8080/message
+
+curl -H "Content-Type: application/json" -X POST -d '{"message": "hello timon #1"}' http://localhost:8080/message
+curl -H "Content-Type: application/json" http://localhost:8080/message
 {"message": "hello timon #1"}
-> curl -H "Content-Type: application/json" http://localhost:8081/eaten
+
+curl -H "Content-Type: application/json" http://localhost:8081/eaten
 {"eaten": 1}
-> curl -H "Content-Type: application/json" -X POST -d '{"message": "hello timon #2"}' http://localhost:8080/message
-> curl -H "Content-Type: application/json" http://localhost:8081/eaten
+
+curl -H "Content-Type: application/json" -X POST -d '{"message": "hello timon #2"}' http://localhost:8080/message
+curl -H "Content-Type: application/json" http://localhost:8081/eaten
 {"eaten": 2}
 ```
 
@@ -154,13 +163,13 @@ Instead of passing a list of arguments to the command-line you can put the whole
 Starting a nyuki with that config file gets dead simple:
 
 ```bash
-> python sample.py -c sample.json
+python sample.py -c sample.json
 ```
 
 By the way, settings from the configuration file are overridden by command-line arguments. This can be useful to spawn several instances of the same nyuki quickly:
 
 ```bash
-> python sample.py -j myjid@myhost -c sample.json
+python sample.py -j myjid@myhost -c sample.json
 ```
 
 Mandatory parameters are the Jabber ID (`jid`) and the password. Others are optional in both the command-line and the configuration file.
