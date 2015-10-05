@@ -91,4 +91,4 @@ def write_conf_json(config, filename):
     """
     with open(filename, 'w') as jsonfile:
         json.dump(config, jsonfile,
-                  sort_keys=True, indent=2, separators=(',', ': '))
+                  sort_keys=True, indent=4, separators=(',', ': '))

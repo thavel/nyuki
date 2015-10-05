@@ -1,6 +1,6 @@
 {
-  "bus": {
-    "jid": "sender@localhost",
-    "password": "sender"
-  }
+    "bus": {
+        "jid": "sender@localhost",
+        "password": "sender"
+    }
 }

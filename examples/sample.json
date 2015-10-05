@@ -1,11 +1,44 @@
 {
-  "bus": {
-    "jid": "sample@localhost",
-    "password": "sample"
-  },
-  "api": {
-    "host": "0.0.0.0",
-    "port": 5558
-  },
-  "port": 4000
+    "api": {
+        "host": "0.0.0.0",
+        "port": 5558
+    },
+    "bus": {
+        "jid": "sample@localhost",
+        "password": "sample"
+    },
+    "log": {
+        "disable_existing_loggers": false,
+        "formatters": {
+            "long": {
+                "format": "%(asctime)-24s %(levelname)-8s [%(name)s] %(message)s"
+            }
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "long",
+                "stream": "ext://sys.stdout"
+            }
+        },
+        "loggers": {
+            "aiohttp.web": {
+                "level": "WARNING"
+            },
+            "asyncio": {
+                "level": "WARNING"
+            },
+            "slixmpp": {
+                "level": "WARNING"
+            }
+        },
+        "root": {
+            "handlers": [
+                "console"
+            ],
+            "level": "INFO"
+        },
+        "version": 1
+    },
+    "port": 4000
 }
