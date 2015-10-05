@@ -40,7 +40,7 @@ class TestEventManager(TestCase):
     def test_003a_trigger(self):
         # Ensure callbacks are properly scheduled when an event is triggered
         callbacks = list()
-        self.loop.async = (lambda c, *args: callbacks.append(c))
+        self.loop.call_soon = (lambda c, *args: callbacks.append(c))
         cb = (lambda x: x)
         self.manager.register(Event.Connected, cb)
         self.manager.trigger(Event.Connected)

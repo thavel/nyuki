@@ -2,15 +2,13 @@ from aiohttp import ClientOSError
 import asyncio
 import json
 from unittest.mock import patch, Mock
-from nose.tools import (
-    assert_in, assert_is_none, assert_raises, assert_true, eq_, ok_)
-from slixmpp.exceptions import IqError, IqTimeout
+from nose.tools import assert_in, assert_raises, eq_, ok_
+from slixmpp.exceptions import IqTimeout
 from unittest import TestCase
 from xml.sax.saxutils import escape
 
 from nyuki.bus import _BusClient, Bus
 from nyuki.events import Event, EventManager
-from nyuki.loop import EventLoop
 
 from tests import AsyncTestCase, fake_future
 
@@ -39,7 +37,7 @@ class TestBus(TestCase):
 
     def setUp(self):
         self.events = list()
-        loop = EventLoop()
+        loop = asyncio.get_event_loop()
         self.bus = Bus(
             'login@localhost',
             'password',
@@ -78,30 +76,26 @@ class TestBus(TestCase):
         assert_in(encoded_xml, str(msg))
         assert_in(Event.EventReceived, self.events)
 
-    def test_005_bus_no_loop(self):
-        with assert_raises(TypeError):
-            Bus('jid', 'password')
-
-    def test_006_muc_address(self):
+    def test_005_muc_address(self):
         muc = self.bus._muc_address('topic')
         eq_(muc, 'topic@mucs.localhost')
 
     @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send')
-    def test_007a_publish(self, send_mock):
+    def test_006a_publish(self, send_mock):
         with patch.object(self.bus, 'subscribe') as sub_mock:
             self.bus.publish({'message': 'test'})
             send_mock.assert_called_once_with()
 
-    def test_007b_publish_no_dict(self):
+    def test_006b_publish_no_dict(self):
         assert_raises(TypeError, self.bus.publish, 'not a dict')
 
-    def test_008_subscribe(self):
+    def test_007_subscribe(self):
         with patch.object(self.bus._mucs, 'joinMUC') as mock:
             self.bus.subscribe('login')
             mock.assert_called_once_with('login@mucs.localhost', 'login')
 
     @patch('slixmpp.stanza.Iq.send')
-    def test_009_on_register_callback(self, send_mock):
+    def test_008_on_register_callback(self, send_mock):
         future = asyncio.Future()
         future.set_exception(IqTimeout(None))
         m = Mock()
@@ -115,7 +109,7 @@ class TestBusRequest(AsyncTestCase):
 
     def setUp(self):
         super().setUp()
-        self.bus = Bus('login@localhost', 'login', loop=EventLoop())
+        self.bus = Bus('login@localhost', 'login', loop=self._loop)
 
     def test_001a_request(self):
         @fake_future

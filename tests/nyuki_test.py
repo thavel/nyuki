@@ -37,7 +37,7 @@ class TestNyuki(TestCase):
             os.remove(self.nyuki.config_filename)
 
     def test_001_init(self):
-        bus_loop = self.nyuki._bus._loop.loop
+        bus_loop = self.nyuki._bus._loop
         exposer_loop = self.nyuki._exposer._loop
         eq_(bus_loop, exposer_loop)
 

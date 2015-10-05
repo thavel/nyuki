@@ -36,7 +36,7 @@ class EventManager(object):
         self._loop = loop
         self._callbacks = self._init_callbacks()
         log.debug("Available events: {}".format(list(Event)))
-        log.debug("Events will be called through {}".format(self._loop.loop))
+        log.debug("Events will be called through {}".format(self._loop))
 
     @staticmethod
     def _init_callbacks():
@@ -64,5 +64,5 @@ class EventManager(object):
         if event not in self._callbacks:
             raise ValueError("Event {} is not registered".format(event))
         for callback in self._callbacks[event]:
-            self._loop.async(callback, *args)
+            self._loop.call_soon(callback, *args)
         log.debug("{} event triggered".format(event.name))

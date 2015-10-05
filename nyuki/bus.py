@@ -6,7 +6,6 @@ from slixmpp import ClientXMPP
 from slixmpp.exceptions import IqError, IqTimeout
 
 from nyuki.events import Event
-from nyuki.loop import EventLoop
 
 
 log = logging.getLogger(__name__)
@@ -54,11 +53,9 @@ class Bus(object):
 
     def __init__(self, jid, password, host=None, port=5222, loop=None,
                  event_manager=None):
-        if not isinstance(loop, EventLoop):
-            raise TypeError('loop must be an EventLoop object')
         self._loop = loop
         self.client = _BusClient(jid, password, host, port)
-        self.client.loop = self._loop.loop
+        self.client.loop = self._loop
         self.client.add_event_handler('connection_failed', self._on_failure)
         self.client.add_event_handler('disconnected', self._on_disconnect)
         self.client.add_event_handler('groupchat_invite', self._on_invite)
@@ -245,5 +242,5 @@ class Bus(object):
             if asyncio.iscoroutinefunction(callback):
                 asyncio.async(callback(response))
             else:
-                self._loop.async(callback, response)
+                self._loop.call_soon(callback, response)
         return response

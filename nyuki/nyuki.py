@@ -12,7 +12,6 @@ from nyuki.config import (
 )
 from nyuki.events import EventManager
 from nyuki.handlers import MetaHandler
-from nyuki.loop import EventLoop
 
 
 log = logging.getLogger(__name__)
@@ -62,10 +61,10 @@ class Nyuki(metaclass=MetaHandler):
         # Initialize logging
         logging.config.dictConfig(self._config['log'])
 
-        self.event_loop = EventLoop(loop=asyncio.get_event_loop())
-        self.event_manager = EventManager(self.event_loop)
+        self.loop = asyncio.get_event_loop()
+        self.event_manager = EventManager(self.loop)
         self._bus = self._make_bus()
-        self._exposer = Exposer(self.event_loop.loop)
+        self._exposer = Exposer(self.loop)
 
         self.is_stopping = False
 
@@ -98,7 +97,7 @@ class Nyuki(metaclass=MetaHandler):
         Returns a new set up Bus object.
         """
         bus = Bus(
-            loop=self.event_loop,
+            loop=self.loop,
             event_manager=self.event_manager,
             **self._config['bus']
         )
@@ -114,7 +113,8 @@ class Nyuki(metaclass=MetaHandler):
         signal.signal(signal.SIGINT, self.abort)
         self._bus.connect()
         self._exposer.expose(**self._config['api'])
-        self.event_loop.start(block=True)
+        self.loop.run_forever()
+        self.loop.close()
 
     def _bus_disconnected(self, future):
         """
@@ -125,11 +125,17 @@ class Nyuki(metaclass=MetaHandler):
         if self.is_stopping:
             log.info('Tearing down nyuki')
             self.teardown()
-            self.event_loop.stop()
+            self._stop_loop()
         else:
             log.info('Reconnecting...')
             self._bus = self._make_bus()
             self._bus.connect()
+
+    def _stop_loop(self):
+        """
+        Call the loop to stop itself.
+        """
+        self.loop.call_soon_threadsafe(self.loop.stop)
 
     def abort(self, signum, frame):
         """
@@ -145,7 +151,7 @@ class Nyuki(metaclass=MetaHandler):
         """
         if self.is_stopping:
             log.warning('Forcing the nyuki stopping')
-            self.event_loop.stop()
+            self._stop_loop()
             return
 
         self.is_stopping = True
@@ -153,9 +159,9 @@ class Nyuki(metaclass=MetaHandler):
         def timed_out():
             log.warning('Could not stop nyuki after '
                         '{} seconds, killing'.format(timeout))
-            self.event_loop.stop()
+            self._stop_loop()
 
-        self.event_loop.schedule(timeout, timed_out)
+        self.loop.call_later(timeout, timed_out)
         self._exposer.shutdown()
         self._bus.disconnect()
 
@@ -177,7 +183,7 @@ class Nyuki(metaclass=MetaHandler):
 
     def teardown(self):
         """
-        Called right before closing the event_loop, stopping the Nyuki.
+        Called right before closing the event loop, stopping the Nyuki.
         """
         pass
 

@@ -1,6 +1,5 @@
 import logging
 import asyncio
-import json
 
 from nyuki import Nyuki, on_event
 from nyuki.events import Event
@@ -32,7 +31,7 @@ class TestNyuki(Nyuki):
             asyncio.async(self.request(None, 'http://localhost:5559/message',
                                        'get', callback=after, out=True))
 
-        self.event_loop.schedule(2, send)
+        self.loop.call_later(2, send)
 
 
 if __name__ == '__main__':
