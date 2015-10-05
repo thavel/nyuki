@@ -90,4 +90,5 @@ def write_conf_json(config, filename):
     Save the given configuration to a file in json format.
     """
     with open(filename, 'w') as jsonfile:
-        json.dump(config, jsonfile)
+        json.dump(config, jsonfile,
+                  sort_keys=True, indent=2, separators=(',', ': '))
