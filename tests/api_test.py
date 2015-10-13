@@ -1,4 +1,5 @@
 from aiohttp import errors, web
+import asyncio
 from json import dumps, loads
 from nose.tools import (
     assert_is, assert_is_not_none, assert_raises, assert_true, eq_
@@ -105,6 +106,7 @@ class TestCapabilityMiddleware(AsyncTestCase):
 
     def test_001a_extract_data_from_payload_post_method(self):
         self._request.method = 'POST'
+        self._request.match_info = {'name': 'test'}
         data = bytes(dumps({'response': 'ok'}), 'utf-8')
 
         @fake_future
@@ -114,7 +116,8 @@ class TestCapabilityMiddleware(AsyncTestCase):
         self._request.json = json
 
         @fake_future
-        def _capa_handler(d):
+        def _capa_handler(d, name):
+            eq_(name, 'test')
             capa_resp = Mock(api_payload=data, status=200)
             return capa_resp
 
@@ -129,13 +132,13 @@ class TestCapabilityMiddleware(AsyncTestCase):
     def test_001b_extract_data_from_non_post_method(self):
         self._request.method = 'GET'
         self._request.GET = {'id': 2}
+        self._request.match_info = {'name': 'test'}
         data = bytes(dumps({'response': 2}), 'utf-8')
 
         @fake_future
-        def _capa_handler(d):
-            capa_resp = Mock(
-                api_payload=data,
-                status=200)
+        def _capa_handler(d, name):
+            eq_(name, 'test')
+            capa_resp = Mock(api_payload=data, status=200)
             return capa_resp
 
         mdw = self._loop.run_until_complete(

@@ -100,7 +100,7 @@ def mw_capability(app, capa_handler):
                 raise BadHttpMessage('Unvalid JSON request content')
         else:
             data = dict(getattr(request, request.method))
-        capa_resp = yield from capa_handler(data)
+        capa_resp = yield from capa_handler(data, **request.match_info)
         headers = {'Content-Type': 'application/json'}
         return web.Response(
             body=capa_resp.api_payload,

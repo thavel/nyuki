@@ -41,7 +41,9 @@ class CapabilityHandler(type):
         the following code updates capabilities to be executed as instance
         methods: `func(nyuki, request)`.
         """
-        return asyncio.coroutine(lambda req: func(obj, req))
+        return asyncio.coroutine(
+            lambda req, **kwargs: func(obj, req, **kwargs)
+        )
 
     @classmethod
     def _filter_capability(mcs, resrc):

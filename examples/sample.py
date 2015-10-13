@@ -23,6 +23,10 @@ class Sample(Nyuki):
     def __init__(self):
         super().__init__()
         self.register_schema(self.CONF_SCHEMA)
+        self.messages = {
+            '1': 'message 1',
+            '2': 'message 2'
+        }
 
     @on_event(Event.Connected)
     def _on_start(self):
@@ -30,9 +34,26 @@ class Sample(Nyuki):
         self.subscribe('sender')
 
     @resource(endpoint='/message')
-    class Message:
+    class Messages:
         def get(self, request):
-            return Response({'message': self.message})
+            return Response(self.messages)
+
+    @resource(endpoint=r'/message/{mid:\d+}')
+    class Message:
+        def get(self, request, mid):
+            if mid not in self.messages:
+                return Response(status=404)
+            return Response({'message': self.messages[mid]})
+
+        def post(self, request):
+            self.message = request['message']
+            log.info("Message updated")
+            return Response(status=200)
+
+    @resource(endpoint=r'/message/{mid:\d+}/{letter:\d+}')
+    class Letter:
+        def get(self, request, mid, letter):
+            return Response({'letter': self.messages[mid][int(letter)]})
 
         def post(self, request):
             self.message = request['message']
