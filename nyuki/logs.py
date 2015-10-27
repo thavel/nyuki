@@ -10,6 +10,12 @@ DEFAULT_LOGGING = {
             "class": "logging.StreamHandler",
             "formatter": "long",
             "stream": "ext://sys.stdout"
+        },
+        "loop_stderr": {
+            "class": "logging.StreamHandler",
+            "formatter": "long",
+            "stream": "ext://sys.stderr",
+            "level": "ERROR"
         }
     },
     "root": {
@@ -18,6 +24,7 @@ DEFAULT_LOGGING = {
     },
     "loggers": {
         "asyncio": {
+            "handlers": ["loop_stderr"],
             "level": "WARNING"
         },
         "slixmpp": {
