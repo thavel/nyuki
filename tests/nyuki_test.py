@@ -98,6 +98,7 @@ class TestNyuki(TestCase):
 
     @patch('slixmpp.xmlstream.XMLStream.disconnect')
     def test_007_stop(self, disconnect_mock):
+        # TODO: This test throws stderr errors (not bad, but ugly)
 
         def disconnected(wait):
             self.nyuki._bus.client.disconnected.set_result(True)
