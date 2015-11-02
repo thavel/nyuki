@@ -68,10 +68,10 @@ class Exposer(object):
     """
     Provide a engine to expose nyuki capabilities through a HTTP API.
     """
-    def __init__(self, loop):
+    def __init__(self, loop, debug=False):
         self._loop = loop
         self._capabilities = set()
-        self._api = Api(loop)
+        self._api = Api(loop, debug=debug)
         log.debug("Capabilities will be called through {}".format(loop))
 
     @property

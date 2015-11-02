@@ -35,13 +35,18 @@ class Api(object):
     The goal of this class is to gather all http-related behaviours.
     Basically, it's a wrapper around aiohttp.
     """
-    def __init__(self, loop, **kwargs):
+    def __init__(self, loop, debug=False, **kwargs):
         self._loop = loop
         self._server = None
         self._handler = None
         self._middlewares = [mw_json, mw_capability]  # Call order = list order
-        self._app = web.Application(loop=self._loop,
-                                    middlewares=self._middlewares, **kwargs)
+        self._debug = debug
+        print("##### {}".format(debug))
+        self._app = web.Application(
+            loop=self._loop,
+            middlewares=self._middlewares,
+            **kwargs
+        )
 
     @property
     def router(self):
@@ -53,9 +58,12 @@ class Api(object):
         Create a HTTP server to expose the API.
         """
         log.info("Starting the http server on {}:{}".format(host, port))
-        self._handler = self._app.make_handler(log=log, access_log=access_log)
-        self._server = yield from self._loop.create_server(self._handler,
-                                                           host=host, port=port)
+        self._handler = self._app.make_handler(
+            log=log, access_log=access_log, debug=self._debug
+        )
+        self._server = yield from self._loop.create_server(
+            self._handler, host=host, port=port
+        )
 
     @asyncio.coroutine
     def destroy(self):

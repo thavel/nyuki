@@ -64,7 +64,10 @@ class Nyuki(metaclass=MetaHandler):
         self.loop = asyncio.get_event_loop()
         self.event_manager = EventManager(self.loop)
         self._bus = self._make_bus()
-        self._exposer = Exposer(self.loop)
+        self._exposer = Exposer(
+            self.loop,
+            debug=(self._config['log']['root']['level'] == "DEBUG")
+        )
 
         self.is_stopping = False
 
