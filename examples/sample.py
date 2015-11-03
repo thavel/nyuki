@@ -45,8 +45,8 @@ class Sample(Nyuki):
                 return Response(status=404)
             return Response({'message': self.messages[mid]})
 
-        def post(self, request):
-            self.message = request['message']
+        def post(self, request, mid):
+            self.message[mid] = request['message']
             log.info("Message updated")
             return Response(status=200)
 
@@ -55,15 +55,9 @@ class Sample(Nyuki):
         def get(self, request, mid, letter):
             return Response({'letter': self.messages[mid][int(letter)]})
 
-        def post(self, request):
-            self.message = request['message']
-            log.info("Message updated")
-            return Response(status=200)
-
-    @resource(endpoint='/alert')
-    class Alert:
-        def post(self, request):
-            self.send(request, 'toto@localhost', 'do_something')
+        def post(self, request, mid, letter):
+            self.message[mid][letter] = request['letter']
+            log.info("Letter updated")
             return Response(status=200)
 
     def teardown(self):

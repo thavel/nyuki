@@ -158,25 +158,3 @@ class TestCapabilityMiddleware(AsyncTestCase):
         assert_true(isinstance(response, web.Response))
         eq_(loads(response.body.decode('utf-8'))["response"], 2)
         eq_(response.status, 200)
-
-    def test_002_error_handling_post_method_no_json(self):
-        self._request.method = 'POST'
-        data = 'data_no_json'
-
-        @fake_future
-        def json():
-            return loads(data)
-
-        self._request.json = json
-
-        @fake_future
-        def _capa_handler():
-            pass
-
-        mdw = self._loop.run_until_complete(
-            mw_capability(self._app, _capa_handler))
-        assert_is_not_none(mdw)
-        assert_raises(
-            errors.BadHttpMessage,
-            self._loop.run_until_complete,
-            mdw(self._request))

@@ -84,16 +84,20 @@ def mw_json(app, next_handler):
     def middleware(request):
         if request.method in request.POST_METHODS:
             content_type = request.headers.get('CONTENT-TYPE')
-            if content_type == 'application/json':
-                # Checking that the content is actually JSON
-                try:
-                    yield from request.json()
-                except ValueError:
-                    raise HttpBadRequest('Invalid JSON request content')
-            elif not content_type and request.content:
+            if content_type:
+                if content_type == 'application/json':
+                    # Checking that the content is actually JSON
+                    try:
+                        yield from request.json()
+                    except ValueError:
+                        log.error('Invalid JSON request content')
+                        raise HttpBadRequest('Invalid JSON request content')
+                else:
+                    log.error('Invalid Content-Type')
+                    raise HttpBadRequest('Invalid Content-Type')
+            elif (yield from request.content.read()):
+                log.error('Missing suitable Content-Type')
                 raise HttpBadRequest('Missing suitable Content-Type')
-            else:
-                raise HttpBadRequest('Invalid Content-Type')
         response = yield from next_handler(request)
         return response
     return middleware
@@ -112,7 +116,7 @@ def mw_capability(app, capa_handler):
             try:
                 data = yield from request.json()
             except ValueError:
-                    raise HttpBadRequest('Invalid JSON request content')
+                data = None
         else:
             data = dict(getattr(request, request.method))
         capa_resp = yield from capa_handler(data, **request.match_info)
