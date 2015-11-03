@@ -56,7 +56,7 @@ class TestJsonMiddleware(AsyncTestCase):
     def test_001_request_valid_header_content_post_method(self):
         self._request.headers = {'CONTENT-TYPE': 'application/json'}
         ret_value = {'test_value': 'kikoo_test'}
-        self._request.json.return_value = ret_value
+        self._request.json.return_value = yield ret_value
         self._request.method = 'POST'
 
         @fake_future
@@ -84,16 +84,26 @@ class TestJsonMiddleware(AsyncTestCase):
 
     def test_003_request_invalid_or_missing_header(self):
         headers = [{}, {'CONTENT-TYPE': 'application/octet-stream'}]
+        values = ['', 'this_is_octet']
         self._request.method = 'POST'
 
-        for h in headers:
+        @fake_future
+        def _next_handler(r):
+            return 'dummy'
+
+        for idx, h in enumerate(headers):
             self._request.headers = h
-            mdw = self._loop.run_until_complete(mw_json(self._app, Mock()))
+            self._request.content = values[idx]
+            mdw = self._loop.run_until_complete(mw_json(
+                self._app, _next_handler
+                )
+            )
             assert_is_not_none(mdw)
-            assert_raises(
-                errors.HttpBadRequest,
-                self._loop.run_until_complete,
-                mdw(self._request))
+            if idx > 0:
+                assert_raises(
+                    errors.HttpBadRequest,
+                    self._loop.run_until_complete,
+                    mdw(self._request))
 
 
 class TestCapabilityMiddleware(AsyncTestCase):

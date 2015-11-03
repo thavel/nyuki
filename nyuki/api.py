@@ -84,8 +84,16 @@ def mw_json(app, next_handler):
     def middleware(request):
         if request.method in request.POST_METHODS:
             content_type = request.headers.get('CONTENT-TYPE')
-            if not content_type or content_type != 'application/json':
-                raise HttpBadRequest('This API only supports JSON content type')
+            if content_type == 'application/json':
+                # Checking that the content is actually JSON
+                try:
+                    yield from request.json()
+                except ValueError:
+                    raise HttpBadRequest('Invalid JSON request content')
+            elif not content_type and request.content:
+                raise HttpBadRequest('Missing suitable Content-Type')
+            else:
+                raise HttpBadRequest('Invalid Content-Type')
         response = yield from next_handler(request)
         return response
     return middleware
@@ -94,8 +102,8 @@ def mw_json(app, next_handler):
 @asyncio.coroutine
 def mw_capability(app, capa_handler):
     """
-    Transform the request data to be passed through a capability and convert the
-    result into a web response.
+    Transform the request data to be passed through a capability and
+    convert the result into a web response.
     From here, we are expecting a JSON content.
     """
     @asyncio.coroutine
@@ -104,7 +112,7 @@ def mw_capability(app, capa_handler):
             try:
                 data = yield from request.json()
             except ValueError:
-                raise BadHttpMessage('Unvalid JSON request content')
+                    raise HttpBadRequest('Invalid JSON request content')
         else:
             data = dict(getattr(request, request.method))
         capa_resp = yield from capa_handler(data, **request.match_info)
