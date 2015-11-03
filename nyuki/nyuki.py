@@ -1,4 +1,5 @@
 import asyncio
+import json
 from jsonschema import validate, ValidationError
 import logging
 import logging.config
@@ -245,3 +246,14 @@ class Nyuki(metaclass=MetaHandler):
             else:
                 self.reload('api' in request or 'bus' in request)
             return Response(self._config)
+
+    @resource(endpoint='/swagger', version='v1')
+    class Swagger:
+        def get(self, request):
+            try:
+                with open('swagger.json', 'r') as f:
+                    body = json.loads(f.read())
+            except OSError:
+                return Response(status=404)
+
+            return Response(body=body)
