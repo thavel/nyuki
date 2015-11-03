@@ -41,7 +41,6 @@ class Api(object):
         self._handler = None
         self._middlewares = [mw_json, mw_capability]  # Call order = list order
         self._debug = debug
-        print("##### {}".format(debug))
         self._app = web.Application(
             loop=self._loop,
             middlewares=self._middlewares,
