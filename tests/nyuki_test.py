@@ -6,7 +6,7 @@ from nose.tools import (
     eq_, assert_true, assert_false, assert_not_equal, assert_raises
 )
 from unittest import TestCase
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 from nyuki import Nyuki
 
@@ -97,8 +97,14 @@ class TestNyuki(TestCase):
         eq_(len(self.nyuki._schemas), 2)
 
     @patch('slixmpp.xmlstream.XMLStream.disconnect')
-    def test_007_stop(self, disconnect_mock):
-        # TODO: This test throws stderr errors (not bad, but ugly)
+    @patch('nyuki.api.Api.destroy')
+    def test_007_stop(self, destroy_mock, disconnect_mock):
+
+        def make_future():
+            f = asyncio.Future()
+            f.set_result(None)
+            return f
+        destroy_mock.side_effect = make_future
 
         def disconnected(wait):
             self.nyuki._bus.client.disconnected.set_result(True)
@@ -109,6 +115,7 @@ class TestNyuki(TestCase):
             self.loop.run_until_complete(self.nyuki.stop())
             mock.assert_called_once_with()
             assert_true(self.nyuki.is_stopping)
+        destroy_mock.assert_called_once_with()
 
     @patch('slixmpp.xmlstream.XMLStream.connect')
     def test_007_stop_unwanted(self, connect):
