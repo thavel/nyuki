@@ -254,6 +254,8 @@ class Nyuki(metaclass=MetaHandler):
                 with open('swagger.json', 'r') as f:
                     body = json.loads(f.read())
             except OSError:
-                return Response(status=404)
+                return Response(status=404, body={
+                    'error': 'Missing swagger documentation'
+                })
 
             return Response(body=body)
