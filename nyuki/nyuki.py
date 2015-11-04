@@ -116,6 +116,12 @@ class Nyuki(metaclass=MetaHandler):
         signal.signal(signal.SIGINT, self.abort)
         self._bus.connect()
         self._exposer.expose(**self._config['api'])
+
+        if asyncio.iscoroutinefunction(self.setup):
+            asyncio.async(self.setup())
+        else:
+            self.loop.call_soon(self.setup)
+
         self.loop.run_forever()
         self.loop.close()
 
@@ -183,6 +189,13 @@ class Nyuki(metaclass=MetaHandler):
         config = config or self._config
         for schema, checker in self._schemas:
             validate(config, schema, format_checker=checker)
+
+    @asyncio.coroutine
+    def setup(self):
+        """
+        First thing called when starting the event loop, coroutine or not.
+        """
+        pass
 
     def teardown(self):
         """

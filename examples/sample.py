@@ -28,9 +28,11 @@ class Sample(Nyuki):
             '2': 'message 2'
         }
 
+    def setup(self):
+        log.info("Oh great, I'm connected and ready to do what I want!")
+
     @on_event(Event.Connected)
     def _on_start(self):
-        log.info("Oh great, I'm connected and ready to do what I want!")
         self.subscribe('sender')
 
     @resource(endpoint='/message')
