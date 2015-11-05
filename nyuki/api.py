@@ -85,8 +85,9 @@ def mw_json(app, next_handler):
         if request.method in request.POST_METHODS:
             content_type = request.headers.get('CONTENT-TYPE')
             if content_type:
-                if content_type == 'application/json':
+                if 'application/json' in content_type:
                     # Checking that the content is actually JSON
+                    # there could be a charset specified.
                     try:
                         yield from request.json()
                     except ValueError:
