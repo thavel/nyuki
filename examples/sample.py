@@ -40,6 +40,10 @@ class Sample(Nyuki):
         def get(self, request):
             return Response(self.messages)
 
+        def post(self, request):
+            self.messages.update(request)
+            return Response(self.messages)
+
     @resource(endpoint=r'/message/{mid:\d+}')
     class Message:
         def get(self, request, mid):
@@ -47,20 +51,15 @@ class Sample(Nyuki):
                 return Response(status=404)
             return Response({'message': self.messages[mid]})
 
-        def post(self, request, mid):
-            self.message[mid] = request['message']
-            log.info("Message updated")
-            return Response(status=200)
-
-    @resource(endpoint=r'/message/{mid:\d+}/{letter:\d+}')
-    class Letter:
-        def get(self, request, mid, letter):
-            return Response({'letter': self.messages[mid][int(letter)]})
-
-        def post(self, request, mid, letter):
-            self.message[mid][letter] = request['letter']
-            log.info("Letter updated")
-            return Response(status=200)
+        def patch(self, request, mid):
+            try:
+                self.messages[mid] = request['message']
+            except KeyError:
+                return Response(status=400)
+            return Response(
+                status=200,
+                body={'message': self.messages[mid]}
+            )
 
     def teardown(self):
         log.info('goodbye !')
