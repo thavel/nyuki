@@ -48,14 +48,16 @@ class Sample(Nyuki):
     class Message:
         def get(self, request, mid):
             if mid not in self.messages:
-                return Response(status=404)
+                return Response(status=404,
+                                body={'message': 'message does not exists'})
             return Response({'message': self.messages[mid]})
 
         def patch(self, request, mid):
             try:
                 self.messages[mid] = request['message']
             except KeyError:
-                return Response(status=400)
+                return Response(status=400,
+                                body={'message': 'missing message'})
             return Response(
                 status=200,
                 body={'message': self.messages[mid]}
