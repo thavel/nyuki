@@ -111,6 +111,7 @@ class APIRequest(dict):
     headers = None
 
     @classmethod
+    @asyncio.coroutine
     def from_request(cls, request):
         # Get json payload if there is one
         if request.method in request.POST_METHODS:
