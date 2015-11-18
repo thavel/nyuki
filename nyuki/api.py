@@ -1,5 +1,4 @@
-from aiohttp import web
-from aiohttp import HttpBadRequest, BadHttpMessage
+from aiohttp import web, HttpBadRequest
 import asyncio
 from enum import Enum
 import logging
@@ -104,6 +103,30 @@ def mw_json(app, next_handler):
     return middleware
 
 
+class APIRequest(dict):
+    """
+    Class that stores the request data and the headers as an attribute.
+    """
+
+    headers = None
+
+    @classmethod
+    def from_request(cls, request):
+        # Get json payload if there is one
+        if request.method in request.POST_METHODS:
+            try:
+                data = yield from request.json()
+            except ValueError:
+                data = None
+        else:
+            data = dict(getattr(request, request.method))
+
+        # Set up class and headers as request attribute
+        req = cls(**data)
+        req.headers = request.headers
+        return req
+
+
 @asyncio.coroutine
 def mw_capability(app, capa_handler):
     """
@@ -113,14 +136,8 @@ def mw_capability(app, capa_handler):
     """
     @asyncio.coroutine
     def middleware(request):
-        if request.method in request.POST_METHODS:
-            try:
-                data = yield from request.json()
-            except ValueError:
-                data = None
-        else:
-            data = dict(getattr(request, request.method))
-        capa_resp = yield from capa_handler(data, **request.match_info)
+        api_req = yield from APIRequest.from_request(request)
+        capa_resp = yield from capa_handler(api_req, **request.match_info)
         headers = {'Content-Type': 'application/json'}
         return web.Response(
             body=capa_resp.api_payload,
