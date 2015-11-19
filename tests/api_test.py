@@ -7,7 +7,7 @@ from nose.tools import (
 from tests import AsyncTestCase, fake_future
 from unittest.mock import Mock, patch
 
-from nyuki.api import Api, mw_capability, mw_json
+from nyuki.api import Api, mw_capability, mw_json, APIRequest
 
 
 class TestApi(AsyncTestCase):
@@ -158,3 +158,43 @@ class TestCapabilityMiddleware(AsyncTestCase):
         assert_true(isinstance(response, web.Response))
         eq_(loads(response.body.decode('utf-8'))["response"], 2)
         eq_(response.status, 200)
+
+    def test_001c_post_no_data(self):
+        self._request.method = 'POST'
+        self._request.match_info = {'name': 'test'}
+        data = bytes(dumps({'response': 'ok'}), 'utf-8')
+
+        @fake_future
+        def json():
+            return None
+
+        self._request.json = json
+
+        @fake_future
+        def _capa_handler(d, name):
+            eq_(name, 'test')
+            capa_resp = Mock(api_payload=data, status=200)
+            return capa_resp
+
+        mdw = self._loop.run_until_complete(
+            mw_capability(self._app, _capa_handler))
+        assert_is_not_none(mdw)
+        response = self._loop.run_until_complete(mdw(self._request))
+        assert_true(isinstance(response, web.Response))
+        eq_(loads(response.body.decode('utf-8'))["response"], 'ok')
+        eq_(response.status, 200)
+
+    def test_003_request_headers(self):
+        self._request.method = 'POST'
+        self._request.match_info = {'name': 'test'}
+        self._request.headers = {'Content-Type': 'application/json'}
+
+        @fake_future
+        def json():
+            return {'capability': 'test'}
+
+        self._request.json = json
+
+        ar = self._loop.run_until_complete(APIRequest.from_request(self._request))
+        eq_(ar['capability'], 'test')
+        eq_(ar.headers.get('Content-Type'), 'application/json')
