@@ -123,7 +123,7 @@ class APIRequest(dict):
             data = dict(getattr(request, request.method))
 
         # Set up class and headers as request attribute
-        req = cls(**data)
+        req = cls(**data) if data else cls()
         req.headers = request.headers
         return req
 
