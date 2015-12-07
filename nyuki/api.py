@@ -139,9 +139,11 @@ def mw_capability(app, capa_handler):
     def middleware(request):
         api_req = yield from APIRequest.from_request(request)
         capa_resp = yield from capa_handler(api_req, **request.match_info)
-        headers = {'Content-Type': 'application/json'}
+
         return web.Response(
-            body=capa_resp.api_payload,
-            status=capa_resp.status,
-            headers=headers)
+            body=capa_resp.api_payload if capa_resp else None,
+            status=capa_resp.status if capa_resp else 200,
+            headers=capa_resp.headers if capa_resp else {},
+        )
+
     return middleware

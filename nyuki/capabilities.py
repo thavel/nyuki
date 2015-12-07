@@ -9,10 +9,12 @@ log = logging.getLogger(__name__)
 
 
 def resource(endpoint, version=None):
+
     """
     Nyuki resource decorator to register a route.
     A resource has multiple HTTP methods (get, post, etc).
     """
+
     def decorated(cls):
         cls.endpoint = endpoint
         cls.version = version
@@ -37,20 +39,35 @@ class Capability(object):
 
 
 class Response(object):
+
     """
     This class is a generic response (with a body and a status) that can be
     used by either the bus or the API.
     """
+
     ENCODING = 'utf-8'
 
     def __init__(self, body=None, status=200):
-        self.body = body or dict()
+        self.body = body
         self.status = status
+        self.headers = {}
         self._is_valid()
 
     def _is_valid(self):
+        self._valid_body()
+        self._valid_status()
+
+    def _valid_body(self):
+        if not self.body:
+            return
+
         if not isinstance(self.body, dict) and not isinstance(self.body, list):
             raise ValueError("Response body should be a dictionary or a list")
+
+        # If body and body is json, set the right headers
+        self.headers = {'Content-Type': 'application/json'}
+
+    def _valid_status(self):
         if not isinstance(self.status, int):
             raise ValueError("Response status code should be a integer")
 
@@ -59,15 +76,18 @@ class Response(object):
         """
         Used by the HTTP API.
         """
-        self._is_valid()
-        payload = json.dumps(self.body)
-        return bytes(payload, self.ENCODING)
+        if self.body:
+            payload = json.dumps(self.body)
+            return bytes(payload, self.ENCODING)
+        return None
 
 
 class Exposer(object):
+
     """
     Provide a engine to expose nyuki capabilities through a HTTP API.
     """
+
     def __init__(self, loop, debug=False):
         self._loop = loop
         self._capabilities = set()

@@ -4,10 +4,11 @@ from json import dumps, loads
 from nose.tools import (
     assert_is, assert_is_not_none, assert_raises, assert_true, eq_
 )
-from tests import AsyncTestCase, fake_future
 from unittest.mock import Mock, patch
 
 from nyuki.api import Api, mw_capability, mw_json, APIRequest
+from nyuki.capabilities import Response
+from tests import AsyncTestCase, fake_future
 
 
 class TestApi(AsyncTestCase):
@@ -117,7 +118,6 @@ class TestCapabilityMiddleware(AsyncTestCase):
     def test_001a_extract_data_from_payload_post_method(self):
         self._request.method = 'POST'
         self._request.match_info = {'name': 'test'}
-        data = bytes(dumps({'response': 'ok'}), 'utf-8')
 
         @fake_future
         def json():
@@ -128,7 +128,7 @@ class TestCapabilityMiddleware(AsyncTestCase):
         @fake_future
         def _capa_handler(d, name):
             eq_(name, 'test')
-            capa_resp = Mock(api_payload=data, status=200)
+            capa_resp = Response({'response': 'ok'}, 200)
             return capa_resp
 
         mdw = self._loop.run_until_complete(
@@ -143,12 +143,11 @@ class TestCapabilityMiddleware(AsyncTestCase):
         self._request.method = 'GET'
         self._request.GET = {'id': 2}
         self._request.match_info = {'name': 'test'}
-        data = bytes(dumps({'response': 2}), 'utf-8')
 
         @fake_future
         def _capa_handler(d, name):
             eq_(name, 'test')
-            capa_resp = Mock(api_payload=data, status=200)
+            capa_resp = Response({'response': 2}, 200)
             return capa_resp
 
         mdw = self._loop.run_until_complete(
@@ -162,7 +161,6 @@ class TestCapabilityMiddleware(AsyncTestCase):
     def test_001c_post_no_data(self):
         self._request.method = 'POST'
         self._request.match_info = {'name': 'test'}
-        data = bytes(dumps({'response': 'ok'}), 'utf-8')
 
         @fake_future
         def json():
@@ -173,7 +171,7 @@ class TestCapabilityMiddleware(AsyncTestCase):
         @fake_future
         def _capa_handler(d, name):
             eq_(name, 'test')
-            capa_resp = Mock(api_payload=data, status=200)
+            capa_resp = Response({'response': 'ok'}, 200)
             return capa_resp
 
         mdw = self._loop.run_until_complete(
@@ -182,6 +180,24 @@ class TestCapabilityMiddleware(AsyncTestCase):
         response = self._loop.run_until_complete(mdw(self._request))
         assert_true(isinstance(response, web.Response))
         eq_(loads(response.body.decode('utf-8'))["response"], 'ok')
+        eq_(response.status, 200)
+
+    def test_002_no_response(self):
+        self._request.method = 'GET'
+        self._request.GET = {}
+        self._request.match_info = {}
+
+        @fake_future
+        def _capa_handler(d):
+            return Response()
+
+        mdw = self._loop.run_until_complete(
+            mw_capability(self._app, _capa_handler)
+        )
+        assert_is_not_none(mdw)
+        response = self._loop.run_until_complete(mdw(self._request))
+        assert_true(isinstance(response, web.Response))
+        eq_(response.body, None)
         eq_(response.status, 200)
 
     def test_003_request_headers(self):

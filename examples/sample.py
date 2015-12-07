@@ -38,6 +38,7 @@ class Sample(Nyuki):
     @resource(endpoint='/message')
     class Messages:
         def get(self, request):
+            return Response()
             return Response(self.messages)
 
         def post(self, request):
