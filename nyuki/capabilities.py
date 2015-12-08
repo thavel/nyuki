@@ -51,13 +51,13 @@ class Response(object):
         self.body = body
         self.status = status
         self.headers = {}
-        self._is_valid()
+        self._validate()
 
-    def _is_valid(self):
-        self._valid_body()
-        self._valid_status()
+    def _validate(self):
+        self._validate_body()
+        self._validate_status()
 
-    def _valid_body(self):
+    def _validate_body(self):
         if not self.body:
             return
 
@@ -67,7 +67,7 @@ class Response(object):
         # If body and body is json, set the right headers
         self.headers = {'Content-Type': 'application/json'}
 
-    def _valid_status(self):
+    def _validate_status(self):
         if not isinstance(self.status, int):
             raise ValueError("Response status code should be a integer")
 

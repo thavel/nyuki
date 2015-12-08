@@ -37,15 +37,15 @@ class TestResponse(TestCase):
         self.response = Response(body={'message': 'hello'}, status=200)
 
     def test_001a_valid(self):
-        self.assertIsNone(self.response._is_valid())
+        self.assertIsNone(self.response._validate())
 
     def test_001b_valid_error(self):
         self.response.body = 'hello'
-        self.assertRaises(ValueError, self.response._is_valid)
+        self.assertRaises(ValueError, self.response._validate)
 
     def test_001c_valid_error(self):
         self.response.body = '404'
-        self.assertRaises(ValueError, self.response._is_valid)
+        self.assertRaises(ValueError, self.response._validate)
 
     def test_002_payload(self):
         self.assertIsInstance(self.response.api_payload, bytes)
