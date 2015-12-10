@@ -1,7 +1,7 @@
 from unittest import TestCase
 
 from nyuki.transform import (
-    Upper, Lower, Lookup, Unset, Set, Sub, Extract, Ruler, Converter
+    _Rule, Upper, Lower, Lookup, Unset, Set, Sub, Extract, Ruler, Converter
 )
 
 
@@ -77,6 +77,28 @@ class TestTransformCases(TestCase):
         ruler.apply(self.data)
         self.assertEqual(self.data['normal'], 'lookup')
         self.assertEqual(self.data['to_upper'], 'lookup')
+
+    def test_008c_ruler_with_global_params(self):
+
+        class MyTestRule(_Rule):
+
+            def _configure(self, test, g_test):
+                self.g_test = g_test
+
+        rules = {
+            'type': 'mytestrule',
+            'rules': [
+                {'test': 'val1', 'fieldname': 'test_field'},
+                {'test': 'val2', 'fieldname': 'test_field'},
+            ],
+            'global_params': {
+                'g_test': True
+            }
+        }
+
+        ruler = Ruler.from_dict(rules)
+        for rule in ruler.rules:
+            self.assertTrue(rule.g_test)
 
     def test_009a_converter(self):
         lookups = [
