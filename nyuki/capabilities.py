@@ -3,6 +3,7 @@ import logging
 import asyncio
 
 from nyuki.api import Api
+from nyuki.service import Service
 
 
 log = logging.getLogger(__name__)
@@ -22,10 +23,23 @@ def resource(endpoint, version=None):
     return decorated
 
 
+def websocket(type):
+    """
+    Nyuki websocket decorator to register a route.
+    A resource has multiple HTTP methods (get, post, etc).
+    """
+    def decorated(func):
+        func.type = type
+        return func
+    return decorated
+
+
 class Capability(object):
+
     """
     A capability is unique (hashable object, based on capability's name).
     """
+
     def __init__(self, name, method, endpoint, version, handler, wrapper):
         self.name = name
         self.method = method
@@ -82,17 +96,30 @@ class Response(object):
         return None
 
 
-class Exposer(object):
+class Exposer(Service):
 
-    """
-    Provide a engine to expose nyuki capabilities through a HTTP API.
-    """
+    CONF_SCHEMA = {
+        "type": "object",
+        "required": ["api"],
+        "properties": {
+            "api": {
+                "type": "object",
+                "properties": {
+                    "host": {"type": "string"},
+                    "port": {"type": "integer"}
+                }
+            }
+        }
+    }
 
-    def __init__(self, loop, debug=False):
-        self._loop = loop
+    def __init__(self, nyuki):
+        self._nyuki = nyuki
+        self._nyuki.register_schema(self.CONF_SCHEMA)
+        self._loop = self._nyuki.loop or asyncio.get_event_loop()
         self._capabilities = set()
-        self._api = Api(loop, debug=debug)
-        log.debug("Capabilities will be called through {}".format(loop))
+        self._api = Api(self._loop)
+        self.host = None
+        self.port = None
 
     @property
     def capabilities(self):
@@ -114,29 +141,20 @@ class Exposer(object):
         self._api.router.add_route(capa.method, endpoint, capa.wrapper)
         log.debug("Capability added: {}".format(capa.name))
 
-    def expose(self, host='0.0.0.0', port=8080):
+    async def start(self):
         """
         Expose capabilities by building the HTTP server.
         The server will be started with the event loop.
         """
-        self._loop.run_until_complete(self._api.build(host, port))
+        await self._api.build(self.host, self.port)
 
-    def restart(self, host='0.0.0.0', port=8080):
-        """
-        Restart the HTTP server.
-        """
-        # Stopping the API server
-        fut = self.shutdown()
-        # Rebuilding the API server afterwards
-        fut.add_done_callback(
-            lambda x: asyncio.async(self._api.build(host, port)))
+    def configure(self, host='0.0.0.0', port=5558, debug=False):
+        self.host = host
+        self.port = port
+        self._api.debug = debug
 
-    def shutdown(self):
-        """
-        Shutdown capabilities exposure by destroying the HTTP server.
-        """
-        log.debug("Stopping the http server")
-        return asyncio.async(self._api.destroy(), loop=self._loop)
+    async def stop(self):
+        await self._api.destroy()
 
     def _find(self, capa_name):
         """
@@ -156,5 +174,5 @@ class Exposer(object):
             return
 
         # TODO: use asyncio.ensure_future when Python 3.4.4 will be released
-        future = asyncio.async(capa.wrapper(request), loop=self._loop)
+        future = asyncio.ensure_future(capa.wrapper(request), loop=self._loop)
         return future

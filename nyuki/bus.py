@@ -5,17 +5,19 @@ import logging
 from slixmpp import ClientXMPP
 from slixmpp.exceptions import IqError, IqTimeout
 
-from nyuki.events import Event
+from nyuki.service import Service
 
 
 log = logging.getLogger(__name__)
 
 
 class _BusClient(ClientXMPP):
+
     """
     XMPP client to connect to the bus.
     This class is based on Slixmpp (fork of Sleexmpp) using asyncio event loop.
     """
+
     def __init__(self, jid, password, host=None, port=5222):
         super().__init__(jid, password)
         host = host or self.boundjid.domain
@@ -40,7 +42,8 @@ class _BusClient(ClientXMPP):
         self.init_plugins()
 
 
-class Bus(object):
+class Bus(Service):
+
     """
     A simple class that implements Publish/Subscribe-like communications over
     XMPP. This communication layer is also called "bus".
@@ -50,23 +53,67 @@ class Bus(object):
     """
 
     MUC_DOMAIN = 'mucs.localhost'
+    CONF_SCHEMA = {
+        "type": "object",
+        "required": ["bus"],
+        "properties": {
+            "bus": {
+                "type": "object",
+                "required": ["jid", "password"],
+                "properties": {
+                    "jid": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "password": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "host": {"type": "string"},
+                    "port": {"type": "integer"}
+                }
+            }
+        }
+    }
 
-    def __init__(self, jid, password, host=None, port=5222, loop=None,
-                 event_manager=None):
-        self._loop = loop
+    def __init__(self, nyuki):
+        self._nyuki = nyuki
+        self._nyuki.register_schema(self.CONF_SCHEMA)
+        self._loop = self._nyuki.loop or asyncio.get_event_loop()
+        self.client = None
+        self._connected = asyncio.Event()
+        self._disconnected = asyncio.Event()
+        self._callbacks = dict()
+
+    async def start(self):
+        self._disconnected.clear()
+        self.client.connect()
+        await asyncio.wait_for(self._connected.wait(), 2.0)
+
+    def configure(self, jid, password, host='localhost', port=5222):
         self.client = _BusClient(jid, password, host, port)
         self.client.loop = self._loop
         self.client.add_event_handler('connection_failed', self._on_failure)
         self.client.add_event_handler('disconnected', self._on_disconnect)
-        self.client.add_event_handler('groupchat_invite', self._on_invite)
         self.client.add_event_handler('groupchat_message', self._on_event)
         self.client.add_event_handler('register', self._on_register)
         self.client.add_event_handler('session_start', self._on_start)
-
-        self.event_manager = event_manager
-
         self._topic = self.client.boundjid.user
         self._mucs = self.client.plugin['xep_0045']
+
+    async def stop(self):
+        if self.client:
+            self._connected.clear()
+            if not self.client.transport:
+                log.warning('XMPP client is already disconnected')
+                self._disconnected.set()
+            else:
+                self.client.disconnect(wait=2)
+
+            try:
+                await asyncio.wait_for(self._disconnected.wait(), 2.0)
+            except asyncio.TimeoutError:
+                log.error('Could not end bus connection after 2 seconds')
 
     def _muc_address(self, topic):
         return '{}@{}'.format(topic, self.MUC_DOMAIN)
@@ -74,7 +121,6 @@ class Bus(object):
     def _on_register(self, event):
         """
         XMPP event handler while registering a user (in-band registration).
-        Does not trigger bus event (internal behavior), except if it fails.
         """
         def done(future):
             try:
@@ -84,7 +130,6 @@ class Bus(object):
                 log.debug("Could not register account: {}".format(error))
             except IqTimeout:
                 log.error("No response from the server")
-                self.event_manager.trigger(Event.ConnectionError)
             finally:
                 log.debug("Account {} created".format(self.client.boundjid))
 
@@ -98,7 +143,6 @@ class Bus(object):
     def _on_start(self, event):
         """
         XMPP event handler when the connection has been made.
-        Also trigger a bus event: `Connected`.
         """
         log.info('Connected to XMPP server {}:{}'.format(
                  *self.client._address))
@@ -106,31 +150,22 @@ class Bus(object):
         self.client.get_roster()
         # Auto-subscribe to the topic where the nyuki could publish events.
         self.subscribe(self._topic)
-        self.event_manager.trigger(Event.Connected)
+        self._connected.set()
 
     def _on_disconnect(self, event):
         """
         XMPP event handler when the client has been disconnected.
-        Also trigger a bus event: `Disconnected`.
         """
         log.debug("Disconnected from the bus")
-        self.event_manager.trigger(Event.Disconnected)
+        self._disconnected.set()
 
     def _on_failure(self, event):
         """
         XMPP event handler when something is going wrong with the connection.
-        Also trigger a bus event: `ConnectionError`.
         """
         log.error("Connection to XMPP server {}:{} failed".format(
                   *self.client._address))
         self.client.abort()
-        self.event_manager.trigger(Event.ConnectionError)
-
-    def _on_invite(self, event):
-        """
-        Enter room on invitation.
-        """
-        self.subscribe(event['from'])
 
     def _on_event(self, event):
         """
@@ -138,15 +173,25 @@ class Bus(object):
         Fire EventReceived with (from, body).
         """
         # ignore events from the nyuki itself
-        if event['from'].user == self.client.boundjid.user:
+        efrom = event['from'].user
+        if efrom == self.client.boundjid.user:
             return
+
         log.debug('event received: {}'.format(event))
+
         try:
             body = json.loads(event['body'])
         except ValueError:
             body = {}
-        self.event_manager.trigger(
-            Event.EventReceived, event['from'], body)
+
+        callback = self._callbacks.get(efrom)
+        if callback:
+            if not asyncio.iscoroutinefunction(callback):
+                log.warning('event callback must be a coroutine')
+                callback = asyncio.coroutine(callback)
+            self._loop.ensure_future(callback(body))
+        else:
+            log.debug('No callback set for event from %s', efrom)
 
     def connect(self):
         """
@@ -178,12 +223,13 @@ class Bus(object):
         msg['body'] = json.dumps(event)
         msg.send()
 
-    def subscribe(self, topic):
+    def subscribe(self, topic, callback=None):
         """
         Enter into a new chatroom using xep_0045.
         Room address format must be like '{topic}@mucs.localhost'
         """
         self._mucs.joinMUC(self._muc_address(topic), self._topic)
+        self._callbacks[topic] = callback
         log.info("subscribed to '{}'".format(topic))
 
     def unsubscribe(self, topic):
@@ -191,6 +237,7 @@ class Bus(object):
         Leave a chatroom.
         """
         self._mucs.leaveMUC(self._muc_address(topic), self._topic)
+        del self._callbacks[topic]
         log.info("unsubscribed to '{}'".format(topic))
 
     @asyncio.coroutine

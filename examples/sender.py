@@ -1,8 +1,7 @@
 import logging
 import asyncio
 
-from nyuki import Nyuki, on_event
-from nyuki.events import Event
+from nyuki import Nyuki, on_event, Event
 
 
 log = logging.getLogger(__name__)
@@ -23,13 +22,16 @@ class TestNyuki(Nyuki):
                     log.error('got exception: {}'.format(response))
                 else:
                     log.info('received response: {}'.format(response.json))
-            asyncio.async(self.request(None, 'http://localhost:5558/message',
-                                       'get', callback=after, out=True))
-            asyncio.async(self.request(None, 'http://localhost:5558/message',
-                                       'post', data={'message': 'zzzz'},
-                                       callback=after, out=True))
-            asyncio.async(self.request(None, 'http://localhost:5559/message',
-                                       'get', callback=after, out=True))
+            asyncio.ensure_future(self.request(
+                None, 'http://localhost:5558/message',
+                'get', callback=after, out=True))
+            asyncio.ensure_future(self.request(
+                None, 'http://localhost:5558/message',
+                'post', data={'message': 'zzzz'},
+                callback=after, out=True))
+            asyncio.ensure_future(self.request(
+                None, 'http://localhost:5559/message',
+                'get', callback=after, out=True))
 
         self.loop.call_later(2, send)
 

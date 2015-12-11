@@ -12,7 +12,6 @@ DEFAULT_CONF_FILE = 'conf.json'
 
 # Basic configuration for all Nyukis.
 BASE_CONF = {
-    'bus': dict(),
     'api': dict(),
     'log': DEFAULT_LOGGING
 }

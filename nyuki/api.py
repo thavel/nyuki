@@ -1,5 +1,4 @@
 from aiohttp import web, HttpBadRequest
-import asyncio
 from enum import Enum
 import logging
 
@@ -11,9 +10,11 @@ access_log.info = access_log.debug
 
 
 class Method(Enum):
+
     """
     Supported HTTP methods by the REST API.
     """
+
     GET = 'GET'
     POST = 'POST'
     PUT = 'PUT'
@@ -30,10 +31,12 @@ class Method(Enum):
 
 
 class Api(object):
+
     """
     The goal of this class is to gather all http-related behaviours.
     Basically, it's a wrapper around aiohttp.
     """
+
     def __init__(self, loop, debug=False, **kwargs):
         self._loop = loop
         self._server = None
@@ -47,11 +50,18 @@ class Api(object):
         )
 
     @property
+    def debug(self):
+        return self._debug
+
+    @debug.setter
+    def debug(self, value):
+        self._debug = bool(value)
+
+    @property
     def router(self):
         return self._app.router
 
-    @asyncio.coroutine
-    def build(self, host, port):
+    async def build(self, host, port):
         """
         Create a HTTP server to expose the API.
         """
@@ -59,28 +69,25 @@ class Api(object):
         self._handler = self._app.make_handler(
             log=log, access_log=access_log, debug=self._debug
         )
-        self._server = yield from self._loop.create_server(
+        self._server = await self._loop.create_server(
             self._handler, host=host, port=port
         )
 
-    @asyncio.coroutine
-    def destroy(self):
+    async def destroy(self):
         """
         Gracefully destroy the HTTP server by closing all pending connections.
         """
         self._server.close()
-        yield from self._handler.finish_connections()
-        yield from self._server.wait_closed()
+        await self._handler.finish_connections()
+        await self._server.wait_closed()
         log.info('Stopped the http server')
 
 
-@asyncio.coroutine
-def mw_json(app, next_handler):
+async def mw_json(app, next_handler):
     """
     Ensure the content type is `application/json` for all POST-like requests.
     """
-    @asyncio.coroutine
-    def middleware(request):
+    async def middleware(request):
         if request.method in request.POST_METHODS:
             content_type = request.headers.get('CONTENT-TYPE')
             if content_type:
@@ -88,17 +95,17 @@ def mw_json(app, next_handler):
                     # Checking that the content is actually JSON
                     # there could be a charset specified.
                     try:
-                        yield from request.json()
+                        await request.json()
                     except ValueError:
                         log.error('Invalid JSON request content')
                         raise HttpBadRequest('Invalid JSON request content')
                 else:
                     log.error('Invalid Content-Type')
                     raise HttpBadRequest('Invalid Content-Type')
-            elif (yield from request.content.read()):
+            elif (await request.content.read()):
                 log.error('Missing suitable Content-Type')
                 raise HttpBadRequest('Missing suitable Content-Type')
-        response = yield from next_handler(request)
+        response = await next_handler(request)
         return response
     return middleware
 
@@ -111,12 +118,11 @@ class APIRequest(dict):
     headers = None
 
     @classmethod
-    @asyncio.coroutine
-    def from_request(cls, request):
+    async def from_request(cls, request):
         # Get json payload if there is one
         if request.method in request.POST_METHODS:
             try:
-                data = yield from request.json()
+                data = await request.json()
             except ValueError:
                 data = None
         else:
@@ -128,17 +134,15 @@ class APIRequest(dict):
         return req
 
 
-@asyncio.coroutine
-def mw_capability(app, capa_handler):
+async def mw_capability(app, capa_handler):
     """
     Transform the request data to be passed through a capability and
     convert the result into a web response.
     From here, we are expecting a JSON content.
     """
-    @asyncio.coroutine
-    def middleware(request):
-        api_req = yield from APIRequest.from_request(request)
-        capa_resp = yield from capa_handler(api_req, **request.match_info)
+    async def middleware(request):
+        api_req = await APIRequest.from_request(request)
+        capa_resp = await capa_handler(api_req, **request.match_info)
 
         return web.Response(
             body=capa_resp.api_payload if capa_resp else None,

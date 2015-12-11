@@ -9,13 +9,12 @@ from unittest import TestCase
 from unittest.mock import patch, Mock
 
 from nyuki import Nyuki
+from tests import AsyncMock, make_future
 
 
 class TestNyuki(TestCase):
 
     def setUp(self):
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.loop)
         kwargs = {
             'bus': {
                 'jid': 'test@localhost',
@@ -30,18 +29,14 @@ class TestNyuki(TestCase):
             'logging': 'DEBUG'
         }
         self.nyuki = Nyuki(**kwargs)
+        self.loop = self.nyuki.loop
         self.nyuki.config_filename = 'unit_test_conf.json'
 
     def tearDown(self):
         if os.path.isfile(self.nyuki.config_filename):
             os.remove(self.nyuki.config_filename)
 
-    def test_001_init(self):
-        bus_loop = self.nyuki._bus._loop
-        exposer_loop = self.nyuki._exposer._loop
-        eq_(bus_loop, exposer_loop)
-
-    def test_002_update_config(self):
+    def test_001_update_config(self):
         assert_not_equal(
             self.nyuki.config['bus']['password'], 'new_password')
         self.nyuki.update_config({
@@ -59,19 +54,23 @@ class TestNyuki(TestCase):
             conf = json.loads(file.read())
         eq_(self.nyuki.config, conf)
 
-    def test_004_get_rest_configuration(self):
+    def test_003_get_rest_configuration(self):
         response = self.nyuki.Configuration.get(self.nyuki, None)
         eq_(json.loads(bytes.decode(response.api_payload)), self.nyuki._config)
 
-    def test_005_patch_rest_configuration(self):
-        self.nyuki.Configuration.patch(self.nyuki, {
-            'bus': {'jid': 'updated@localhost'},
-            'new': True
-        })
+    @patch('nyuki.bus.Bus.stop', return_value=AsyncMock())
+    def test_004_patch_rest_configuration(self, stop_mock):
+        self.loop.run_until_complete(
+            self.nyuki.Configuration.patch(self.nyuki, {
+                'bus': {'jid': 'updated@localhost'},
+                'new': True
+            })
+        )
         eq_(self.nyuki._config['new'], True)
         eq_(self.nyuki._config['bus']['jid'], 'updated@localhost')
+        stop_mock.assert_called_once_with()
 
-    def test_006a_custom_schema_fail(self):
+    def test_005a_custom_schema_fail(self):
         with assert_raises(ValidationError):
             self.nyuki.register_schema({
                 'type': 'object',
@@ -83,43 +82,20 @@ class TestNyuki(TestCase):
                 }
             })
 
-    def test_006b_custom_schema_ok(self):
+    def test_005b_custom_schema_ok(self):
         self.nyuki._config['port'] = 4000
         self.nyuki.register_schema({
             'type': 'object',
             'required': ['port'],
             'properties': {
-                'port': {
-                    'type': 'integer',
-                }
+                'port': {'type': 'integer'}
             }
         })
-        eq_(len(self.nyuki._schemas), 2)
+        # Base + API + Bus + custom
+        eq_(len(self.nyuki._schemas), 4)
 
-    @patch('slixmpp.xmlstream.XMLStream.disconnect')
-    @patch('nyuki.api.Api.destroy')
-    def test_007_stop(self, destroy_mock, disconnect_mock):
-
-        def make_future():
-            f = asyncio.Future()
-            f.set_result(None)
-            return f
-        destroy_mock.side_effect = make_future
-
-        def disconnected(wait):
-            self.nyuki._bus.client.disconnected.set_result(True)
-        disconnect_mock.side_effect = disconnected
-
-        with patch.object(self.nyuki, 'teardown') as mock:
-            self.nyuki.stop = asyncio.coroutine(self.nyuki.stop)
+    def test_006_stop(self):
+        with patch.object(self.nyuki.services, 'stop', new=AsyncMock()) as mock:
             self.loop.run_until_complete(self.nyuki.stop())
             mock.assert_called_once_with()
-            assert_true(self.nyuki.is_stopping)
-        destroy_mock.assert_called_once_with()
-
-    @patch('slixmpp.xmlstream.XMLStream.connect')
-    def test_007_stop_unwanted(self, connect):
-
-        self.nyuki._bus.client.disconnected.set_result(True)
-        self.loop.run_until_complete(asyncio.sleep(0))
-        eq_(connect.call_count, 1)
+        assert_true(self.nyuki.is_stopping)

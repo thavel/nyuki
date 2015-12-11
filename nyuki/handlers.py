@@ -10,6 +10,7 @@ log = logging.getLogger(__name__)
 
 
 class CapabilityHandler(type):
+
     ALLOWED_METHODS = Method.list()
 
     def __call__(cls, *args, **kwargs):
@@ -23,7 +24,7 @@ class CapabilityHandler(type):
             for method, handler in cls._filter_capability(desc):
                 name = '{}_{}'.format(method, resrc)
                 wrapper = cls._build_wrapper(nyuki, handler)
-                nyuki.capability_exposer.register(Capability(
+                nyuki.api.register(Capability(
                     name=name.lower(),
                     method=method,
                     endpoint=endpoint,
@@ -64,35 +65,3 @@ class CapabilityHandler(type):
         for name, cls in getmembers(obj, isclass):
             if hasattr(cls, 'endpoint'):
                 yield name, cls
-
-
-class EventHandler(type):
-    def __call__(cls, *args, **kwargs):
-        """
-        Register decorated method to be called when an event is trigger.
-        """
-        nyuki = super().__call__(*args, **kwargs)
-        for method, events in cls._filter_event(nyuki):
-            for event in events:
-                nyuki.event_manager.register(event, method)
-        return nyuki
-
-    @staticmethod
-    def _filter_event(obj):
-        """
-        Find methods decorated with `on_event`.
-        """
-        for attr in dir(obj):
-            value = getattr(obj, attr)
-            if callable(value) and hasattr(value, 'on_event'):
-                yield value, value.on_event
-
-
-class MetaHandler(EventHandler, CapabilityHandler):
-    """
-    Meta class that registers all decorated methods as either a capability or
-    a callback for a bus event.
-    """
-    def __call__(cls, *args, **kwargs):
-        nyuki = super().__call__(*args, **kwargs)
-        return nyuki

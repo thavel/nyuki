@@ -1,16 +1,13 @@
-from aiohttp import ClientOSError
 import asyncio
 import json
 from unittest.mock import patch, Mock
-from nose.tools import assert_in, assert_raises, eq_, ok_
+from nose.tools import assert_in, assert_raises, eq_
 from slixmpp.exceptions import IqTimeout
 from unittest import TestCase
 from xml.sax.saxutils import escape
 
 from nyuki.bus import _BusClient, Bus
 from nyuki.events import Event, EventManager
-
-from tests import AsyncTestCase, fake_future
 
 
 class TestBusClient(TestCase):
@@ -103,77 +100,3 @@ class TestBus(TestCase):
         send_mock.return_value = m
         self.bus._on_register(None)
         assert_in(Event.ConnectionError, self.events)
-
-
-class TestBusRequest(AsyncTestCase):
-
-    def setUp(self):
-        super().setUp()
-        self.bus = Bus('login@localhost', 'login', loop=self._loop)
-
-    def test_001a_request(self):
-        @fake_future
-        def request(method, url, data, headers):
-            eq_(method, 'get')
-            eq_(url, 'url')
-            eq_(data, '{"message": "text"}')
-            eq_(headers, {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            })
-            m = Mock()
-            m.status = 200
-            @fake_future
-            def to_json():
-                return {'response': 'text'}
-            m.json = to_json
-            return m
-
-        with patch('aiohttp.request', request):
-            response = self._loop.run_until_complete(
-                self.bus._execute_request('url', 'get', {'message': 'text'})
-                )
-        eq_(response.status, 200)
-        eq_(response.json, {'response': 'text'})
-
-    def test_001b_request_no_json(self):
-        @fake_future
-        def request(method, url, data, headers):
-            eq_(method, 'get')
-            eq_(url, 'url')
-            eq_(data, '{"message": "text"}')
-            eq_(headers, {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            })
-            m = Mock()
-            m.status = 200
-            @fake_future
-            def to_json():
-                raise ValueError
-            m.json = to_json
-            @fake_future
-            def to_text():
-                return 'something'
-            m.text = to_text
-            return m
-
-        with patch('aiohttp.request', request):
-            response = self._loop.run_until_complete(
-                self.bus._execute_request('url', 'get', {'message': 'text'})
-                )
-        eq_(response.status, 200)
-        eq_(response.json, None)
-        eq_(response.text().result(), 'something')
-
-    def test_001c_request_error(self):
-        run = self._loop.run_until_complete
-        error = {'endpoint': 'http://localhost:8080/None/api/url',
-                 'error': 'ClientOSError()',
-                 'data': {'message': 'text'}}
-        with patch('aiohttp.request', side_effect=ClientOSError):
-            with patch.object(self.bus, 'publish') as publish:
-                exc = run(self.bus.request(None, 'url', 'get',
-                          data={'message': 'text'}))
-            publish.assert_called_once_with(error)
-            ok_(isinstance(exc, ClientOSError))
