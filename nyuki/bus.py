@@ -80,10 +80,14 @@ class Bus(Service):
         self._nyuki = nyuki
         self._nyuki.register_schema(self.CONF_SCHEMA)
         self._loop = self._nyuki.loop or asyncio.get_event_loop()
+
         self.client = None
         self._connected = asyncio.Event()
         self._disconnected = asyncio.Event()
+
         self._callbacks = dict()
+        self._topic = None
+        self._mucs = None
 
     async def start(self):
         self._disconnected.clear()
@@ -144,7 +148,7 @@ class Bus(Service):
         """
         XMPP event handler when the connection has been made.
         """
-        log.info('Connected to XMPP server {}:{}'.format(
+        log.info('Connected to XMPP server at {}:{}'.format(
                  *self.client._address))
         self.client.send_presence()
         self.client.get_roster()
@@ -189,7 +193,7 @@ class Bus(Service):
             if not asyncio.iscoroutinefunction(callback):
                 log.warning('event callback must be a coroutine')
                 callback = asyncio.coroutine(callback)
-            self._loop.ensure_future(callback(body))
+            asyncio.ensure_future(callback(body))
         else:
             log.debug('No callback set for event from %s', efrom)
 
@@ -240,8 +244,7 @@ class Bus(Service):
         del self._callbacks[topic]
         log.info("unsubscribed to '{}'".format(topic))
 
-    @asyncio.coroutine
-    def _execute_request(self, url, method, data=None, headers=None):
+    async def _execute_request(self, url, method, data=None, headers=None):
         """
         Asynchronously send a request of type 'application/json' to method/url.
         If data is not None, it is supposed to be a dict.
@@ -254,19 +257,19 @@ class Bus(Service):
         headers = headers or {}
         headers.update(base_headers)
         log.debug('>> sending {} request to {}'.format(method.upper(), url))
-        response = yield from aiohttp.request(method, url, data=data,
-                                              headers=headers)
+        response = await aiohttp.request(
+            method, url, data=data, headers=headers
+        )
         try:
-            data = yield from response.json()
+            data = await response.json()
         except ValueError:
             data = None
         response.json = data
         log.debug('<< received response from {}: {}'.format(url, data))
         return response
 
-    @asyncio.coroutine
-    def request(self, nyuki, endpoint, method, out=False,
-                data=None, headers=None, callback=None):
+    async def request(self, nyuki, endpoint, method, out=False,
+                      data=None, headers=None, callback=None):
         """
         Send a P2P request to another nyuki, async a callback if given.
         The callback is called with the response object (json).
@@ -275,8 +278,8 @@ class Bus(Service):
             endpoint = 'http://localhost:8080/{}/api/{}'.format(nyuki,
                                                                 endpoint)
         try:
-            response = yield from self._execute_request(endpoint, method,
-                                                        data, headers)
+            response = await self._execute_request(endpoint, method,
+                                                   data, headers)
         except (aiohttp.HttpProcessingError,
                 aiohttp.ServerDisconnectedError,
                 aiohttp.ClientOSError) as exc:
@@ -287,7 +290,7 @@ class Bus(Service):
         if callback:
             log.debug('calling response callback with {}'.format(response))
             if asyncio.iscoroutinefunction(callback):
-                asyncio.async(callback(response))
+                asyncio.ensure_future(callback(response))
             else:
                 self._loop.call_soon(callback, response)
         return response

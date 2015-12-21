@@ -59,7 +59,8 @@ class TestNyuki(TestCase):
         eq_(json.loads(bytes.decode(response.api_payload)), self.nyuki._config)
 
     @patch('nyuki.bus.Bus.stop', return_value=AsyncMock())
-    def test_004_patch_rest_configuration(self, stop_mock):
+    def test_004_patch_rest_configuration(self, bus_stop_mock):
+        bus_stop_mock.return_value = make_future()
         self.loop.run_until_complete(
             self.nyuki.Configuration.patch(self.nyuki, {
                 'bus': {'jid': 'updated@localhost'},
@@ -68,7 +69,7 @@ class TestNyuki(TestCase):
         )
         eq_(self.nyuki._config['new'], True)
         eq_(self.nyuki._config['bus']['jid'], 'updated@localhost')
-        stop_mock.assert_called_once_with()
+        bus_stop_mock.assert_called_once_with()
 
     def test_005a_custom_schema_fail(self):
         with assert_raises(ValidationError):

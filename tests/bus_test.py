@@ -1,13 +1,13 @@
 import asyncio
 import json
-from unittest.mock import patch, Mock
 from nose.tools import assert_in, assert_raises, eq_
+from slixmpp import JID
 from slixmpp.exceptions import IqTimeout
 from unittest import TestCase
-from xml.sax.saxutils import escape
+from unittest.mock import patch, Mock, MagicMock
 
 from nyuki.bus import _BusClient, Bus
-from nyuki.events import Event, EventManager
+from tests import make_future
 
 
 class TestBusClient(TestCase):
@@ -33,70 +33,40 @@ class TestBusClient(TestCase):
 class TestBus(TestCase):
 
     def setUp(self):
-        self.events = list()
-        loop = asyncio.get_event_loop()
-        self.bus = Bus(
-            'login@localhost',
-            'password',
-            loop=loop,
-            event_manager=EventManager(loop=loop))
-        self.bus.event_manager.trigger = (lambda x, *y: self.events.append(x))
+        self.loop = asyncio.get_event_loop()
+        self.nyuki = MagicMock()
+        self.bus = Bus(self.nyuki)
+        self.bus.configure('login@localhost', 'password')
 
-    def tearDown(self):
-        self.events = list()
-
-    # @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send')
-    # def test_001_start(self, send_mock):
-    #     # When the callback _on_start is called, an event is triggered.
-    #     # with patch.object(self.bus, 'client'):
-    #     self.bus._on_start(None)
-    #     assert_in(Event.Connected, self.events)
-
-    def test_002_disconnect(self):
-        # When the callback _on_disconnect is called, an event is triggered.
-        self.bus._on_disconnect(None)
-        assert_in(Event.Disconnected, self.events)
-
-    def test_003_failure(self):
-        # When the callback _on_failure is called, an event is triggered.
-        self.bus._on_failure(None)
-        assert_in(Event.ConnectionError, self.events)
-
-    def test_004_on_event(self):
-        # Message without a subject will trigger a ResponseReceived.
-        # Also test the proper Response stanza format
-        msg = self.bus.client.Message()
-        msg['type'] = 'groupchat'
-        msg['body'] = json.dumps({'key': 'value'})
-        self.bus._on_event(msg)
-        encoded_xml = escape('{"key": "value"}', entities={'"': '&quot;'})
-        assert_in(encoded_xml, str(msg))
-        assert_in(Event.EventReceived, self.events)
-
-    def test_005_muc_address(self):
+    def test_001_muc_address(self):
         muc = self.bus._muc_address('topic')
         eq_(muc, 'topic@mucs.localhost')
 
-    @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send')
-    def test_006a_publish(self, send_mock):
-        with patch.object(self.bus, 'subscribe') as sub_mock:
-            self.bus.publish({'message': 'test'})
-            send_mock.assert_called_once_with()
+    def test_002_on_event(self):
+        cb = Mock(return_value=make_future())
+        with patch.object(self.bus._mucs, 'joinMUC') as join_mock:
+            self.bus.subscribe('other', cb)
+            join_mock.assert_called_once_with('other@mucs.localhost', 'login')
+        msg = self.bus.client.Message()
+        msg['type'] = 'groupchat'
+        msg['from'] = JID('other@localhost')
+        msg['body'] = '{"key": "value"}'
+        self.bus._on_event(msg)
+        cb.assert_called_once_with({'key': 'value'})
 
-    def test_006b_publish_no_dict(self):
+    @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send')
+    def test_003a_publish(self, send_mock):
+        self.bus.publish({'message': 'test'})
+        send_mock.assert_called_once_with()
+
+    def test_003b_publish_no_dict(self):
         assert_raises(TypeError, self.bus.publish, 'not a dict')
 
-    def test_007_subscribe(self):
-        with patch.object(self.bus._mucs, 'joinMUC') as mock:
-            self.bus.subscribe('login')
-            mock.assert_called_once_with('login@mucs.localhost', 'login')
-
     @patch('slixmpp.stanza.Iq.send')
-    def test_008_on_register_callback(self, send_mock):
+    def test_004_on_register_callback(self, send_mock):
         future = asyncio.Future()
         future.set_exception(IqTimeout(None))
-        m = Mock()
+        m = MagicMock()
         m.add_done_callback = lambda f: f(future)
         send_mock.return_value = m
         self.bus._on_register(None)
-        assert_in(Event.ConnectionError, self.events)

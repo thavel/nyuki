@@ -79,6 +79,4 @@ def get_command_kwargs():
     if args.config:
         command_args['config'] = args.config
 
-    log.critical(command_args)
-
     return command_args
