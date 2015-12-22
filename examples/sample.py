@@ -1,7 +1,6 @@
 import logging
 
-from nyuki import Nyuki, resource, on_event
-from nyuki.events import Event
+from nyuki import Nyuki, resource
 from nyuki.capabilities import Response
 
 
@@ -28,17 +27,14 @@ class Sample(Nyuki):
             '2': 'message 2'
         }
 
-    def setup(self):
+    async def setup(self):
         log.info("Oh great, I'm connected and ready to do what I want!")
-
-    @on_event(Event.Connected)
-    def _on_start(self):
-        self.subscribe('sender')
+        self.bus.subscribe('sender')
 
     @resource(endpoint='/message')
     class Messages:
+
         def get(self, request):
-            return Response()
             return Response(self.messages)
 
         def post(self, request):
@@ -47,6 +43,7 @@ class Sample(Nyuki):
 
     @resource(endpoint=r'/message/{mid:\d+}')
     class Message:
+
         def get(self, request, mid):
             if mid not in self.messages:
                 return Response(status=404,
@@ -64,7 +61,7 @@ class Sample(Nyuki):
                 body={'message': self.messages[mid]}
             )
 
-    def teardown(self):
+    async def teardown(self):
         log.info('goodbye !')
 
 
