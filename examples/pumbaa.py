@@ -2,8 +2,7 @@
 This is 'pumbaa'
 """
 import logging
-from nyuki import Nyuki, resource, on_event
-from nyuki.events import Event
+from nyuki import Nyuki, resource
 from nyuki.capabilities import Response
 
 
@@ -11,22 +10,23 @@ log = logging.getLogger(__name__)
 
 
 class Pumbaa(Nyuki):
+
     message = 'hello world!'
+
     def __init__(self):
         super().__init__()
         self.eaten = 0
 
-    @on_event(Event.Connected)
-    def on_start(self):
-        self.subscribe('timon')
+    async def setup(self):
+        self.bus.subscribe('timon', self.eat_larva)
 
-    @on_event(Event.EventReceived)
-    def eat_larva(self, event):
+    async def eat_larva(self, body):
         log.info('yummy yummy!')
         self.eaten += 1
 
     @resource(endpoint='/eaten')
-    class Message:
+    class Eaten:
+
         def get(self, request):
             return Response({'eaten': self.eaten})
 
