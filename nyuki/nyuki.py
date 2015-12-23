@@ -1,9 +1,11 @@
 import asyncio
+import codecs
 import json
 from jsonschema import validate, ValidationError
 import logging
 import logging.config
 import signal
+import sys
 
 from nyuki.bus import Bus
 from nyuki.capabilities import Exposer, Response, resource
@@ -19,6 +21,7 @@ log = logging.getLogger(__name__)
 
 
 class Nyuki(metaclass=MetaHandler):
+
     """
     A lightweigh base class to build nyukis. A nyuki provides tools that shall
     help the developer with managing the following topics:
@@ -50,6 +53,13 @@ class Nyuki(metaclass=MetaHandler):
     }
 
     def __init__(self, **kwargs):
+        # Set stdout as utf-8 codec
+        try:
+            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
+        except Exception:
+            # Nosetests seems to alter stdout, breaking detach()
+            log.warning('Could not change stdout codec')
+
         # List of configuration schemas
         self._schemas = []
 
