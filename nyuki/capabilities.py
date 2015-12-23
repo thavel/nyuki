@@ -121,6 +121,21 @@ class Exposer(Service):
         self.host = None
         self.port = None
 
+    async def start(self):
+        """
+        Expose capabilities by building the HTTP server.
+        The server will be started with the event loop.
+        """
+        await self._api.build(self.host, self.port)
+
+    def configure(self, host='0.0.0.0', port=5558, debug=False):
+        self.host = host
+        self.port = port
+        self._api.debug = debug
+
+    async def stop(self):
+        await self._api.destroy()
+
     @property
     def capabilities(self):
         return self._capabilities
@@ -140,21 +155,6 @@ class Exposer(Service):
             endpoint = capa.endpoint
         self._api.router.add_route(capa.method, endpoint, capa.wrapper)
         log.debug("Capability added: {}".format(capa.name))
-
-    async def start(self):
-        """
-        Expose capabilities by building the HTTP server.
-        The server will be started with the event loop.
-        """
-        await self._api.build(self.host, self.port)
-
-    def configure(self, host='0.0.0.0', port=5558, debug=False):
-        self.host = host
-        self.port = port
-        self._api.debug = debug
-
-    async def stop(self):
-        await self._api.destroy()
 
     def _find(self, capa_name):
         """

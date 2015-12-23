@@ -151,7 +151,7 @@ class Nyuki(metaclass=CapabilityHandler):
         self._stop_loop()
 
     async def report_error(self, code, message):
-        await self.publish({
+        await self.bus.publish({
             'code': code,
             'message': message
         })

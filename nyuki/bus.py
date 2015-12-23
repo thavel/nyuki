@@ -113,9 +113,9 @@ class Bus(Service):
         self._connected.clear()
         if not self.client.transport:
             log.warning('XMPP client is already disconnected')
-            self._disconnected.set()
-        else:
-            self.client.disconnect(wait=2)
+            return
+
+        self.client.disconnect(wait=2)
 
         try:
             await asyncio.wait_for(self._disconnected.wait(), 2.0)
@@ -234,7 +234,7 @@ class Bus(Service):
         """
         self._mucs.leaveMUC(self._muc_address(topic), self._topic)
         del self._callbacks[topic]
-        log.info("unsubscribed to '{}'".format(topic))
+        log.info("unsubscribed from '{}'".format(topic))
 
     async def _execute_request(self, url, method, data=None, headers=None):
         """
