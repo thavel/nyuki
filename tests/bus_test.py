@@ -45,7 +45,8 @@ class TestBus(TestCase):
     def test_002_on_event(self):
         cb = Mock(return_value=make_future())
         with patch.object(self.bus._mucs, 'joinMUC') as join_mock:
-            self.bus.subscribe('other', cb)
+            self.bus._connected.set()
+            self.loop.run_until_complete(self.bus.subscribe('other', cb))
             join_mock.assert_called_once_with('other@mucs.localhost', 'login')
         msg = self.bus.client.Message()
         msg['type'] = 'groupchat'

@@ -45,18 +45,22 @@ class ServiceManager(object):
     def get(self, name):
         return self.services[name]
 
-    async def start(self):
+    async def start(self, timeout=5):
         """
-        Start all services
+        Start all services with the given timeout
         """
-        self._running = True
         tasks = [
             asyncio.ensure_future(service.start())
             for service in self.services.values()
         ]
 
         log.debug('Running start tasks : %s', tasks)
-        await asyncio.wait(tasks)
+        done, not_done = await asyncio.wait(tasks, timeout=timeout)
+        if not_done:
+            raise asyncio.TimeoutError(
+                'Start tasks {} did not finish'.format(not_done)
+            )
+        self._running = True
         log.debug('Start tasks done')
 
     async def stop(self, timeout=5):
@@ -71,5 +75,5 @@ class ServiceManager(object):
 
         done, not_done = await asyncio.wait(tasks, timeout=timeout)
         if not_done:
-            log.warning('Could not stop nyuki after %d seconds', timeout)
+            log.warning('Could not stop services after %d seconds', timeout)
             log.debug('stop task not done : %s', not_done)

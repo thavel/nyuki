@@ -89,10 +89,11 @@ class Bus(Service):
         self._topic = None
         self._mucs = None
 
-    async def start(self):
+    async def start(self, timeout=0):
         self._disconnected.clear()
         self.client.connect()
-        await asyncio.wait_for(self._connected.wait(), 2.0)
+        if timeout:
+            await asyncio.wait_for(self._connected.wait(), timeout)
 
     def configure(self, jid, password, host='localhost', port=5222):
         self.client = _BusClient(jid, password, host, port)
@@ -106,18 +107,20 @@ class Bus(Service):
         self._mucs = self.client.plugin['xep_0045']
 
     async def stop(self):
-        if self.client:
-            self._connected.clear()
-            if not self.client.transport:
-                log.warning('XMPP client is already disconnected')
-                self._disconnected.set()
-            else:
-                self.client.disconnect(wait=2)
+        if not self.client:
+            return
 
-            try:
-                await asyncio.wait_for(self._disconnected.wait(), 2.0)
-            except asyncio.TimeoutError:
-                log.error('Could not end bus connection after 2 seconds')
+        self._connected.clear()
+        if not self.client.transport:
+            log.warning('XMPP client is already disconnected')
+            self._disconnected.set()
+        else:
+            self.client.disconnect(wait=2)
+
+        try:
+            await asyncio.wait_for(self._disconnected.wait(), 2.0)
+        except asyncio.TimeoutError:
+            log.error('Could not end bus connection after 2 seconds')
 
     def _muc_address(self, topic):
         return '{}@{}'.format(topic, self.MUC_DOMAIN)
@@ -149,26 +152,28 @@ class Bus(Service):
         XMPP event handler when the connection has been made.
         """
         log.info('Connected to XMPP server at {}:{}'.format(
-                 *self.client._address))
+            *self.client._address
+        ))
         self.client.send_presence()
         self.client.get_roster()
         # Auto-subscribe to the topic where the nyuki could publish events.
-        self.subscribe(self._topic)
         self._connected.set()
+        asyncio.ensure_future(self.subscribe(self._topic))
 
     def _on_disconnect(self, event):
         """
         XMPP event handler when the client has been disconnected.
         """
-        log.debug("Disconnected from the bus")
+        log.warning('Disconnected from the bus')
         self._disconnected.set()
 
     def _on_failure(self, event):
         """
         XMPP event handler when something is going wrong with the connection.
         """
-        log.error("Connection to XMPP server {}:{} failed".format(
-                  *self.client._address))
+        log.error('Connection to XMPP server {}:{} failed'.format(
+            *self.client._address
+        ))
         self.client.abort()
 
     def _on_event(self, event):
@@ -197,22 +202,6 @@ class Bus(Service):
         else:
             log.debug('No callback set for event from %s', efrom)
 
-    def connect(self):
-        """
-        Connect to the bus.
-        """
-        self.client.connect()
-
-    def disconnect(self, wait=2):
-        """
-        Disconnect from the bus with a default timeout set to 5s.
-        """
-        if not self.client.transport:
-            log.warning('XMPP client is already disconnected')
-            self.client.disconnected.set_result(True)
-        else:
-            self.client.disconnect(wait=wait)
-
     def publish(self, event):
         """
         Send an event in the nyuki's own MUC so that other nyukis that joined
@@ -227,11 +216,14 @@ class Bus(Service):
         msg['body'] = json.dumps(event)
         msg.send()
 
-    def subscribe(self, topic, callback=None):
+    async def subscribe(self, topic, callback=None):
         """
         Enter into a new chatroom using xep_0045.
         Room address format must be like '{topic}@mucs.localhost'
         """
+        if not self._connected.is_set():
+            log.info("Waiting for a connection to subscribe to '%s'", topic)
+        await self._connected.wait()
         self._mucs.joinMUC(self._muc_address(topic), self._topic)
         self._callbacks[topic] = callback
         log.info("subscribed to '{}'".format(topic))

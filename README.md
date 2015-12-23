@@ -41,6 +41,7 @@ pip install nyuki
 Nyuki's paradigms are convenient for Docker-based environment. We recommend using one container per nyuki implementation.
 
 Let's now write two nyukis, namely `timon` and `pumbaa`. Each time `timon` gets a new message, `pumbaa` eats a larva (`timon.py` and `pumbaa.py` available in folder *examples*):
+
 ```python
 """
 This is 'timon'
