@@ -56,9 +56,10 @@ class Nyuki(metaclass=MetaHandler):
         # Set stdout as utf-8 codec
         try:
             sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
-        except Exception:
+        except Exception as exc:
             # Nosetests seems to alter stdout, breaking detach()
             log.warning('Could not change stdout codec')
+            log.exception(exc)
 
         # List of configuration schemas
         self._schemas = []
