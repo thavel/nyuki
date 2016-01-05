@@ -96,6 +96,8 @@ class TestNyuki(TestCase):
 
     def test_005_stop(self):
         with patch.object(self.nyuki.services, 'stop', new=AsyncMock()) as mock:
-            self.loop.run_until_complete(self.nyuki.stop())
+            # Do not really close the loop as it would break other tests
+            with patch.object(self.nyuki, '_stop_loop'):
+                self.loop.run_until_complete(self.nyuki.stop())
             mock.assert_called_once_with()
         assert_true(self.nyuki.is_stopping)

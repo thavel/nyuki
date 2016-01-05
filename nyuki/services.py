@@ -21,7 +21,7 @@ class ServiceManager(object):
 
     def __init__(self, nyuki):
         self._loop = nyuki.loop or asyncio.get_event_loop()
-        self.nyuki = nyuki
+        self._nyuki = nyuki
         self.services = dict()
         self._running = False
 

@@ -1,6 +1,6 @@
 from aiohttp import ClientOSError
 import asyncio
-from nose.tools import assert_raises, eq_, ok_
+from nose.tools import assert_raises, eq_, ok_, assert_true, assert_false
 from slixmpp import JID
 from slixmpp.exceptions import IqTimeout
 from unittest import TestCase
@@ -34,8 +34,7 @@ class TestBus(TestCase):
 
     def setUp(self):
         self.loop = asyncio.get_event_loop()
-        self.nyuki = MagicMock()
-        self.bus = Bus(self.nyuki)
+        self.bus = Bus(Mock())
         self.bus.configure('login@localhost', 'password')
 
     def test_001_muc_address(self):
@@ -67,6 +66,11 @@ class TestBus(TestCase):
         with patch('slixmpp.stanza.Iq.send', new=AsyncMock()) as send_mock:
             self.loop.run_until_complete(self.bus._on_register(None))
             send_mock.assert_called_once_with()
+
+    def test_005_reconnect(self):
+        with patch.object(self.bus.client, '_connect_routine', new=AsyncMock()) as mock:
+            self.loop.run_until_complete(self.bus._on_disconnect(None))
+            eq_(mock.call_count, 1)
 
 
 class TestBusRequest(TestCase):
