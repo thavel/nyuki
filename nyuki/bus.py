@@ -195,12 +195,13 @@ class Bus(Service):
 
         callback = self._callbacks.get(efrom)
         if callback:
+            log.debug('calling callback %s', callback)
             if not asyncio.iscoroutinefunction(callback):
-                log.warning('event callback must be a coroutine')
+                log.warning('event callbacks must be coroutines')
                 callback = asyncio.coroutine(callback)
             asyncio.ensure_future(callback(body))
         else:
-            log.debug('No callback set for event from %s', efrom)
+            log.warning('No callback set for event from %s', efrom)
 
     def publish(self, event):
         """

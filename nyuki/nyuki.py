@@ -4,8 +4,8 @@ import json
 from jsonschema import validate, ValidationError
 import logging
 import logging.config
-import sys
 from signal import SIGINT, SIGTERM
+import sys
 
 from nyuki.bus import Bus
 from nyuki.capabilities import Exposer, Response, resource

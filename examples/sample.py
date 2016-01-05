@@ -29,7 +29,6 @@ class Sample(Nyuki):
 
     async def setup(self):
         log.info("Oh great, I'm connected and ready to do what I want!")
-        self.bus.subscribe('sender')
 
     @resource(endpoint='/message')
     class Messages:
