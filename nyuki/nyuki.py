@@ -66,10 +66,12 @@ class Nyuki(metaclass=CapabilityHandler):
         self.loop = asyncio.get_event_loop() or asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
 
-        self.services = ServiceManager(self)
-        self.services.add('api', Exposer(self))
+        self._services = ServiceManager(self)
+        self._services.add('api', Exposer(self))
+
+        # Add bus service if in conf file
         if self._config.get('bus') is not None:
-            self.services.add('bus', Bus(self))
+            self._services.add('bus', Bus(self))
 
         self.is_stopping = False
 
@@ -81,7 +83,7 @@ class Nyuki(metaclass=CapabilityHandler):
             return super().__getattribute__(name)
         except AttributeError as exc:
             try:
-                return self.services.get(name)
+                return self._services.get(name)
             except KeyError:
                 raise exc
 
@@ -99,12 +101,12 @@ class Nyuki(metaclass=CapabilityHandler):
 
         # Configure services with nyuki's configuration
         log.debug('Running configure for services')
-        for name, service in self.services.all.items():
+        for name, service in self._services.all.items():
             service.configure(**self._config.get(name, {}))
         log.debug('Done configuring')
 
         # Start services
-        self.loop.run_until_complete(self.services.start())
+        self.loop.run_until_complete(self._services.start())
 
         # Call for setup
         if not asyncio.iscoroutinefunction(self.setup):
@@ -147,7 +149,7 @@ class Nyuki(metaclass=CapabilityHandler):
             return
 
         self.is_stopping = True
-        await self.services.stop()
+        await self._services.stop()
         self._stop_loop()
 
     def register_schema(self, schema, format_checker=None):
@@ -205,7 +207,7 @@ class Nyuki(metaclass=CapabilityHandler):
         self.save_config()
         logging.config.dictConfig(self._config['log'])
         await self.reload()
-        for name, service in self.services.all.items():
+        for name, service in self._services.all.items():
             if name in request:
                 await service.stop()
                 service.configure(**self._config[name])

@@ -95,7 +95,7 @@ class TestNyuki(TestCase):
         eq_(len(self.nyuki._schemas), 4)
 
     def test_005_stop(self):
-        with patch.object(self.nyuki.services, 'stop', new=AsyncMock()) as mock:
+        with patch.object(self.nyuki._services, 'stop', new=AsyncMock()) as mock:
             # Do not really close the loop as it would break other tests
             with patch.object(self.nyuki, '_stop_loop'):
                 self.loop.run_until_complete(self.nyuki.stop())
