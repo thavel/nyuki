@@ -14,7 +14,7 @@ from nyuki.config import (
     get_full_config, write_conf_json, merge_configs, DEFAULT_CONF_FILE
 )
 from nyuki.handlers import CapabilityHandler
-from nyuki.service import ServiceManager
+from nyuki.services import ServiceManager
 
 
 log = logging.getLogger(__name__)
@@ -149,12 +149,6 @@ class Nyuki(metaclass=CapabilityHandler):
         self.is_stopping = True
         await self.services.stop()
         self._stop_loop()
-
-    async def report_error(self, code, message):
-        await self.bus.publish({
-            'code': code,
-            'message': message
-        })
 
     def register_schema(self, schema, format_checker=None):
         """

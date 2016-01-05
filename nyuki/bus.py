@@ -5,7 +5,7 @@ import logging
 from slixmpp import ClientXMPP
 from slixmpp.exceptions import IqError, IqTimeout
 
-from nyuki.service import Service
+from nyuki.services import Service
 
 
 log = logging.getLogger(__name__)
@@ -83,17 +83,17 @@ class Bus(Service):
 
         self.client = None
         self._connected = asyncio.Event()
-        self._disconnected = asyncio.Event()
+        self.reconnect = True
 
         self._callbacks = dict()
         self._topic = None
         self._mucs = None
 
     async def start(self, timeout=0):
-        self._disconnected.clear()
         self.client.connect()
         if timeout:
             await asyncio.wait_for(self._connected.wait(), timeout)
+        self.reconnect = True
 
     def configure(self, jid, password, host='localhost', port=5222):
         self.client = _BusClient(jid, password, host, port)
@@ -110,44 +110,40 @@ class Bus(Service):
         if not self.client:
             return
 
-        self._connected.clear()
         if not self.client.transport:
             log.warning('XMPP client is already disconnected')
             return
 
+        self.reconnect = False
         self.client.disconnect(wait=2)
 
         try:
-            await asyncio.wait_for(self._disconnected.wait(), 2.0)
+            await asyncio.wait_for(self.client.disconnected, 2.0)
         except asyncio.TimeoutError:
             log.error('Could not end bus connection after 2 seconds')
 
     def _muc_address(self, topic):
         return '{}@{}'.format(topic, self.MUC_DOMAIN)
 
-    def _on_register(self, event):
+    async def _on_register(self, event):
         """
         XMPP event handler while registering a user (in-band registration).
         """
-        def done(future):
-            try:
-                future.result()
-            except IqError as exc:
-                error = exc.iq['error']['text']
-                log.debug("Could not register account: {}".format(error))
-            except IqTimeout:
-                log.error("No response from the server")
-            finally:
-                log.debug("Account {} created".format(self.client.boundjid))
-
         resp = self.client.Iq()
         resp['type'] = 'set'
         resp['register']['username'] = self.client.boundjid.user
         resp['register']['password'] = self.client.password
-        future = resp.send()
-        future.add_done_callback(done)
+        try:
+            await resp.send()
+        except IqError as exc:
+            error = exc.iq['error']['text']
+            log.debug("Could not register account: {}".format(error))
+        except IqTimeout:
+            log.error("No response from the server")
+        finally:
+            log.debug("Account {} created".format(self.client.boundjid))
 
-    def _on_start(self, event):
+    async def _on_start(self, event):
         """
         XMPP event handler when the connection has been made.
         """
@@ -158,14 +154,18 @@ class Bus(Service):
         self.client.get_roster()
         # Auto-subscribe to the topic where the nyuki could publish events.
         self._connected.set()
-        asyncio.ensure_future(self.subscribe(self._topic))
+        await self.subscribe(self._topic)
 
-    def _on_disconnect(self, event):
+    async def _on_disconnect(self, event):
         """
         XMPP event handler when the client has been disconnected.
         """
-        log.warning('Disconnected from the bus')
-        self._disconnected.set()
+        if self._connected.is_set():
+            log.warning('Disconnected from the bus')
+            self._connected.clear()
+        if self.reconnect:
+            # Restart the connection loop
+            await self.client._connect_routine()
 
     def _on_failure(self, event):
         """
@@ -176,7 +176,7 @@ class Bus(Service):
         ))
         self.client.abort()
 
-    def _on_event(self, event):
+    async def _on_event(self, event):
         """
         XMPP event handler when a Nyuki Event has been received.
         Fire EventReceived with (from, body).
@@ -199,7 +199,7 @@ class Bus(Service):
             if not asyncio.iscoroutinefunction(callback):
                 log.warning('event callbacks must be coroutines')
                 callback = asyncio.coroutine(callback)
-            asyncio.ensure_future(callback(body))
+            await callback(body)
         else:
             log.warning('No callback set for event from %s', efrom)
 

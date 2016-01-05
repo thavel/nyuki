@@ -13,7 +13,7 @@ class Service(object):
     def configure(self, *args, **kwargs):
         raise NotImplementedError
 
-    async def stop(self):
+    async def stop(self, *args, **kwargs):
         raise NotImplementedError
 
 

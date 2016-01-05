@@ -1,13 +1,13 @@
+from aiohttp import ClientOSError
 import asyncio
-import json
-from nose.tools import assert_in, assert_raises, eq_
+from nose.tools import assert_raises, eq_, ok_
 from slixmpp import JID
 from slixmpp.exceptions import IqTimeout
 from unittest import TestCase
 from unittest.mock import patch, Mock, MagicMock
 
 from nyuki.bus import _BusClient, Bus
-from tests import make_future
+from tests import make_future, future_func, AsyncMock
 
 
 class TestBusClient(TestCase):
@@ -52,7 +52,7 @@ class TestBus(TestCase):
         msg['type'] = 'groupchat'
         msg['from'] = JID('other@localhost')
         msg['body'] = '{"key": "value"}'
-        self.bus._on_event(msg)
+        self.loop.run_until_complete(self.bus._on_event(msg))
         cb.assert_called_once_with({'key': 'value'})
 
     @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send')
@@ -63,11 +63,84 @@ class TestBus(TestCase):
     def test_003b_publish_no_dict(self):
         assert_raises(TypeError, self.bus.publish, 'not a dict')
 
-    @patch('slixmpp.stanza.Iq.send')
-    def test_004_on_register_callback(self, send_mock):
-        future = asyncio.Future()
-        future.set_exception(IqTimeout(None))
-        m = MagicMock()
-        m.add_done_callback = lambda f: f(future)
-        send_mock.return_value = m
-        self.bus._on_register(None)
+    def test_004_on_register_callback(self):
+        with patch('slixmpp.stanza.Iq.send', new=AsyncMock()) as send_mock:
+            self.loop.run_until_complete(self.bus._on_register(None))
+            send_mock.assert_called_once_with()
+
+
+class TestBusRequest(TestCase):
+
+    def setUp(self):
+        self.loop = asyncio.get_event_loop()
+        self.bus = Bus(Mock())
+
+    def test_001a_request(self):
+        @future_func
+        def request(method, url, data, headers):
+            eq_(method, 'get')
+            eq_(url, 'url')
+            eq_(data, '{"message": "text"}')
+            eq_(headers, {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            })
+            m = Mock()
+            m.status = 200
+            @future_func
+            def to_json():
+                return {'response': 'text'}
+            m.json = to_json
+            return m
+
+        with patch('aiohttp.request', request):
+            response = self.loop.run_until_complete(
+                self.bus._execute_request('url', 'get', {'message': 'text'})
+                )
+        eq_(response.status, 200)
+        eq_(response.json, {'response': 'text'})
+
+    def test_001b_request_no_json(self):
+        @future_func
+        def request(method, url, data, headers):
+            eq_(method, 'get')
+            eq_(url, 'url')
+            eq_(data, '{"message": "text"}')
+            eq_(headers, {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            })
+            m = Mock()
+            m.status = 200
+            @future_func
+            def to_json():
+                raise ValueError
+            m.json = to_json
+            @future_func
+            def to_text():
+                return 'something'
+            m.text = to_text
+            return m
+
+        with patch('aiohttp.request', request):
+            response = self.loop.run_until_complete(
+                self.bus._execute_request('url', 'get', {'message': 'text'})
+                )
+        eq_(response.status, 200)
+        eq_(response.json, None)
+        eq_(response.text().result(), 'something')
+
+    def test_001c_request_error(self):
+        error = {
+            'endpoint': 'http://localhost:8080/None/api/url',
+            'error': 'ClientOSError()',
+            'data': {'message': 'text'}
+        }
+        with patch('aiohttp.request', side_effect=ClientOSError):
+            with patch.object(self.bus, 'publish') as publish:
+                exc = self.loop.run_until_complete(self.bus.request(
+                    None, 'url', 'get',
+                    data={'message': 'text'}
+                ))
+            publish.assert_called_once_with(error)
+            ok_(isinstance(exc, ClientOSError))

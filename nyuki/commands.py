@@ -18,7 +18,7 @@ def _build_args():
     parser.add_argument('-c', '--config',
                         help='config file name', required=False)
     parser.add_argument('-j', '--jid',
-                        help='xmpp jid', required=False)
+                        help='xmpp jid: <user>[@<host>]', required=False)
     parser.add_argument('-p', '--password',
                         help='xmpp password', required=False)
     parser.add_argument('-s', '--server',

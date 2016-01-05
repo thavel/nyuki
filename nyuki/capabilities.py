@@ -3,7 +3,7 @@ import logging
 import asyncio
 
 from nyuki.api import Api
-from nyuki.service import Service
+from nyuki.services import Service
 
 
 log = logging.getLogger(__name__)
@@ -20,17 +20,6 @@ def resource(endpoint, version=None):
         cls.endpoint = endpoint
         cls.version = version
         return cls
-    return decorated
-
-
-def websocket(type):
-    """
-    Nyuki websocket decorator to register a route.
-    A resource has multiple HTTP methods (get, post, etc).
-    """
-    def decorated(func):
-        func.type = type
-        return func
     return decorated
 
 
