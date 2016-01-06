@@ -29,6 +29,9 @@ class _BusClient(ClientXMPP):
         # Disable IPv6 until we really need it
         self.use_ipv6 = False
 
+        # Check the server certificate:
+        self.ca_certs = "./ssl/prosody.crt"
+
     def connect(self, **kwargs):
         """
         Connect to the XMPP server using the default address computed at init
@@ -83,7 +86,7 @@ class Bus(Service):
 
         self.client = None
         self._connected = asyncio.Event()
-        self.reconnect = True
+        self.reconnect = False
 
         self._callbacks = dict()
         self._topic = None
@@ -93,7 +96,6 @@ class Bus(Service):
         self.client.connect()
         if timeout:
             await asyncio.wait_for(self._connected.wait(), timeout)
-        self.reconnect = True
 
     def configure(self, jid, password, host='localhost', port=5222):
         self.client = _BusClient(jid, password, host, port)
@@ -150,6 +152,7 @@ class Bus(Service):
         log.info('Connected to XMPP server at {}:{}'.format(
             *self.client._address
         ))
+        self.reconnect = True
         self.client.send_presence()
         self.client.get_roster()
         # Auto-subscribe to the topic where the nyuki could publish events.

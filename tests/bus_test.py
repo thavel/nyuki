@@ -68,6 +68,7 @@ class TestBus(TestCase):
             send_mock.assert_called_once_with()
 
     def test_005_reconnect(self):
+        self.bus.reconnect = True
         with patch.object(self.bus.client, '_connect_routine', new=AsyncMock()) as mock:
             self.loop.run_until_complete(self.bus._on_disconnect(None))
             eq_(mock.call_count, 1)
