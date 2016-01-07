@@ -97,7 +97,7 @@ class Pumbaa(Nyuki):
         self.eaten = 0
 
     async def setup(self):
-        self.bus.subscribe('timon', self.eat_larva)
+        await self.bus.subscribe('timon', self.eat_larva)
 
     async def eat_larva(self, body):
         log.info('yummy yummy!')

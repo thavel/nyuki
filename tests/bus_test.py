@@ -1,13 +1,11 @@
 from aiohttp import ClientOSError
 import asyncio
-from nose.tools import assert_raises, eq_, ok_, assert_true, assert_false
+from asynctest import TestCase, patch, Mock, CoroutineMock, ignore_loop
+from nose.tools import assert_raises, eq_, ok_
 from slixmpp import JID
-from slixmpp.exceptions import IqTimeout
-from unittest import TestCase
-from unittest.mock import patch, Mock, MagicMock
 
 from nyuki.bus import _BusClient, Bus
-from tests import make_future, future_func, AsyncMock
+from tests import future_func
 
 
 class TestBusClient(TestCase):
@@ -15,12 +13,14 @@ class TestBusClient(TestCase):
     def setUp(self):
         self.client = _BusClient('login@localhost', 'password')
 
+    @ignore_loop
     def test_001a_init(self):
         # Ensure bus client instanciation (method 1)
         host, port = self.client._address
         eq_(host, 'localhost')
         eq_(port, 5222)
 
+    @ignore_loop
     def test_001b_init(self):
         # Ensure bus client instanciation (method 2)
         client = _BusClient('login', 'password', '127.0.0.1', 5555)
@@ -33,44 +33,46 @@ class TestBusClient(TestCase):
 class TestBus(TestCase):
 
     def setUp(self):
-        self.loop = asyncio.get_event_loop()
         self.bus = Bus(Mock())
         self.bus.configure('login@localhost', 'password')
 
+    @ignore_loop
     def test_001_muc_address(self):
         muc = self.bus._muc_address('topic')
         eq_(muc, 'topic@mucs.localhost')
 
-    def test_002_on_event(self):
-        cb = Mock(return_value=make_future())
+    async def test_002_on_event(self):
+        cb = CoroutineMock()
         with patch.object(self.bus._mucs, 'joinMUC') as join_mock:
             self.bus._connected.set()
-            self.loop.run_until_complete(self.bus.subscribe('other', cb))
+            await self.bus.subscribe('other', cb)
             join_mock.assert_called_once_with('other@mucs.localhost', 'login')
         msg = self.bus.client.Message()
         msg['type'] = 'groupchat'
         msg['from'] = JID('other@localhost')
         msg['body'] = '{"key": "value"}'
-        self.loop.run_until_complete(self.bus._on_event(msg))
+        await self.bus._on_event(msg)
         cb.assert_called_once_with({'key': 'value'})
 
+    @ignore_loop
     @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send')
     def test_003a_publish(self, send_mock):
         self.bus.publish({'message': 'test'})
         send_mock.assert_called_once_with()
 
+    @ignore_loop
     def test_003b_publish_no_dict(self):
         assert_raises(TypeError, self.bus.publish, 'not a dict')
 
-    def test_004_on_register_callback(self):
-        with patch('slixmpp.stanza.Iq.send', new=AsyncMock()) as send_mock:
-            self.loop.run_until_complete(self.bus._on_register(None))
+    async def test_004_on_register_callback(self):
+        with patch('slixmpp.stanza.Iq.send', new=CoroutineMock()) as send_mock:
+            await self.bus._on_register(None)
             send_mock.assert_called_once_with()
 
-    def test_005_reconnect(self):
+    async def test_005_reconnect(self):
         self.bus.reconnect = True
-        with patch.object(self.bus.client, '_connect_routine', new=AsyncMock()) as mock:
-            self.loop.run_until_complete(self.bus._on_disconnect(None))
+        with patch.object(self.bus.client, '_connect_routine') as mock:
+            await self.bus._on_disconnect(None)
             eq_(mock.call_count, 1)
 
 
