@@ -99,6 +99,8 @@ async def mw_json(app, next_handler):
                     except ValueError:
                         log.error('Invalid JSON request content')
                         raise HttpBadRequest('Invalid JSON request content')
+                elif 'text/' in content_type:
+                    pass
                 else:
                     log.error('Invalid Content-Type')
                     raise HttpBadRequest('Invalid Content-Type')
@@ -130,6 +132,7 @@ class APIRequest(dict):
 
         # Set up class and headers as request attribute
         req = cls(**data) if data else cls()
+        req.raw = await request.text()
         req.headers = request.headers
         return req
 
