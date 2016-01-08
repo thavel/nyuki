@@ -144,10 +144,9 @@ async def mw_capability(app, capa_handler):
         api_req = await APIRequest.from_request(request)
         capa_resp = await capa_handler(api_req, **request.match_info)
 
-        return web.Response(
-            body=capa_resp.api_payload if capa_resp else None,
-            status=capa_resp.status if capa_resp else 200,
-            headers=capa_resp.headers if capa_resp else {},
-        )
+        if capa_resp and isinstance(capa_resp, web.Response):
+            return capa_resp
+        else:
+            return web.Response()
 
     return middleware

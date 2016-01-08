@@ -118,7 +118,7 @@ class TestCapabilityMiddleware(TestCase):
         @future_func
         def _capa_handler(d, name):
             eq_(name, 'test')
-            capa_resp = Response({'response': 'ok'}, 200)
+            capa_resp = Response({'response': 'ok'})
             return capa_resp
 
         mdw = await mw_capability(self._app, _capa_handler)
@@ -136,7 +136,7 @@ class TestCapabilityMiddleware(TestCase):
         @future_func
         def _capa_handler(d, name):
             eq_(name, 'test')
-            capa_resp = Response({'response': 2}, 200)
+            capa_resp = Response({'response': 2})
             return capa_resp
 
         mdw = await mw_capability(self._app, _capa_handler)
@@ -159,7 +159,7 @@ class TestCapabilityMiddleware(TestCase):
         @future_func
         def _capa_handler(d, name):
             eq_(name, 'test')
-            capa_resp = Response({'response': 'ok'}, 200)
+            capa_resp = Response({'response': 'ok'})
             return capa_resp
 
         mdw = await mw_capability(self._app, _capa_handler)

@@ -1,3 +1,4 @@
+from nose.tools import eq_
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
@@ -33,22 +34,19 @@ class TestCapability(TestCase):
 
 class TestResponse(TestCase):
 
-    def setUp(self):
-        self.response = Response(body={'message': 'hello'}, status=200)
+    def test_001_dict_body(self):
+        response = Response({'test': 'test'})
+        eq_(response.body, b'{"test": "test"}')
+        eq_(response.content_type, 'application/json')
 
-    def test_001a_valid(self):
-        self.assertIsNone(self.response._validate())
+    def test_002_other_body(self):
+        response = Response(123)
+        eq_(response.body, b'123')
+        eq_(response.content_type, 'text/plain')
 
-    def test_001b_valid_error(self):
-        self.response.body = 'hello'
-        self.assertRaises(ValueError, self.response._validate)
-
-    def test_001c_valid_error(self):
-        self.response.body = '404'
-        self.assertRaises(ValueError, self.response._validate)
-
-    def test_002_payload(self):
-        self.assertIsInstance(self.response.api_payload, bytes)
+        response = Response('hello')
+        eq_(response.body, b'hello')
+        eq_(response.content_type, 'text/plain')
 
 
 class TestExposer(TestCase):

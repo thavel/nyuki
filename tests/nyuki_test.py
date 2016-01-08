@@ -55,7 +55,7 @@ class TestNyuki(TestCase):
     @ignore_loop
     def test_003_get_rest_configuration(self):
         response = self.nyuki.Configuration.get(self.nyuki, None)
-        eq_(json.loads(bytes.decode(response.api_payload)), self.nyuki._config)
+        eq_(json.loads(bytes.decode(response.body)), self.nyuki._config)
 
     @patch('nyuki.bus.Bus.stop')
     async def test_004_patch_rest_configuration(self, bus_stop_mock):

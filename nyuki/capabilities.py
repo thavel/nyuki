@@ -1,6 +1,7 @@
+from aiohttp import web
+import asyncio
 import json
 import logging
-import asyncio
 
 from nyuki.api import Api
 from nyuki.services import Service
@@ -41,48 +42,31 @@ class Capability(object):
         return hash(self.name)
 
 
-class Response(object):
+class Response(web.Response):
 
     """
-    This class is a generic response (with a body and a status) that can be
-    used by either the bus or the API.
+    Overrides aiohttp's response to facilitate its usage
     """
 
-    ENCODING = 'utf-8'
+    def __init__(self, body=None, **kwargs):
 
-    def __init__(self, body=None, status=200):
-        self.body = body
-        self.status = status
-        self.headers = {}
-        self._validate()
+        # Check json
+        if isinstance(body, dict) or isinstance(body, list):
+            log.debug('converting dict/list response to bytes')
+            body = json.dumps(body).encode()
+            if not self._get_content_type(kwargs):
+                kwargs['content_type'] = 'application/json'
+        # Check body
+        elif body is not None:
+            log.debug('converting string response to bytes')
+            body = str(body).encode()
+            if not self._get_content_type(kwargs):
+                kwargs['content_type'] = 'text/plain'
 
-    def _validate(self):
-        self._validate_body()
-        self._validate_status()
+        return super().__init__(body=body, **kwargs)
 
-    def _validate_body(self):
-        if not self.body:
-            return
-
-        if not isinstance(self.body, dict) and not isinstance(self.body, list):
-            raise ValueError("Response body should be a dictionary or a list")
-
-        # If body and body is json, set the right headers
-        self.headers = {'Content-Type': 'application/json'}
-
-    def _validate_status(self):
-        if not isinstance(self.status, int):
-            raise ValueError("Response status code should be a integer")
-
-    @property
-    def api_payload(self):
-        """
-        Used by the HTTP API.
-        """
-        if self.body:
-            payload = json.dumps(self.body)
-            return bytes(payload, self.ENCODING)
-        return None
+    def _get_content_type(self, kwargs):
+        return kwargs.get('content_type') or kwargs.get('headers', {}).get('content_type')
 
 
 class Exposer(Service):
