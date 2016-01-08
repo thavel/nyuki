@@ -44,6 +44,13 @@ class _BusClient(ClientXMPP):
         super().connect(address=self._address, **kwargs)
         self.init_plugins()
 
+    def start_tls(self):
+        try:
+            return super().start_tls()
+        except FileNotFoundError:
+            log.error('SSL certificates missing at %s', self.ca_certs)
+            self.abort()
+
 
 class Bus(Service):
 
