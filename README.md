@@ -1,6 +1,9 @@
 # Nyuki :bee:
 
-[![Circle CI](https://img.shields.io/circleci/project/optiflows/nyuki/master.svg)](https://circleci.com/gh/optiflows/nyuki) [![pypi version](http://img.shields.io/pypi/v/nyuki.svg)](https://pypi.python.org/pypi/nyuki) [![pypi download week](http://img.shields.io/pypi/dw/nyuki.svg)](https://pypi.python.org/pypi/nyuki)
+[![Circle CI](https://img.shields.io/circleci/project/optiflows/nyuki/master.svg)](https://circleci.com/gh/optiflows/nyuki)
+[![pypi version](http://img.shields.io/pypi/v/nyuki.svg)](https://pypi.python.org/pypi/nyuki)
+[![python versions](https://img.shields.io/pypi/pyversions/nyuki.svg)](https://pypi.python.org/pypi/nyuki/)
+
 
 ## tl;dr
 A lightweight Python library designed to implement agents (aka nyukis). It provides features that shall help developers with managing the following topics:
@@ -22,7 +25,7 @@ Here is a list of core concepts tied to a nyuki:
 * A nyuki is connected to a bus for 1-to-many communication with other nyukis (currently using XMPP MUC)
 
 ## Requirements
-All you need is a Python interpreter. At the moment, only **Python 3.4** is supported.
+All you need is a Python interpreter. At the moment, only **Python 3.5** is supported.
 
 ## Getting started
 Don't bother with installing and configuring your own XMPP server at once! Run this preconfigured Docker image instead:

@@ -1,11 +1,9 @@
 import asyncio
-import codecs
 import json
 from jsonschema import validate, ValidationError
 import logging
 import logging.config
 from signal import SIGINT, SIGTERM
-import sys
 
 from nyuki.bus import Bus
 from nyuki.capabilities import Exposer, Response, resource
@@ -43,14 +41,6 @@ class Nyuki(metaclass=CapabilityHandler):
     }
 
     def __init__(self, **kwargs):
-        # Set stdout as utf-8 codec
-        try:
-            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
-        except Exception as exc:
-            # Nosetests seems to alter stdout, breaking detach()
-            log.warning('Could not change stdout codec')
-            log.exception(exc)
-
         # List of configuration schemas
         self._schemas = []
 
