@@ -104,6 +104,12 @@ class TestCapabilityMiddleware(TestCase):
         self._request = Mock()
         self._request.POST_METHODS = ['POST', 'PUT', 'PATCH']
         self._app = Mock()
+        async def json():
+            return {'capability': 'test'}
+        async def text():
+            return '{"capability": "test"}'
+        self._request.json = json
+        self._request.text = text
 
     async def test_001a_extract_data_from_payload_post_method(self):
         self._request.method = 'POST'
@@ -151,12 +157,6 @@ class TestCapabilityMiddleware(TestCase):
         self._request.match_info = {'name': 'test'}
 
         @future_func
-        def json():
-            return None
-
-        self._request.json = json
-
-        @future_func
         def _capa_handler(d, name):
             eq_(name, 'test')
             capa_resp = Response({'response': 'ok'})
@@ -189,12 +189,6 @@ class TestCapabilityMiddleware(TestCase):
         self._request.method = 'POST'
         self._request.match_info = {'name': 'test'}
         self._request.headers = {'Content-Type': 'application/json'}
-
-        @future_func
-        def json():
-            return {'capability': 'test'}
-
-        self._request.json = json
 
         ar = await APIRequest.from_request(self._request)
         eq_(ar['capability'], 'test')
