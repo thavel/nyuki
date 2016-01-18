@@ -294,11 +294,11 @@ class Lookup(_Rule):
         replaces it. Note that entries in the lookup table are evaluated in an
         unpredictable order.
         """
-        fieldval = data[self.fieldname]
         try:
+            fieldval = data[self.fieldname]
             data[self.fieldname] = self.table[fieldval]
-        except KeyError:
-            log.debug('Lookup : unknown field %s, ignoring', fieldval)
+        except KeyError as err:
+            log.debug('Lookup : unknown field %s, ignoring', err)
 
 
 class Lower(_Rule):
