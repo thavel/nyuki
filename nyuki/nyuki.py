@@ -13,6 +13,7 @@ from nyuki.config import (
 )
 from nyuki.handlers import CapabilityHandler
 from nyuki.services import ServiceManager
+from nyuki.web import WebHandler
 
 
 log = logging.getLogger(__name__)
@@ -62,6 +63,8 @@ class Nyuki(metaclass=CapabilityHandler):
         # Add bus service if in conf file
         if self._config.get('bus') is not None:
             self._services.add('bus', Bus(self))
+        if self._config.get('web') is not None:
+            self._services.add('web', WebHandler(self))
 
         self.is_stopping = False
 
@@ -236,3 +239,13 @@ class Nyuki(metaclass=CapabilityHandler):
                 })
 
             return Response(body=body)
+
+    @resource(endpoint='/websocket/token', version='v1')
+    class WebsocketToken:
+
+        def get(self, request):
+            if not self._services.get('web'):
+                return Response(status=404)
+
+            token = self.web.new_token()
+            return Response({'token': token})
