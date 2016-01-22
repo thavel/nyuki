@@ -62,7 +62,6 @@ class Bus(Service):
     subscribe to any other topics to process events from other nyukis.
     """
 
-    MUC_DOMAIN = 'mucs.localhost'
     CONF_SCHEMA = {
         "type": "object",
         "required": ["bus"],
@@ -80,7 +79,8 @@ class Bus(Service):
                         "minLength": 1
                     },
                     "host": {"type": "string"},
-                    "port": {"type": "integer"}
+                    "port": {"type": "integer"},
+                    "muc_domain": {"type": "string"}
                 }
             }
         }
@@ -104,7 +104,7 @@ class Bus(Service):
         if timeout:
             await asyncio.wait_for(self._connected.wait(), timeout)
 
-    def configure(self, jid, password, host='localhost', port=5222):
+    def configure(self, jid, password, host='localhost', port=5222, muc_domain='mucs.localhost'):
         self.client = _BusClient(jid, password, host, port)
         self.client.loop = self._loop
         self.client.add_event_handler('connection_failed', self._on_failure)
@@ -114,6 +114,7 @@ class Bus(Service):
         self.client.add_event_handler('session_start', self._on_start)
         self._topic = self.client.boundjid.user
         self._mucs = self.client.plugin['xep_0045']
+        self._muc_domain = muc_domain
 
     async def stop(self):
         if not self.client:
@@ -132,7 +133,7 @@ class Bus(Service):
             log.error('Could not end bus connection after 2 seconds')
 
     def _muc_address(self, topic):
-        return '{}@{}'.format(topic, self.MUC_DOMAIN)
+        return '{}@{}'.format(topic, self._muc_domain)
 
     async def _on_register(self, event):
         """
