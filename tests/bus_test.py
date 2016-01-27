@@ -84,13 +84,12 @@ class TestBus(TestCase):
     async def test_007_on_direct_message(self):
         cb = CoroutineMock()
         self.bus.direct_subscribe(cb)
-        efrom = JID('other@localhost')
         msg = self.bus.client.Message()
         msg['type'] = 'message'
-        msg['from'] = efrom
+        msg['from'] = JID('other@localhost')
         msg['body'] = '{"key": "value"}'
         await self.bus._on_direct_message(msg)
-        cb.assert_called_once_with(efrom, {'key': 'value'})
+        cb.assert_called_once_with('other', {'key': 'value'})
 
 
 class TestBusRequest(TestCase):

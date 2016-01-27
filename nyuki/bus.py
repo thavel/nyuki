@@ -220,8 +220,12 @@ class Bus(Service):
         """
         Direct message events end up here
         """
+        if event.get('type') == 'groupchat':
+            log.debug('Ignoring groupchat message')
+            return
+
         log.debug('direct message received: {}'.format(event))
-        efrom = event['from']
+        efrom = event['from'].user
 
         try:
             body = json.loads(event['body'])
