@@ -15,6 +15,7 @@ from nyuki.commands import get_command_kwargs
 from nyuki.config import get_full_config, write_conf_json, merge_configs
 from nyuki.handlers import CapabilityHandler
 from nyuki.logs import DEFAULT_LOGGING
+from nyuki.mqtt import MqttBus
 from nyuki.services import ServiceManager
 from nyuki.utils import from_isoformat
 from nyuki.websocket import WebHandler
@@ -76,6 +77,9 @@ class Nyuki(metaclass=CapabilityHandler):
         # Add websocket server if in conf file
         if self._config.get('websocket') is not None:
             self._services.add('websocket', WebHandler(self))
+        # Add mqtt service if in conf file
+        if self._config.get('mqtt') is not None:
+            self._services.add('mqtt', MqttBus(self))
 
         self.is_stopping = False
 

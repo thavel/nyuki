@@ -107,15 +107,17 @@ class Exposer(Service):
             if capa_name == capability.name:
                 return capability
 
-    def call(self, name, request):
+    async def call(self, name, body):
         """
-        Call a capability by its name in an asynchronous fashion.
+        Call a capability from a bus event, using the aiohttp response
         """
         capa = self._find(name)
         if not capa:
-            log.warning("Capability {} is called but doen't exist".format(name))
+            log.warning('No such capability: %s', name)
             return
 
-        # TODO: use asyncio.ensure_future when Python 3.4.4 will be released
-        future = asyncio.ensure_future(capa.wrapper(request), loop=self._loop)
-        return future
+        response = await capa.wrapper(body)
+        if response.headers.get('content-type') == 'application/json':
+            return response.body
+        else:
+            return json.dumps({'result': response.body})
