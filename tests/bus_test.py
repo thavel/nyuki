@@ -75,6 +75,23 @@ class TestBus(TestCase):
             await self.bus._on_disconnect(None)
             eq_(mock.call_count, 1)
 
+    @ignore_loop
+    @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send')
+    def test_006_direct_message(self, send_mock):
+        self.bus.send_message('yo', {'message': 'test'})
+        send_mock.assert_called_once_with()
+
+    async def test_007_on_direct_message(self):
+        cb = CoroutineMock()
+        self.bus.direct_subscribe(cb)
+        efrom = JID('other@localhost')
+        msg = self.bus.client.Message()
+        msg['type'] = 'message'
+        msg['from'] = efrom
+        msg['body'] = '{"key": "value"}'
+        await self.bus._on_direct_message(msg)
+        cb.assert_called_once_with(efrom, {'key': 'value'})
+
 
 class TestBusRequest(TestCase):
 

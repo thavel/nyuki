@@ -80,7 +80,7 @@ class Bus(Service):
                     },
                     "host": {"type": "string"},
                     "port": {"type": "integer"},
-                    "muc_domain": {"type": "string"}
+                    "muc_domain": {"type": ["string", "null"]}
                 }
             }
         }
@@ -109,6 +109,7 @@ class Bus(Service):
         self.client.loop = self._loop
         self.client.add_event_handler('connection_failed', self._on_failure)
         self.client.add_event_handler('disconnected', self._on_disconnect)
+        self.client.add_event_handler('message', self._on_direct_message)
         self.client.add_event_handler('groupchat_message', self._on_event)
         self.client.add_event_handler('register', self._on_register)
         self.client.add_event_handler('session_start', self._on_start)
@@ -165,7 +166,8 @@ class Bus(Service):
         self.client.get_roster()
         # Auto-subscribe to the topic where the nyuki could publish events.
         self._connected.set()
-        await self.subscribe(self._topic)
+        if self._muc_domain is not None:
+            await self.subscribe(self._topic)
 
     async def _on_disconnect(self, event):
         """
@@ -214,11 +216,32 @@ class Bus(Service):
         else:
             log.warning('No callback set for event from %s', efrom)
 
+    async def _on_direct_message(self, event):
+        """
+        Direct message events end up here
+        """
+        log.debug('direct message received: {}'.format(event))
+        efrom = event['from']
+
+        try:
+            body = json.loads(event['body'])
+        except ValueError:
+            body = {}
+
+        if self._direct_message_callback:
+            log.debug('calling direct message callback')
+            await self._direct_message_callback(efrom, body)
+        else:
+            log.warning('No callback set for direct messages')
+
     def publish(self, event):
         """
         Send an event in the nyuki's own MUC so that other nyukis that joined
         the MUC can process it.
         """
+        if self._muc_domain is None:
+            log.warning('No subscription to any muc')
+            return
         if not isinstance(event, dict):
             raise TypeError('Message must be a dict')
         log.debug(">> publishing to '{}': {}".format(self._topic, event))
@@ -240,13 +263,46 @@ class Bus(Service):
         self._callbacks[topic] = callback
         log.info("subscribed to '{}'".format(topic))
 
-    def unsubscribe(self, topic):
+    async def unsubscribe(self, topic):
         """
         Leave a chatroom.
         """
+        if not self._connected.is_set():
+            log.info("Waiting for a connection to unsubscribe from '%s'", topic)
+        await self._connected.wait()
         self._mucs.leaveMUC(self._muc_address(topic), self._topic)
         del self._callbacks[topic]
         log.info("unsubscribed from '{}'".format(topic))
+
+    def direct_subscribe(self, callback):
+        """
+        Enable handling of direct messages from other nyukis
+        """
+        if not asyncio.iscoroutinefunction(callback):
+            log.warning('event callbacks must be coroutines')
+            callback = asyncio.coroutine(callback)
+        self._direct_message_callback = callback
+        log.info("Subscribed to direct messages")
+
+    def direct_unsubscribe(self, source):
+        """
+        Remove the callback for direct messages
+        """
+        self._direct_message_callback = None
+        log.info('Unsubscribed from direct messages')
+
+    def send_message(self, recipient, data):
+        """
+        Send a direct message to 'recipient'
+        """
+        if not recipient:
+            log.warning('No recipient for direct message')
+            return
+        if not isinstance(data, dict):
+            raise TypeError('Message must be a dict')
+        log.debug(">> direct message to '{}': {}".format(recipient, data))
+        body = json.dumps(data)
+        self.client.send_message(recipient, body)
 
     async def _execute_request(self, url, method, data=None, headers=None):
         """
