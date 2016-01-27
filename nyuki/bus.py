@@ -300,7 +300,7 @@ class Bus(Service):
         Send a direct message to 'recipient'
         """
         if not recipient:
-            log.warning('No recipient for direct message')
+            log.debug('No recipient for direct message, ignoring it')
             return
         if not isinstance(data, dict):
             raise TypeError('Message must be a dict')
