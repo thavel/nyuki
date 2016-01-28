@@ -10,11 +10,13 @@ def _build_args():
     Build argument parser and actually parse them at runtime.
     """
     parser = ArgumentParser(description='Nyuki implementation')
-    parser.add_argument('-l', '--logging',
-                        help='debug mode', required=False, default='INFO',
-                        choices=[
-                            'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
-                        ])
+    parser.add_argument(
+        '-l', '--logging',
+        help='debug mode',
+        required=False,
+        choices=[
+            'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
+        ])
     parser.add_argument('-c', '--config',
                         help='config file name', required=False)
     parser.add_argument('-j', '--jid',
@@ -70,11 +72,12 @@ def get_command_kwargs():
             command_args['api'].update(host=args.api)
 
     # Set logging root level
-    command_args['log'] = {
-        'root': {
-            'level': args.logging
+    if args.logging:
+        command_args['log'] = {
+            'root': {
+                'level': args.logging
+            }
         }
-    }
 
     if args.config:
         command_args['config'] = args.config
