@@ -159,7 +159,7 @@ class Nyuki(metaclass=CapabilityHandler):
         }
         for name, service in self._services.all.items():
             if hasattr(service, 'publish'):
-                log.info("Publishing report through '%s'", name)
+                log.info("Publishing report through '%s': %s", name, message)
                 if dest:
                     service.publish(message, dest)
                 else:

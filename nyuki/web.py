@@ -66,8 +66,8 @@ class WebHandler(Service):
         Random token using 20 digits/lowercases
         """
         token = ''.join(
-            random.choice(string.ascii_lowercase + string.digits)
-            for _ in range(20)
+            random.choice(string.ascii_letters + string.digits)
+            for _ in range(30)
         )
         self._tokens.append(token)
         return token
@@ -107,7 +107,7 @@ class WebHandler(Service):
         """
         Main handler for a newly connected client
         """
-        match = re.match(r'^\/(?P<token>[a-z0-9]{20})$', path)
+        match = re.match(r'^\/(?P<token>[a-zA-Z0-9]{30})$', path)
         if not match:
             websocket.close()
             return
