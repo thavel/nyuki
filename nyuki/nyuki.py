@@ -152,6 +152,28 @@ class Nyuki(metaclass=CapabilityHandler):
         self._schemas.append((schema, format_checker))
         self._validate_config()
 
+    def _report(self, mtype, data, dest=None):
+        message = {
+            'type': mtype,
+            'data': data
+        }
+        for name, service in self._services.all.items():
+            if hasattr(service, 'publish'):
+                log.info("Publishing report through '%s'", name)
+                if dest:
+                    service.publish(message, dest)
+                else:
+                    service.publish(message)
+
+    def report_info(self, message, dest=None):
+        assert isinstance(message, str)
+        self._report('info', {'message': message}, dest)
+
+    def report_error(self, code, error, dest=None):
+        assert isinstance(code, str)
+        assert isinstance(error, str)
+        self._report('error', {'code': code, 'error': error}, dest)
+
     def _validate_config(self, config=None):
         """
         Validate on all registered configuration schemas.
