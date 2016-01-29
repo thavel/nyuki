@@ -13,13 +13,14 @@ from nyuki.services import Service
 log = logging.getLogger(__name__)
 
 
-def websocket_resource(ws_type):
-    def decorated(func):
-        if not asyncio.iscoroutine(func):
-            func = asyncio.coroutine(func)
-        WebHandler.RESOURCES[ws_type] = func
-        return func
-    return decorated
+def websocket_ready(func):
+
+    @staticmethod
+    async def decorated(self):
+        return await func(self)
+
+    WebHandler.READY_CALLBACK = decorated
+    return func
 
 
 class WebHandler(Service):
@@ -37,17 +38,15 @@ class WebHandler(Service):
         }
     }
 
-    RESOURCES = {}
-    MESSAGE_SCHEMA = {
+    READY_CALLBACK = None
+    KEEPALIVE_SCHEMA = {
         'type': 'object',
         'required': ['type'],
         'properties': {
             'type': {
                 'type': 'string',
                 'minLength': 1
-            },
-            'id': {'type': 'integer'},
-            'data': {'type': 'object'}
+            }
         }
     }
 
@@ -111,9 +110,9 @@ class WebHandler(Service):
             'keepalive_delay': self.keepalive * 0.8,
             'data': {}
         }
-        if 'ready' in self.RESOURCES:
-            log.info('ready resource found, calling it for new client')
-            ready['data'] = await self.RESOURCES['ready'](self._nyuki) or {}
+        if self.READY_CALLBACK:
+            log.info('ready callback set up, calling it for new client')
+            ready['data'] = await self.READY_CALLBACK(self._nyuki) or {}
         log.info('Sending ready packet')
         log.debug('ready dump: %s', ready)
         await websocket.send(json.dumps(ready))
@@ -165,28 +164,13 @@ class WebHandler(Service):
                 log.debug("Invalid data '{}' received".format(data))
                 continue
 
-            resource = data['type']
-            if resource == 'keepalive':
+            mtype = data['type']
+            if mtype == 'keepalive':
                 handle.cancel()
                 handle = self._loop.call_later(
                     self.keepalive, self.keepalive_timeout, websocket
                 )
 
-            if resource not in self.RESOURCES:
-                log.warning("Resource '{}' unknown".format(resource))
-                continue
-
-            log.info("Websocket message for resource '{}'".format(resource))
-            response = await self.RESOURCES[resource](
-                self._nyuki, data.get('data', {})
-            )
-
-            # XXX Should we handle websocket requests ? or only http ?
-            if response:
-                await websocket.send(json.dumps({
-                    'id': data['id'],
-                    'data': response
-                }))
-
         websocket.close()
         handle.cancel()
+        # self._tokens.remove(token)
