@@ -108,7 +108,7 @@ class WebHandler(Service):
         """
         ready = {
             'type': 'ready',
-            'keepalive_delay': self.keepalive,
+            'keepalive_delay': self.keepalive * 0.8,
             'data': {}
         }
         if 'ready' in self.RESOURCES:
