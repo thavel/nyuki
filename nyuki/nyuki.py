@@ -5,6 +5,7 @@ from jsonschema import validate, ValidationError
 import logging
 import logging.config
 from signal import SIGINT, SIGTERM
+import traceback
 
 from nyuki.bus import Bus
 from nyuki.capabilities import Exposer, Response, resource
@@ -86,7 +87,8 @@ class Nyuki(metaclass=CapabilityHandler):
         return self._config
 
     def _exception_handler(self, loop, context):
-        self.report_error('EXC_0000', str(context['exception']))
+        exc = traceback.format_exc()
+        self.report_error('EXC_0000', exc)
         return loop.default_exception_handler(context)
 
     def start(self):
