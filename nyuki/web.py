@@ -61,6 +61,27 @@ class WebHandler(Service):
         self.keepalive = None
         self._tokens = []
 
+    async def start(self):
+        """
+        Start the websocket server
+        """
+        log.info("Starting websocket server on %s:%s", self.host, self.port)
+        self.server = await websockets.serve(
+            self._wshandler, self.host, self.port
+        )
+
+    def configure(self, host='0.0.0.0', port=5559, keepalive=600):
+        self.host = host
+        self.port = port
+        self.keepalive = keepalive
+
+    async def stop(self):
+        if self.server:
+            for ws in self.server.websockets:
+                ws.close()
+            self.server.close()
+            await self.server.wait_closed()
+
     def new_token(self):
         """
         Random token using 20 digits/lowercases
@@ -87,7 +108,7 @@ class WebHandler(Service):
         """
         ready = {
             'type': 'ready',
-            'timestamp': self.keepalive,
+            'keepalive_delay': self.keepalive,
             'data': {}
         }
         if 'ready' in self.RESOURCES:
@@ -107,16 +128,16 @@ class WebHandler(Service):
         """
         Main handler for a newly connected client
         """
-        match = re.match(r'^\/(?P<token>[a-zA-Z0-9]{30})$', path)
-        if not match:
-            websocket.close()
-            return
+        # match = re.match(r'^\/(?P<token>[a-zA-Z0-9]{30})$', path)
+        # if not match:
+        #     websocket.close()
+        #     return
 
-        token = match.group('token')
-        if token not in self._tokens:
-            log.debug("Unknown token '%s'", token)
-            websocket.close()
-            return
+        # token = match.group('token')
+        # if token not in self._tokens:
+        #     log.debug("Unknown token '%s'", token)
+        #     websocket.close()
+        #     return
 
         handle = self._loop.call_later(
             self.keepalive, self.keepalive_timeout, websocket
@@ -169,24 +190,3 @@ class WebHandler(Service):
 
         websocket.close()
         handle.cancel()
-
-    async def start(self):
-        """
-        Start the websocket server
-        """
-        log.info("Starting websocket server on %s:%s", self.host, self.port)
-        self.server = await websockets.serve(
-            self._wshandler, self.host, self.port
-        )
-
-    def configure(self, host='0.0.0.0', port=5559, keepalive=60):
-        self.host = host
-        self.port = port
-        self.keepalive = keepalive
-
-    async def stop(self):
-        if self.server:
-            for ws in self.server.websockets:
-                ws.close()
-            self.server.close()
-            await self.server.wait_closed()
