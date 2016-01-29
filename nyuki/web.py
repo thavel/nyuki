@@ -155,13 +155,13 @@ class WebHandler(Service):
             try:
                 data = json.loads(message)
             except ValueError:
-                log.debug("Message '{}' is not JSON".format(message))
+                log.debug('Message received not JSON: %s', message)
                 continue
 
             try:
-                validate(data, self.MESSAGE_SCHEMA)
+                validate(data, self.KEEPALIVE_SCHEMA)
             except ValidationError:
-                log.debug("Invalid data '{}' received".format(data))
+                log.debug('Invalid keepalive received: %s', data)
                 continue
 
             mtype = data['type']
