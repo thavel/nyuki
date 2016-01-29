@@ -174,6 +174,10 @@ class Nyuki(metaclass=CapabilityHandler):
         assert isinstance(message, str)
         self._report('info', {'message': message}, dest)
 
+    def report_warning(self, message, dest=None):
+        assert isinstance(message, str)
+        self._report('warning', {'message': message}, dest)
+
     def report_error(self, code, error, dest=None):
         assert isinstance(code, str)
         assert isinstance(error, str)
