@@ -84,6 +84,10 @@ class Nyuki(metaclass=CapabilityHandler):
     def config(self):
         return self._config
 
+    def _exception_handler(self, loop, context):
+        self.report_error('EXC_0000', str(context['exception']))
+        return loop.default_exception_handler(context)
+
     def start(self):
         """
         Start the nyuki
@@ -100,6 +104,7 @@ class Nyuki(metaclass=CapabilityHandler):
 
         # Start services
         self.loop.run_until_complete(self._services.start())
+        self.loop.set_exception_handler(self._exception_handler)
 
         # Call for setup
         if not asyncio.iscoroutinefunction(self.setup):
