@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 import json
 from jsonschema import validate, ValidationError
 import logging
@@ -160,6 +161,7 @@ class Nyuki(metaclass=CapabilityHandler):
     def _report(self, mtype, data, dest=None):
         message = {
             'type': mtype,
+            'time': datetime.utcnow().isoformat(),
             'data': data
         }
         for name, service in self._services.all.items():
