@@ -1,11 +1,9 @@
 import asyncio
-from datetime import datetime
 import json
 from jsonschema import validate, ValidationError
 import logging
 import logging.config
 from signal import SIGINT, SIGTERM
-import traceback
 
 from nyuki.bus import Bus
 from nyuki.capabilities import Exposer, Response, resource
@@ -65,6 +63,7 @@ class Nyuki(metaclass=CapabilityHandler):
         # Add bus service if in conf file
         if self._config.get('bus') is not None:
             self._services.add('bus', Bus(self))
+        # Add websocket server if in conf file
         if self._config.get('websocket') is not None:
             self._services.add('websocket', WebHandler(self))
 
@@ -86,11 +85,6 @@ class Nyuki(metaclass=CapabilityHandler):
     def config(self):
         return self._config
 
-    def _exception_handler(self, loop, context):
-        exc = traceback.format_exc()
-        self.report_error('UNKNOWN_EXC', exc)
-        return loop.default_exception_handler(context)
-
     def start(self):
         """
         Start the nyuki
@@ -107,7 +101,6 @@ class Nyuki(metaclass=CapabilityHandler):
 
         # Start services
         self.loop.run_until_complete(self._services.start())
-        self.loop.set_exception_handler(self._exception_handler)
 
         # Call for setup
         if not asyncio.iscoroutinefunction(self.setup):
@@ -159,33 +152,6 @@ class Nyuki(metaclass=CapabilityHandler):
         """
         self._schemas.append((schema, format_checker))
         self._validate_config()
-
-    def _report(self, mtype, data, dest=None):
-        message = {
-            'type': mtype,
-            'time': datetime.utcnow().isoformat(),
-            'data': data
-        }
-        for name, service in self._services.all.items():
-            if hasattr(service, 'publish'):
-                log.info("Publishing report through '%s': %s", name, message)
-                if dest:
-                    service.publish(message, dest)
-                else:
-                    service.publish(message)
-
-    def report_info(self, message, dest=None):
-        assert isinstance(message, str)
-        self._report('info', {'message': message}, dest)
-
-    def report_warning(self, message, dest=None):
-        assert isinstance(message, str)
-        self._report('warning', {'message': message}, dest)
-
-    def report_error(self, code, error, dest=None):
-        assert isinstance(code, str)
-        assert isinstance(error, str)
-        self._report('error', {'code': code, 'error': error}, dest)
 
     def _validate_config(self, config=None):
         """
