@@ -65,8 +65,8 @@ class Nyuki(metaclass=CapabilityHandler):
         # Add bus service if in conf file
         if self._config.get('bus') is not None:
             self._services.add('bus', Bus(self))
-        if self._config.get('web') is not None:
-            self._services.add('web', WebHandler(self))
+        if self._config.get('websocket') is not None:
+            self._services.add('websocket', WebHandler(self))
 
         self.is_stopping = False
 
@@ -88,7 +88,7 @@ class Nyuki(metaclass=CapabilityHandler):
 
     def _exception_handler(self, loop, context):
         exc = traceback.format_exc()
-        self.report_error('EXC_0000', exc)
+        self.report_error('UNKNOWN_EXC', exc)
         return loop.default_exception_handler(context)
 
     def start(self):
@@ -275,12 +275,12 @@ class Nyuki(metaclass=CapabilityHandler):
 
             return Response(body=body)
 
-    @resource(endpoint='/websocket/token', version='v1')
+    @resource(endpoint='/websocket', version='v1')
     class WebsocketToken:
 
         def get(self, request):
-            if not self._services.get('web'):
+            if not self._services.get('websocket'):
                 return Response(status=404)
 
-            token = self.web.new_token()
+            token = self.websocket.new_token()
             return Response({'token': token})

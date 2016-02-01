@@ -89,6 +89,7 @@ class WebHandler(Service):
             random.choice(string.ascii_letters + string.digits)
             for _ in range(30)
         )
+        log.debug('new token: %s', token)
         self._tokens.append(token)
         return token
 
@@ -111,36 +112,49 @@ class WebHandler(Service):
             'data': {}
         }
         if self.READY_CALLBACK:
-            log.info('ready callback set up, calling it for new client')
+            log.info('Ready callback set up, calling it for new client')
             ready['data'] = await self.READY_CALLBACK(self._nyuki) or {}
         log.info('Sending ready packet')
         log.debug('ready dump: %s', ready)
         await websocket.send(json.dumps(ready))
 
-    def keepalive_timeout(self, websocket):
+    def _end_websocket_client(self, websocket, token, reason):
         """
         Close the connection if no keepalive have been received
         """
-        asyncio.ensure_future(websocket.close(reason='keepalive timed out'))
+        websocket.close(reason=reason)
+        try:
+            self._tokens.remove(token)
+        except ValueError:
+            log.debug('token already removed from keepalive')
+
+    def _schedule_keepalive(self, websocket, token):
+        return self._loop.call_later(
+            self.keepalive,
+            self._end_websocket_client,
+            websocket,
+            token,
+            'keepalive timed out'
+        )
 
     async def _wshandler(self, websocket, path):
         """
         Main handler for a newly connected client
         """
-        # match = re.match(r'^\/(?P<token>[a-zA-Z0-9]{30})$', path)
-        # if not match:
-        #     websocket.close()
-        #     return
+        match = re.match(r'^\/(?P<token>[a-zA-Z0-9]{30})$', path)
+        if not match:
+            log.debug('token does not match (%s)', path)
+            websocket.close()
+            return
 
-        # token = match.group('token')
-        # if token not in self._tokens:
-        #     log.debug("Unknown token '%s'", token)
-        #     websocket.close()
-        #     return
+        token = match.group('token')
+        if token not in self._tokens:
+            log.debug("Unknown token '%s'", token)
+            websocket.close()
+            return
 
-        handle = self._loop.call_later(
-            self.keepalive, self.keepalive_timeout, websocket
-        )
+        log.info('Connection from token: %s', token)
+        handle = self._schedule_keepalive(websocket, token)
         await self.send_ready(websocket)
 
         while True:
@@ -148,7 +162,7 @@ class WebHandler(Service):
             try:
                 message = await websocket.recv()
             except websockets.exceptions.ConnectionClosed as exc:
-                log.debug('client connection closed: %s', exc)
+                log.critical('client connection closed: %s', exc)
                 break
 
             # Decode JSON message
@@ -167,10 +181,7 @@ class WebHandler(Service):
             mtype = data['type']
             if mtype == 'keepalive':
                 handle.cancel()
-                handle = self._loop.call_later(
-                    self.keepalive, self.keepalive_timeout, websocket
-                )
+                handle = self._schedule_keepalive(websocket, token)
 
-        websocket.close()
         handle.cancel()
-        # self._tokens.remove(token)
+        self._end_websocket_client(websocket, token, 'connection closed normally')
