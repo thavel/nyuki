@@ -1,6 +1,8 @@
 from aiohttp import ClientOSError
 import asyncio
-from asynctest import TestCase, patch, Mock, CoroutineMock, ignore_loop
+from asynctest import (
+    TestCase, patch, Mock, CoroutineMock, ignore_loop, exhaust_callbacks
+)
 from nose.tools import assert_raises, eq_, ok_
 from slixmpp import JID
 
@@ -54,15 +56,20 @@ class TestBus(TestCase):
         await self.bus._on_event(msg)
         cb.assert_called_once_with({'key': 'value'})
 
-    @ignore_loop
     @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send')
-    def test_003a_publish(self, send_mock):
-        self.bus.publish({'message': 'test'})
-        send_mock.assert_called_once_with()
+    async def test_003a_publish(self, send_mock):
+        asyncio.ensure_future(self.bus.publish({'message': '1'}))
+        asyncio.ensure_future(self.bus.publish({'message': '2'}))
+        asyncio.ensure_future(self.bus.publish({'message': '3'}))
+        # Waiting for connection
+        eq_(send_mock.call_count, 0)
+        self.bus._connected.set()
+        await exhaust_callbacks(self.loop)
+        eq_(send_mock.call_count, 3)
 
-    @ignore_loop
-    def test_003b_publish_no_dict(self):
-        assert_raises(TypeError, self.bus.publish, 'not a dict')
+    async def test_003b_publish_no_dict(self):
+        with assert_raises(TypeError):
+            await self.bus.publish('not a dict')
 
     async def test_004_on_register_callback(self):
         with patch('slixmpp.stanza.Iq.send', new=CoroutineMock()) as send_mock:

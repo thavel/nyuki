@@ -238,7 +238,7 @@ class Bus(Service):
         else:
             log.warning('No callback set for direct messages')
 
-    def publish(self, event):
+    async def publish(self, event):
         """
         Send an event in the nyuki's own MUC so that other nyukis that joined
         the MUC can process it.
@@ -248,11 +248,17 @@ class Bus(Service):
             return
         if not isinstance(event, dict):
             raise TypeError('Message must be a dict')
+
+        if not self._connected.is_set():
+            log.warning('Waiting for a connection to publish')
+        await self._connected.wait()
+
         log.debug(">> publishing to '{}': {}".format(self._topic, event))
         msg = self.client.Message()
         msg['type'] = 'groupchat'
         msg['to'] = self._muc_address(self._topic)
         msg['body'] = json.dumps(event)
+        log.info('Publishing an event to %s', msg['to'])
         msg.send()
 
     async def subscribe(self, topic, callback=None):
@@ -261,8 +267,9 @@ class Bus(Service):
         Room address format must be like '{topic}@mucs.localhost'
         """
         if not self._connected.is_set():
-            log.info("Waiting for a connection to subscribe to '%s'", topic)
+            log.warning("Waiting for a connection to subscribe to '%s'", topic)
         await self._connected.wait()
+
         self._mucs.joinMUC(self._muc_address(topic), self._topic)
         self._callbacks[topic] = callback
         log.info("subscribed to '{}'".format(topic))
@@ -272,8 +279,9 @@ class Bus(Service):
         Leave a chatroom.
         """
         if not self._connected.is_set():
-            log.info("Waiting for a connection to unsubscribe from '%s'", topic)
+            log.warning("Waiting for a connection to unsubscribe from '%s'", topic)
         await self._connected.wait()
+
         self._mucs.leaveMUC(self._muc_address(topic), self._topic)
         del self._callbacks[topic]
         log.info("unsubscribed from '{}'".format(topic))
