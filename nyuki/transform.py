@@ -149,7 +149,7 @@ class Ruler(object):
         rule_cls = _RegisteredRules.get()[config['type']]
         rules = []
         for params in config['rules']:
-            kp = config.get('global_params', {})
+            kp = dict(config.get('global_params', {}))
             kp.update(params)
             rules.append(rule_cls(**kp))
         return cls(rule_cls, rules=rules)
