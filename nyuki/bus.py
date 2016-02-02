@@ -95,7 +95,7 @@ class Bus(Service):
         self._connected = asyncio.Event()
         self.reconnect = False
 
-        self._callbacks = dict()
+        self._callbacks = {}
         self._topic = None
         self._mucs = None
 
@@ -168,6 +168,9 @@ class Bus(Service):
         self._connected.set()
         if self._muc_domain is not None:
             await self.subscribe(self._topic)
+            for topic, callback in self._callbacks.items():
+                if topic != self._topic:
+                    await self.subscribe(topic, callback)
 
     async def _on_disconnect(self, event):
         """
@@ -271,8 +274,9 @@ class Bus(Service):
         await self._connected.wait()
 
         self._mucs.joinMUC(self._muc_address(topic), self._topic)
-        self._callbacks[topic] = callback
-        log.info("subscribed to '{}'".format(topic))
+        if topic not in self._callbacks:
+            self._callbacks[topic] = callback
+        log.info("Subscribed to '{}'".format(topic))
 
     async def unsubscribe(self, topic):
         """
@@ -284,7 +288,7 @@ class Bus(Service):
 
         self._mucs.leaveMUC(self._muc_address(topic), self._topic)
         del self._callbacks[topic]
-        log.info("unsubscribed from '{}'".format(topic))
+        log.info("Unsubscribed from '{}'".format(topic))
 
     def direct_subscribe(self, callback):
         """
