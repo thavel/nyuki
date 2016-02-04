@@ -1,11 +1,11 @@
 import asyncio
-from asynctest import TestCase, exhaust_callbacks
+from asynctest import TestCase
 import json
 from nose.tools import eq_, assert_raises, assert_in, assert_not_in
 from websockets import client, exceptions
 
 from nyuki import Nyuki
-from nyuki.web import websocket_ready
+from nyuki.websocket import websocket_ready
 
 
 class WebNyuki(Nyuki):

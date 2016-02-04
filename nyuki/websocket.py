@@ -14,7 +14,10 @@ log = logging.getLogger(__name__)
 
 
 def websocket_ready(func):
-
+    """
+    This decorator set an async method to be called at a client connection,
+    the return value (dict) and will be sent as data to the client
+    """
     @staticmethod
     async def decorated(self):
         return await func(self)
@@ -83,7 +86,7 @@ class WebHandler(Service):
 
     def new_token(self):
         """
-        Random token using 20 digits/lowercases
+        Random token using 30 digits/lowercases
         """
         token = ''.join(
             random.choice(string.ascii_letters + string.digits)
@@ -162,7 +165,7 @@ class WebHandler(Service):
             try:
                 message = await websocket.recv()
             except websockets.exceptions.ConnectionClosed as exc:
-                log.critical('client connection closed: %s', exc)
+                log.debug('client connection closed: %s', exc)
                 break
 
             # Decode JSON message

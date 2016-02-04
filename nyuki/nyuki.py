@@ -13,7 +13,7 @@ from nyuki.config import (
 )
 from nyuki.handlers import CapabilityHandler
 from nyuki.services import ServiceManager
-from nyuki.web import WebHandler
+from nyuki.websocket import WebHandler
 
 
 log = logging.getLogger(__name__)
