@@ -82,10 +82,10 @@ class TestBus(TestCase):
             await self.bus._on_disconnect(None)
             eq_(mock.call_count, 1)
 
-    @ignore_loop
     @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send')
-    def test_006_direct_message(self, send_mock):
-        self.bus.send_message('yo', {'message': 'test'})
+    async def test_006_direct_message(self, send_mock):
+        self.bus._connected.set()
+        await self.bus.send_message('yo', {'message': 'test'})
         send_mock.assert_called_once_with()
 
     async def test_007_on_direct_message(self):

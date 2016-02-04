@@ -11,6 +11,7 @@ from nyuki.commands import get_command_kwargs
 from nyuki.config import get_full_config, write_conf_json, merge_configs
 from nyuki.handlers import CapabilityHandler
 from nyuki.logs import DEFAULT_LOGGING
+from nyuki.reporting import Reporter
 from nyuki.services import ServiceManager
 from nyuki.websocket import WebHandler
 
@@ -71,6 +72,7 @@ class Nyuki(metaclass=CapabilityHandler):
         if self._config.get('websocket') is not None:
             self._services.add('websocket', WebHandler(self))
 
+        self.reporter = None
         self.is_stopping = False
 
     def __getattribute__(self, name):
@@ -106,6 +108,12 @@ class Nyuki(metaclass=CapabilityHandler):
 
         # Start services
         self.loop.run_until_complete(self._services.start())
+
+        if 'bus' in self._services.all:
+            self.reporter = Reporter(self.bus.client.boundjid.user, self.bus)
+            asyncio.ensure_future(self.bus.subscribe(
+                'reports', self._handle_report
+            ))
 
         # Call for setup
         if not asyncio.iscoroutinefunction(self.setup):
@@ -199,6 +207,21 @@ class Nyuki(metaclass=CapabilityHandler):
         Called right before closing the event loop, stopping the Nyuki.
         """
         log.warning('Teardown called, but not overridden')
+
+    async def _handle_report(self, body):
+        try:
+            self.reporter.check_report(body)
+        except ValidationError as ve:
+            log.debug('Report validation failed: %s', ve)
+            return
+        log.info('Valid report received, calling handle_report')
+        await self.handle_report(body)
+
+    async def handle_report(self, body):
+        """
+        Called on reception of a report from another nyuki
+        """
+        log.debug('Report received without callback')
 
     def update_config(self, *new_confs):
         """

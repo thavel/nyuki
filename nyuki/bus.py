@@ -241,7 +241,7 @@ class Bus(Service):
         else:
             log.warning('No callback set for direct messages')
 
-    async def publish(self, event):
+    async def publish(self, event, dest=None):
         """
         Send an event in the nyuki's own MUC so that other nyukis that joined
         the MUC can process it.
@@ -259,7 +259,7 @@ class Bus(Service):
         log.debug(">> publishing to '{}': {}".format(self._topic, event))
         msg = self.client.Message()
         msg['type'] = 'groupchat'
-        msg['to'] = self._muc_address(self._topic)
+        msg['to'] = self._muc_address(dest or self._topic)
         msg['body'] = json.dumps(event)
         log.info('Publishing an event to %s', msg['to'])
         msg.send()
@@ -307,7 +307,7 @@ class Bus(Service):
         self._direct_message_callback = None
         log.info('Unsubscribed from direct messages')
 
-    def send_message(self, recipient, data):
+    async def send_message(self, recipient, data):
         """
         Send a direct message to 'recipient'
         """
@@ -316,6 +316,9 @@ class Bus(Service):
             return
         if not isinstance(data, dict):
             raise TypeError('Message must be a dict')
+        if not self._connected.is_set():
+            log.info("Waiting for a connection to direct message '%s'", recipient)
+        await self._connected.wait()
         log.debug(">> direct message to '{}': {}".format(recipient, data))
         body = json.dumps(data)
         self.client.send_message(recipient, body)
