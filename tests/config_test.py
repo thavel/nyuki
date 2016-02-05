@@ -1,4 +1,4 @@
-from nose.tools import assert_raises, assert_dict_equal
+from nose.tools import assert_dict_equal
 from unittest import TestCase
 from unittest.mock import patch
 

@@ -1,5 +1,5 @@
 import asyncio
-from asynctest import TestCase
+from asynctest import TestCase, patch
 import json
 from nose.tools import eq_, assert_raises, assert_in, assert_not_in
 from websockets import client, exceptions
@@ -18,7 +18,9 @@ class WebNyuki(Nyuki):
 class WebsocketTest(TestCase):
 
     async def setUp(self):
-        self.nyuki = WebNyuki(websocket={})
+        with patch('nyuki.config.read_default_json') as mock:
+            mock.return_value = {}
+            self.nyuki = WebNyuki(websocket={})
 
     async def tearDown(self):
         await self.client.close()

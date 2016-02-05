@@ -8,10 +8,9 @@ from signal import SIGINT, SIGTERM
 from nyuki.bus import Bus
 from nyuki.capabilities import Exposer, Response, resource
 from nyuki.commands import get_command_kwargs
-from nyuki.config import (
-    get_full_config, write_conf_json, merge_configs, DEFAULT_CONF_FILE
-)
+from nyuki.config import get_full_config, write_conf_json, merge_configs
 from nyuki.handlers import CapabilityHandler
+from nyuki.logs import DEFAULT_LOGGING
 from nyuki.services import ServiceManager
 from nyuki.websocket import WebHandler
 
@@ -45,15 +44,18 @@ class Nyuki(metaclass=CapabilityHandler):
         # List of configuration schemas
         self._schemas = []
 
+        # Initialize logging
+        logging.config.dictConfig(DEFAULT_LOGGING)
+
         # Get configuration from multiple sources and register base schema
         kwargs = kwargs or get_command_kwargs()
-        self.config_filename = kwargs.get('config', DEFAULT_CONF_FILE)
+        self._config_filename = kwargs.get('config')
         self._config = get_full_config(**kwargs)
+        if self._config['log'] != DEFAULT_LOGGING:
+            logging.config.dictConfig(DEFAULT_LOGGING)
         self.register_schema(self.BASE_CONF_SCHEMA)
 
-        # Initialize logging
-        logging.config.dictConfig(self._config['log'])
-
+        # Set loop
         self.loop = asyncio.get_event_loop() or asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
 
@@ -192,7 +194,10 @@ class Nyuki(metaclass=CapabilityHandler):
         """
         Save the current configuration dict to its JSON file.
         """
-        write_conf_json(self.config, self.config_filename)
+        if self._config_filename:
+            write_conf_json(self.config, self._config_filename)
+        else:
+            log.warning('Not saving the default read-only configuration file')
 
     async def _reload_config(self, request):
         """

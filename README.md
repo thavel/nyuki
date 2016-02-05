@@ -149,6 +149,7 @@ curl -H "Content-Type: application/json" http://localhost:8081/eaten
 **Note**: find more code snippets in the folder *examples*.
 
 ## Configuration file
+
 Instead of passing a list of arguments to the command-line you can put the whole nyuki configuration into a JSON file:
 
 ```json
@@ -170,6 +171,8 @@ Starting a nyuki with that config file gets dead simple:
 python sample.py -c sample.json
 ```
 
+If no configuration file is given, a file named `default.json` will be used, and the same file will be used to create your configuration file is the one you specified does not exist.
+Either way, it is always best to have a valid `default.json` nearby.
 By the way, settings from the configuration file are overridden by command-line arguments. This can be useful to spawn several instances of the same nyuki quickly:
 
 ```bash

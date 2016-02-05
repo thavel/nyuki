@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 
 from nyuki.logs import DEFAULT_LOGGING
 
@@ -8,7 +7,7 @@ from nyuki.logs import DEFAULT_LOGGING
 log = logging.getLogger(__name__)
 
 # Nyuki default config file
-DEFAULT_CONF_FILE = 'conf.json'
+DEFAULT_CONF_FILE = 'default.json'
 
 # Basic configuration for all Nyukis.
 BASE_CONF = {
@@ -53,16 +52,28 @@ def merge_configs(*configs):
     return new_conf
 
 
+def read_default_json(return_json=True):
+    """
+    Read the default configuration file
+    No error check, just break everything is it not available
+    """
+    with open(DEFAULT_CONF_FILE, 'r') as f:
+        return json.loads(f.read()) if return_json else f.read()
+
+
 def read_conf_json(path):
     """
     Load config from a JSON file.
     """
-    if not os.path.isfile(path):
-        log.error("File {path} does not exist".format(path=path))
-        raise Exception("Invalid configuration path: %s" % path)
-
-    with open(path) as file:
-        return json.loads(file.read())
+    try:
+        with open(path, 'r') as f:
+            return json.loads(f.read())
+    except FileNotFoundError:
+        log.warning("File %s does not exist, creating it from default.json", path)
+        default = read_default_json(False)
+        with open(path, 'w+') as f:
+            f.write(default)
+        return json.loads(default)
 
 
 def get_full_config(**kwargs):
@@ -72,12 +83,13 @@ def get_full_config(**kwargs):
     command arguments). Configs should be valid (based on a json schema).
     """
     conf = BASE_CONF
-    file_config = dict()
 
     # We load the conf json if any
-    if 'config' in kwargs:
+    if kwargs.get('config'):
         file_config = read_conf_json(kwargs['config'])
         del kwargs['config']
+    else:
+        file_config = read_default_json()
 
     conf = merge_configs(conf, file_config, kwargs)
 

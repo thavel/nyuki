@@ -2,40 +2,29 @@ from asynctest import TestCase, patch, ignore_loop, exhaust_callbacks
 import json
 from jsonschema import ValidationError
 import os
-from nose.tools import (
-    eq_, assert_true, assert_false, assert_not_equal, assert_raises
-)
+from nose.tools import eq_, assert_true, assert_not_equal, assert_raises
+import tempfile
 
 from nyuki import Nyuki
+from nyuki.config import DEFAULT_CONF_FILE
 
 
+@patch('nyuki.config.DEFAULT_CONF_FILE', tempfile.mkstemp()[1])
 class TestNyuki(TestCase):
 
     def setUp(self):
-        kwargs = {
-            'bus': {
-                'jid': 'test@localhost',
-                'password': 'test',
-                'host': '127.0.0.1',
-                'port': 5555
-            },
-            'api': {
-                'host': 'localhost',
-                'port': 8082
-            },
-            'logging': 'DEBUG'
-        }
+        self.default = DEFAULT_CONF_FILE
+        with open(self.default, 'w') as f:
+            f.write('{"bus": {"jid": "test@localhost", "password": "test"}}')
+        kwargs = {'config': ''}
         self.nyuki = Nyuki(**kwargs)
-        self.nyuki.config_filename = 'unit_test_conf.json'
 
     def tearDown(self):
-        if os.path.isfile(self.nyuki.config_filename):
-            os.remove(self.nyuki.config_filename)
+        os.remove(self.default)
 
     @ignore_loop
     def test_001_update_config(self):
-        assert_not_equal(
-            self.nyuki.config['bus']['password'], 'new_password')
+        assert_not_equal(self.nyuki.config['bus']['password'], 'new_password')
         self.nyuki.update_config({
             'bus': {
                 'password': 'new_password'
@@ -43,14 +32,10 @@ class TestNyuki(TestCase):
         })
         eq_(self.nyuki.config['bus']['password'], 'new_password')
 
-    @ignore_loop
-    def test_002_save_config(self):
-        assert_false(os.path.isfile(self.nyuki.config_filename))
+        # Check read-only
         self.nyuki.save_config()
-        assert_true(os.path.isfile(self.nyuki.config_filename))
-        with open(self.nyuki.config_filename) as file:
-            conf = json.loads(file.read())
-        eq_(self.nyuki.config, conf)
+        with open(self.default, 'r') as f:
+            eq_(f.read(), '{"bus": {"jid": "test@localhost", "password": "test"}}')
 
     @ignore_loop
     def test_003_get_rest_configuration(self):
@@ -102,3 +87,47 @@ class TestNyuki(TestCase):
                 await self.nyuki.stop()
             mock.assert_called_once_with()
         assert_true(self.nyuki.is_stopping)
+
+
+class TestNyukiWithConfig(TestCase):
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.default = tempfile.mkstemp()[1]
+
+    def tearDown(self):
+        os.remove(self.default)
+
+    @ignore_loop
+    def test_001_copy_default(self):
+        # Default conf file
+        with open(self.default, 'w') as f:
+            f.write('{"bus": {"jid": "test@localhost", "password": "test"}}')
+
+        # Our conf file does not exist yet
+        conf = os.path.join(self.dir.name, 'myconf.json')
+        with patch('nyuki.config.DEFAULT_CONF_FILE', self.default):
+            kwargs = {'config': conf}
+            self.nyuki = Nyuki(**kwargs)
+
+        # Check our conf is created from default
+        with open(conf, 'r') as f:
+            eq_(f.read(), '{"bus": {"jid": "test@localhost", "password": "test"}}')
+
+    @ignore_loop
+    def test_002_bad_conf_file(self):
+        conf = os.path.join(self.dir.name, 'myconf.json')
+        with open(conf, 'w') as f:
+            f.write('{"bus": {"jid": "test@localhost", "password": "test"')
+
+        with assert_raises(ValueError):
+            kwargs = {'config': conf}
+            self.nyuki = Nyuki(**kwargs)
+
+
+class TestNyukiNoDefault(TestCase):
+
+    @ignore_loop
+    def test_001_missing_default_file(self):
+        with assert_raises(FileNotFoundError):
+            Nyuki(**{'config': ''})
