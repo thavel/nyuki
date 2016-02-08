@@ -180,3 +180,8 @@ python sample.py -j myjid@myhost -c sample.json
 ```
 
 Mandatory parameters are the Jabber ID (`jid`) and the password. Others are optional in both the command-line and the configuration file.
+
+
+## Contributing
+
+We always welcome great ideas. If you want to hack on the library, a [guide](CONTRIBUTING.md) is dedicated to it and describes the various steps involved.
