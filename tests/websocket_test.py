@@ -1,5 +1,5 @@
 import asyncio
-from asynctest import TestCase, patch
+from asynctest import TestCase, patch, exhaust_callbacks
 import json
 from nose.tools import eq_, assert_raises, assert_in, assert_not_in
 from websockets import client, exceptions
@@ -51,6 +51,12 @@ class WebsocketTest(TestCase):
             'keepalive_delay': 480,
             'type': 'ready'
         })
+
+        # Token already in use
+        eq_(len(web.server.websockets), 1)
+        await client.connect('ws://localhost:5566/' + token)
+        await exhaust_callbacks(self.loop)
+        eq_(len(web.server.websockets), 1)
 
         # Close connection
         await self.client.close()

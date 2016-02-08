@@ -61,7 +61,7 @@ class WebHandler(Service):
         self.port = None
         self.server = None
         self.keepalive = None
-        self._tokens = []
+        self._tokens = {}
 
     async def start(self):
         """
@@ -93,7 +93,7 @@ class WebHandler(Service):
             for _ in range(30)
         )
         log.debug('new token: %s', token)
-        self._tokens.append(token)
+        self._tokens[token] = False
         return token
 
     async def broadcast(self, message):
@@ -127,9 +127,9 @@ class WebHandler(Service):
         """
         websocket.close(reason=reason)
         try:
-            self._tokens.remove(token)
-        except ValueError:
-            log.debug('token already removed from keepalive')
+            del self._tokens[token]
+        except KeyError as ke:
+            log.debug("token '%s' already removed from keepalive", ke)
 
     def _schedule_keepalive(self, websocket, token):
         return self._loop.call_later(
@@ -155,8 +155,13 @@ class WebHandler(Service):
             log.debug("Unknown token '%s'", token)
             websocket.close()
             return
+        elif self._tokens[token] is True:
+            log.debug("Token already in use: '%s'", token)
+            websocket.close()
+            return
 
         log.info('Connection from token: %s', token)
+        self._tokens[token] = True
         handle = self._schedule_keepalive(websocket, token)
         await self.send_ready(websocket)
 
