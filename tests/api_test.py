@@ -8,7 +8,7 @@ from nose.tools import (
 
 from nyuki.api import Api, mw_capability, mw_json, APIRequest
 from nyuki.capabilities import Response
-from tests import future_func, make_future
+from tests import make_future
 
 
 class TestApi(TestCase):
@@ -50,28 +50,74 @@ class TestJsonMiddleware(TestCase):
         self._request.POST_METHODS = ['POST', 'PUT', 'PATCH']
         self._app = Mock()
 
-    async def test_001_request_valid_header_content_post_method(self):
+    async def test_001a_request_json(self):
         self._request.headers = {'CONTENT-TYPE': 'application/json'}
         ret_value = {'test_value': 'kikoo_test'}
         self._request.json.return_value = make_future(ret_value)
         self._request.method = 'POST'
 
-        @future_func
-        def _next_handler(r):
+        async def _next_handler(r):
             return ret_value
 
         mdw = await mw_json(self._app, _next_handler)
         assert_is_not_none(mdw)
+
+        # Good json
         response = await mdw(self._request)
+        eq_(self._request.json.call_count, 1)
         eq_(response, ret_value)
+
+        # Wrong json
+        self._request.json.side_effect = ValueError
+        with assert_raises(errors.HttpBadRequest) as e:
+            await mdw(self._request)
+            eq_(str(e), 'Invalid JSON request content')
+
+    async def test_001b_request_xml(self):
+        self._request.headers = {'CONTENT-TYPE': 'application/xml'}
+        self._request.method = 'POST'
+
+        async def _next_handler(r):
+            return 'ok'
+
+        mdw = await mw_json(self._app, _next_handler)
+        assert_is_not_none(mdw)
+        response = await mdw(self._request)
+        eq_(self._request.json.call_count, 0)
+        eq_(response, 'ok')
+
+    async def test_001c_request_text(self):
+        self._request.headers = {'CONTENT-TYPE': 'text/something'}
+        self._request.method = 'POST'
+
+        async def _next_handler(r):
+            return 'ok'
+
+        mdw = await mw_json(self._app, _next_handler)
+        assert_is_not_none(mdw)
+        response = await mdw(self._request)
+        eq_(self._request.json.call_count, 0)
+        eq_(response, 'ok')
+
+    async def test_001z_request_unsupported_type(self):
+        self._request.headers = {'CONTENT-TYPE': 'application/unsupported'}
+        self._request.method = 'POST'
+
+        async def _next_handler(r):
+            return 'ok'
+
+        mdw = await mw_json(self._app, _next_handler)
+        assert_is_not_none(mdw)
+        with assert_raises(errors.HttpBadRequest) as e:
+            await mdw(self._request)
+            eq_(str(e), 'Invalid Content-Type')
 
     async def test_002_request_handling_non_post_method(self):
         self._request.headers = {}
         ret_value = True
         self._request.method = 'GET'
 
-        @future_func
-        def _next_handler(r):
+        async def _next_handler(r):
             return ret_value
 
         mdw = await mw_json(self._app, _next_handler)
@@ -84,8 +130,7 @@ class TestJsonMiddleware(TestCase):
         values = ['', 'this_is_octet']
         self._request.method = 'POST'
 
-        @future_func
-        def _next_handler(r):
+        async def _next_handler(r):
             return 'dummy'
 
         for idx, h in enumerate(headers):
@@ -115,14 +160,12 @@ class TestCapabilityMiddleware(TestCase):
         self._request.method = 'POST'
         self._request.match_info = {'name': 'test'}
 
-        @future_func
-        def json():
+        async def json():
             return {'capability': 'string_manip'}
 
         self._request.json = json
 
-        @future_func
-        def _capa_handler(d, name):
+        async def _capa_handler(d, name):
             eq_(name, 'test')
             capa_resp = Response({'response': 'ok'})
             return capa_resp
@@ -139,8 +182,7 @@ class TestCapabilityMiddleware(TestCase):
         self._request.GET = {'id': 2}
         self._request.match_info = {'name': 'test'}
 
-        @future_func
-        def _capa_handler(d, name):
+        async def _capa_handler(d, name):
             eq_(name, 'test')
             capa_resp = Response({'response': 2})
             return capa_resp
@@ -156,8 +198,7 @@ class TestCapabilityMiddleware(TestCase):
         self._request.method = 'POST'
         self._request.match_info = {'name': 'test'}
 
-        @future_func
-        def _capa_handler(d, name):
+        async def _capa_handler(d, name):
             eq_(name, 'test')
             capa_resp = Response({'response': 'ok'})
             return capa_resp
@@ -174,8 +215,7 @@ class TestCapabilityMiddleware(TestCase):
         self._request.GET = {}
         self._request.match_info = {}
 
-        @future_func
-        def _capa_handler(d):
+        async def _capa_handler(d):
             return Response()
 
         mdw = await mw_capability(self._app, _capa_handler)
