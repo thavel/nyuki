@@ -3,7 +3,7 @@ import json
 from jsonschema import validate, ValidationError
 import logging
 import logging.config
-from signal import SIGINT, SIGTERM
+from signal import SIGHUP, SIGINT, SIGTERM
 
 from nyuki.bus import Bus
 from nyuki.capabilities import Exposer, Response, resource
@@ -49,6 +49,8 @@ class Nyuki(metaclass=CapabilityHandler):
 
         # Get configuration from multiple sources and register base schema
         kwargs = kwargs or get_command_kwargs()
+        # Storing the optional init params, will be used when reloading
+        self._launch_params = kwargs
         self._config_filename = kwargs.get('config')
         self._config = get_full_config(**kwargs)
         if self._config['log'] != DEFAULT_LOGGING:
@@ -94,6 +96,7 @@ class Nyuki(metaclass=CapabilityHandler):
         """
         self.loop.add_signal_handler(SIGTERM, self.abort, SIGTERM)
         self.loop.add_signal_handler(SIGINT, self.abort, SIGINT)
+        self.loop.add_signal_handler(SIGHUP, self.hang_up, SIGHUP)
 
         # Configure services with nyuki's configuration
         log.debug('Running configure for services')
@@ -148,6 +151,21 @@ class Nyuki(metaclass=CapabilityHandler):
         await self._services.stop()
         self._stop_loop()
 
+    def hang_up(self, signal):
+        """
+        Signal handler: reload the nyuki
+        """
+        log.warning('Caught signal %d, reloading the nyuki', signal)
+        try:
+            self._config = get_full_config(**self._launch_params)
+        except json.decoder.JSONDecodeError as e:
+            log.error(
+                'Could not load the new configuration, '
+                'fallback on the previous one: "%s"', e
+            )
+        else:
+            asyncio.ensure_future(self._reload_config())
+
     def register_schema(self, schema, format_checker=None):
         """
         Add a jsonschema to validate on configuration update.
@@ -199,15 +217,15 @@ class Nyuki(metaclass=CapabilityHandler):
         else:
             log.warning('Not saving the default read-only configuration file')
 
-    async def _reload_config(self, request):
+    async def _reload_config(self, request=None):
         """
         Reload the configuration and the services
         """
-        self.save_config()
         logging.config.dictConfig(self._config['log'])
         await self.reload()
         for name, service in self._services.all.items():
-            if name in request:
+            if ((request is not None) and (name in request)) \
+                    or request is None:
                 await service.stop()
                 service.configure(**self._config[name])
                 asyncio.ensure_future(service.start())
@@ -228,6 +246,7 @@ class Nyuki(metaclass=CapabilityHandler):
                 return Response(body=error, status=400)
 
             # Reload what is necessary, return the http response immediately
+            self.save_config()
             asyncio.ensure_future(self._reload_config(request))
 
             return Response(self._config)
