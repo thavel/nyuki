@@ -99,6 +99,10 @@ async def mw_json(app, next_handler):
                     except ValueError:
                         log.error('Invalid JSON request content')
                         raise HttpBadRequest('Invalid JSON request content')
+                elif 'application/xml' in content_type:
+                    # xml is often user for preflight CORS requests
+                    # so, let's the user implement a middleware to handle it
+                    pass
                 elif 'text/' in content_type:
                     pass
                 else:
@@ -128,12 +132,13 @@ class APIRequest(dict):
             except ValueError:
                 data = None
         else:
-            data = dict(getattr(request, request.method))
+            data = dict(getattr(request, request.method, {}))
 
         # Set up class and headers as request attribute
         req = cls(**data) if data else cls()
         req.raw = await request.text()
         req.headers = request.headers
+        req.raw_path = request.raw_path
         return req
 
 
