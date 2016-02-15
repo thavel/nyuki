@@ -31,8 +31,6 @@ class Nyuki(metaclass=CapabilityHandler):
     single-threaded, asynchronous and concurrent-safe environment.
     The core engine of a nyuki implementation is the asyncio event loop
     (a single loop is used for all features).
-    A wrapper is also provide to ease the use of asynchronous calls
-    over the actions nyukis are inteded to do.
     """
 
     # Configuration schema must follow jsonschema rules.
@@ -219,7 +217,7 @@ class Nyuki(metaclass=CapabilityHandler):
 
     async def handle_report(self, body):
         """
-        Called on reception of a report from another nyuki
+        Called upon reception of a report from another nyuki
         """
         log.debug('Report received without callback')
 
