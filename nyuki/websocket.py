@@ -120,6 +120,8 @@ class WebHandler(Service):
         """
         if not isinstance(message, str):
             data = json.dumps(message)
+        if isinstance(tokens, str):
+            tokens = [tokens]
         if isinstance(tokens, list):
             log.debug('Sending to client list %s: %s', tokens, data)
             for token in tokens:
