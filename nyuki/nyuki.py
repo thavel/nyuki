@@ -4,6 +4,7 @@ from jsonschema import validate, ValidationError
 import logging
 import logging.config
 from signal import SIGHUP, SIGINT, SIGTERM
+import traceback
 
 from nyuki.bus import Bus
 from nyuki.capabilities import Exposer, Response, resource
@@ -89,11 +90,39 @@ class Nyuki(metaclass=CapabilityHandler):
     def config(self):
         return self._config
 
+    @property
+    def report_channel(self):
+        return self.config.get('report_channel', 'errors')
+
+    def _exception_handler(self, loop, context):
+        log.debug('Exception context: %s', context)
+        if 'exception' in context:
+            if 'future' in context:
+                try:
+                    context['future'].result()
+                except Exception as e:
+                    log.exception(e)
+                    exc = traceback.format_exc()
+                else:
+                    exc = 'could not retrieve exception'
+            else:
+                log.exception(context['exception'])
+                exc = traceback.format_exc()
+
+            if self.reporter:
+                asyncio.ensure_future(
+                    self.reporter.send_report('exception', {'traceback': exc}),
+                    loop=loop
+                )
+        else:
+            log.warning(context)
+
     def start(self):
         """
         Start the nyuki
         The nyuki process is terminated when this method is finished
         """
+        self.loop.set_exception_handler(self._exception_handler)
         self.loop.add_signal_handler(SIGTERM, self.abort, SIGTERM)
         self.loop.add_signal_handler(SIGINT, self.abort, SIGINT)
         self.loop.add_signal_handler(SIGHUP, self.hang_up, SIGHUP)
@@ -108,10 +137,12 @@ class Nyuki(metaclass=CapabilityHandler):
         self.loop.run_until_complete(self._services.start())
 
         if 'bus' in self._services.all:
-            self.reporter = Reporter(self.bus.client.boundjid.user, self.bus)
             asyncio.ensure_future(self.bus.subscribe(
-                'reports', self._handle_report
+                self.report_channel, self._handle_report
             ))
+            self.reporter = Reporter(
+                self.bus.client.boundjid.user, self.bus, self.report_channel
+            )
 
         # Call for setup
         if not asyncio.iscoroutinefunction(self.setup):
@@ -207,6 +238,9 @@ class Nyuki(metaclass=CapabilityHandler):
         log.warning('Teardown called, but not overridden')
 
     async def _handle_report(self, body):
+        if body.get('author') == self.reporter.name:
+            log.debug('own report, bailing out')
+            return
         try:
             self.reporter.check_report(body)
         except ValidationError as ve:

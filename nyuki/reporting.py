@@ -1,5 +1,4 @@
 from datetime import datetime
-from enum import Enum
 from jsonschema import FormatChecker, validate, ValidationError
 import logging
 
@@ -7,63 +6,25 @@ import logging
 log = logging.getLogger(__name__)
 
 
-class ReportTypes(Enum):
-
-    error = {
-        'type': 'object',
-        'required': ['code', 'message'],
-        'properties': {
-            'code': {
-                'type': 'string',
-                'minLength': 1
-            },
-            'message': {
-                'type': 'string',
-                'minLength': 1
-            }
-        },
-        "additionalProperties": False
-    }
-
-    connection_lost = {
-        'type': 'object',
-        'required': ['address'],
-        'properties': {
-            'address': {
-                'type': 'string',
-                'minLength': 1
-            }
-        },
-        "additionalProperties": False
-    }
-
-    @classmethod
-    def all(cls):
-        return [item.name for item in cls]
-
-
 REPORT_SCHEMA = {
     'type': 'object',
-    'required': ['type', 'author', 'date', 'data'],
+    'required': ['type', 'author', 'datetime', 'data'],
     'properties': {
         'type': {
             'type': 'string',
-            'format': 'report_type'
+            'minLength': 1
         },
         'author': {
             'type': 'string',
             'minLength': 1
         },
-        'date': {
+        'datetime': {
             'type': 'string',
             'format': 'isoformat'
         },
-        'data': {'oneOf': [
-            {'$ref': '#/definitions/{}'.format(rtype)} for rtype in ReportTypes.all()
-        ]}
+        'data': {'type': 'object'}
     },
-    "additionalProperties": False,
-    'definitions': {rtype: ReportTypes[rtype].value for rtype in ReportTypes.all()}
+    "additionalProperties": False
 }
 
 
@@ -74,31 +35,24 @@ def from_isoformat(iso):
 report_checker = FormatChecker()
 
 
-@report_checker.checks(format='report_type')
-def _check_report_type(rtype):
-    if rtype not in ReportTypes.all():
-        log.warning('Unknown report type: %s', rtype)
-        return False
-    return True
-
-
 @report_checker.checks(format='isoformat')
-def _check_isoformat(date):
+def _check_isoformat(datetime):
     try:
-        from_isoformat(date)
+        from_isoformat(datetime)
     except ValueError:
-        log.warning('Unknown date format: %s', date)
+        log.warning('Unknown datetime format: %s', datetime)
         return False
     return True
 
 
 class Reporter(object):
 
-    def __init__(self, name, publisher):
+    def __init__(self, name, publisher, channel):
         if not hasattr(publisher, 'publish'):
             raise TypeError("Nyuki publisher requires the 'publish' method")
-        self._name = name
+        self.name = name
         self._publisher = publisher
+        self._channel = channel
 
     def check_report(self, report):
         """
@@ -106,32 +60,12 @@ class Reporter(object):
         """
         validate(report, REPORT_SCHEMA, format_checker=report_checker)
 
-    async def _send_report(self, rtype, data):
-        assert rtype in ReportTypes.all()
+    async def send_report(self, rtype, data):
         report = {
             'type': rtype,
-            'author': self._name,
-            'date': datetime.utcnow().isoformat(),
+            'author': self.name,
+            'datetime': datetime.utcnow().isoformat(),
             'data': data
         }
-
-        try:
-            self.check_report(report)
-        except ValidationError as ve:
-            log.exception(ve)
-            log.error('Report validation failed: %s', str(ve))
-            return
-
         log.info('Sending report data: %s', report)
-        await self._publisher.publish(report, 'reports')
-
-    async def connection_lost(self, address):
-        await self._send_report('connection_lost', {
-            'address': address
-        })
-
-    async def error(self, code, message):
-        await self._send_report('error', {
-            'code': code,
-            'message': message
-        })
+        await self._publisher.publish(report, self._channel)
