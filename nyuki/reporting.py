@@ -67,5 +67,6 @@ class Reporter(object):
             'datetime': datetime.utcnow().isoformat(),
             'data': data
         }
+        self.check_report(report)
         log.info('Sending report data: %s', report)
         await self._publisher.publish(report, self._channel)

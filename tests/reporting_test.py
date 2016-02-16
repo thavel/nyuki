@@ -10,71 +10,34 @@ class ReportingTest(TestCase):
 
     def setUp(self):
         self.publisher = CoroutineMock()
-        self.reporter = Reporter('test', self.publisher)
+        self.reporter = Reporter('test', self.publisher, 'errors')
 
     @ignore_loop
-    def test_001_check_type(self):
+    def test_001_check_schema(self):
         with assert_raises(ValidationError):
             self.reporter.check_report({
                 'type': 'something',
                 'author': 'test',
-                'date': datetime.utcnow().isoformat(),
+                'datetime': 'nope',
                 'data': {
-                    'address': 'test'
+                    'address': 'test',
+                    'traceback': 'test'
                 }
             })
 
-    @ignore_loop
-    def test_002_check_isoformat(self):
-        with assert_raises(ValidationError):
-            self.reporter.check_report({
-                'type': 'connection_lost',
-                'author': 'test',
-                'date': 'nope',
-                'data': {
-                    'address': 'test'
-                }
-            })
-
-    async def test_003_check_error_format(self):
-        with assert_raises(ValidationError):
-            self.reporter.check_report({
-                'type': 'error',
-                'author': 'test',
-                'date': datetime.utcnow().isoformat(),
-                'data': {
-                    'code': 'test'
-                }
-            })
         self.reporter.check_report({
-            'type': 'error',
+            'type': 'something',
             'author': 'test',
-            'date': datetime.utcnow().isoformat(),
+            'datetime': datetime.utcnow().isoformat(),
             'data': {
-                'code': 'test',
-                'message': 'test'
+                'address': 'test',
+                'traceback': 'test'
             }
         })
-        await self.reporter.error('123', 'test')
-        # Troubles patching datetime.utcnow
-        eq_(self.publisher.publish.call_count, 1)
 
-    async def test_004_check_connection_lost_format(self):
+    async def test_002_check_send_report(self):
         with assert_raises(ValidationError):
-            self.reporter.check_report({
-                'type': 'connection_lost',
-                'author': 'test',
-                'date': datetime.utcnow().isoformat(),
-                'data': {}
-            })
-        self.reporter.check_report({
-            'type': 'connection_lost',
-            'author': 'test',
-            'date': datetime.utcnow().isoformat(),
-            'data': {
-                'address': 'test'
-            }
-        })
-        await self.reporter.connection_lost('test')
+            await self.reporter.send_report('type', 'nope')
+        await self.reporter.send_report('type', {'key': 'value'})
         # Troubles patching datetime.utcnow
         eq_(self.publisher.publish.call_count, 1)
