@@ -97,32 +97,31 @@ class Nyuki(metaclass=CapabilityHandler):
     def _exception_handler(self, loop, context):
         log.debug('Exception context: %s', context)
         if 'exception' in context:
-            if 'future' in context:
-                try:
-                    context['future'].result()
-                except Exception as e:
-                    log.exception(e)
-                    exc = traceback.format_exc()
-                else:
-                    exc = 'could not retrieve exception'
-            else:
-                log.exception(context['exception'])
-                exc = traceback.format_exc()
-
-            if self.reporter:
-                asyncio.ensure_future(
-                    self.reporter.send_report('exception', {'traceback': exc}),
-                    loop=loop
-                )
-        else:
             log.warning(context)
+            return
+
+        if 'future' in context:
+            try:
+                context['future'].result()
+            except Exception as e:
+                log.exception(e)
+                exc = traceback.format_exc()
+            else:
+                exc = 'could not retrieve exception'
+        else:
+            log.exception(context['exception'])
+            exc = traceback.format_exc()
+
+        asyncio.ensure_future(
+            self.reporter.send_report('exception', {'traceback': exc}),
+            loop=loop
+        )
 
     def start(self):
         """
         Start the nyuki
         The nyuki process is terminated when this method is finished
         """
-        self.loop.set_exception_handler(self._exception_handler)
         self.loop.add_signal_handler(SIGTERM, self.abort, SIGTERM)
         self.loop.add_signal_handler(SIGINT, self.abort, SIGINT)
         self.loop.add_signal_handler(SIGHUP, self.hang_up, SIGHUP)
@@ -137,12 +136,11 @@ class Nyuki(metaclass=CapabilityHandler):
         self.loop.run_until_complete(self._services.start())
 
         if 'bus' in self._services.all:
-            asyncio.ensure_future(self.bus.subscribe(
-                self.report_channel, self._handle_report
-            ))
+            asyncio.ensure_future(self.bus.subscribe(self.report_channel))
             self.reporter = Reporter(
                 self.bus.client.boundjid.user, self.bus, self.report_channel
             )
+            self.loop.set_exception_handler(self._exception_handler)
 
         # Call for setup
         if not asyncio.iscoroutinefunction(self.setup):
@@ -236,24 +234,6 @@ class Nyuki(metaclass=CapabilityHandler):
         Called right before closing the event loop, stopping the Nyuki.
         """
         log.warning('Teardown called, but not overridden')
-
-    async def _handle_report(self, body):
-        if body.get('author') == self.reporter.name:
-            log.debug('own report, bailing out')
-            return
-        try:
-            self.reporter.check_report(body)
-        except ValidationError as ve:
-            log.debug('Report validation failed: %s', ve)
-            return
-        log.info('Valid report received, calling handle_report')
-        await self.handle_report(body)
-
-    async def handle_report(self, body):
-        """
-        Called upon reception of a report from another nyuki
-        """
-        log.debug('Report received without callback')
 
     def update_config(self, *new_confs):
         """
