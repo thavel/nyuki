@@ -68,5 +68,5 @@ class Reporter(object):
             'data': data
         }
         self.check_report(report)
-        log.info('Sending report data: %s', report)
+        log.info("Sending report data with type '%s'", rtype)
         await self._publisher.publish(report, self._channel)
