@@ -1,5 +1,4 @@
 from aiohttp import errors, web
-import asyncio
 from asynctest import TestCase, Mock, patch, ignore_loop
 from json import loads
 from nose.tools import (
@@ -233,3 +232,23 @@ class TestCapabilityMiddleware(TestCase):
         ar = await APIRequest.from_request(self._request)
         eq_(ar['capability'], 'test')
         eq_(ar.headers.get('Content-Type'), 'application/json')
+
+    async def test_004_exception(self):
+        self._request.method = 'GET'
+        self._request.GET = {}
+        self._request.match_info = {}
+
+        exc = Exception('fail')
+        async def _capa_handler(d):
+            raise exc
+
+        mdw = await mw_capability(self._app, _capa_handler)
+        assert_is_not_none(mdw)
+
+        with patch.object(self._app.loop, 'call_exception_handler') as exc_handler:
+            with assert_raises(Exception):
+                await mdw(self._request)
+            exc_handler.assert_called_once_with({
+                'message': str(exc),
+                'exception': exc
+            })

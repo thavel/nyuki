@@ -150,7 +150,15 @@ async def mw_capability(app, capa_handler):
     """
     async def middleware(request):
         api_req = await APIRequest.from_request(request)
-        capa_resp = await capa_handler(api_req, **request.match_info)
+
+        try:
+            capa_resp = await capa_handler(api_req, **request.match_info)
+        except Exception as exc:
+            app.loop.call_exception_handler({
+                'message': str(exc),
+                'exception': exc
+            })
+            raise exc
 
         if capa_resp and isinstance(capa_resp, web.Response):
             return capa_resp

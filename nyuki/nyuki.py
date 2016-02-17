@@ -96,7 +96,7 @@ class Nyuki(metaclass=CapabilityHandler):
 
     def _exception_handler(self, loop, context):
         log.debug('Exception context: %s', context)
-        if 'exception' in context:
+        if 'exception' not in context:
             log.warning(context)
             return
 
