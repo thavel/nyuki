@@ -304,7 +304,9 @@ class Nyuki(metaclass=CapabilityHandler):
     class WebsocketToken:
 
         def get(self, request):
-            if not self._services.get('websocket'):
+            try:
+                self._services.get('websocket')
+            except KeyError:
                 return Response(status=404)
 
             token = self.websocket.new_token()

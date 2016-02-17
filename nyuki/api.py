@@ -154,10 +154,14 @@ async def mw_capability(app, capa_handler):
         try:
             capa_resp = await capa_handler(api_req, **request.match_info)
         except Exception as exc:
-            app.loop.call_exception_handler({
-                'message': str(exc),
-                'exception': exc
-            })
+            # Access private '_exception_handler' attribute to avoid calling
+            # the 'default_exception_handler' a second time if no exception
+            # handler has been set on our side (no bus)
+            if app.loop._exception_handler:
+                app.loop.call_exception_handler({
+                    'message': str(exc),
+                    'exception': exc
+                })
             raise exc
 
         if capa_resp and isinstance(capa_resp, web.Response):
