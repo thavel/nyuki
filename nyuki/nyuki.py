@@ -54,7 +54,10 @@ class Nyuki(metaclass=CapabilityHandler):
         self._config_filename = kwargs.get('config')
         self._config = get_full_config(**kwargs)
         if self._config['log'] != DEFAULT_LOGGING:
-            logging.config.dictConfig(DEFAULT_LOGGING)
+            logging.config.dictConfig({
+                **DEFAULT_LOGGING,
+                **self._config['log']
+            })
         self.register_schema(self.BASE_CONF_SCHEMA)
 
         # Set loop
