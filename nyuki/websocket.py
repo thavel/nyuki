@@ -87,7 +87,7 @@ class WebHandler(Service):
             self._wshandler, self.host, self.port
         )
 
-    def configure(self, host='0.0.0.0', port=5559, keepalive=600):
+    def configure(self, host='0.0.0.0', port=5559, keepalive=60):
         self.host = host
         self.port = port
         self.keepalive = keepalive
