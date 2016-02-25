@@ -27,10 +27,12 @@ class _RegisteredRules(type):
 
 
 class _TypedList(list):
+
     """
     Subclass of `list` that makes sure each element of it is an instance of
     a predefined class.
     """
+
     def __init__(self, cls, *iterable):
         super().__init__()
         self._cls = cls
@@ -67,9 +69,11 @@ class _TypedList(list):
 
 
 class Converter(object):
+
     """
     A sequence of `Ruler` objects intended to be applied on a dict.
     """
+
     def __init__(self, rulers=None):
         self._rulers = _TypedList(Ruler, rulers or list())
 
@@ -113,10 +117,12 @@ class Converter(object):
 
 
 class Ruler(object):
+
     """
     Stores a list of rules that can be applied sequentially to a dict.
     All the rules of the list must be of the same type.
     """
+
     def __init__(self, rule_cls, rules=None):
         if not issubclass(rule_cls, _Rule):
             raise TypeError('{obj} is not a subclass of _Rule'.format(
@@ -163,11 +169,13 @@ class Ruler(object):
 
 
 class _Rule(metaclass=_RegisteredRules):
+
     """
     A rule extracts an entry from a dict , performs an operation on the dict
     and updates the dict with the result of that operation (in-place update).
     Only one field from the input dict can be processed within a rule.
     """
+
     # Public subclasses of `_Rule` will have a TYPENAME attr set to classname
     # (lowercase) if not set in the subclass itself.
     TYPENAME = None
@@ -193,6 +201,7 @@ class _Rule(metaclass=_RegisteredRules):
 
 
 class _RegexpRule(_Rule):
+
     """
     Define a regular expression that shall be applied through several kinds of
     operations to a string.
@@ -201,6 +210,7 @@ class _RegexpRule(_Rule):
     a key from `data` have the same name, the group overrides the existing
     dict value.
     """
+
     def _configure(self, pattern, flags=0):
         self.regexp = re.compile(pattern, flags=flags)
 
@@ -219,11 +229,13 @@ class _RegexpRule(_Rule):
 
 
 class Extract(_RegexpRule):
+
     """
     Scan through a string looking for the first location where the regular
     expression pattern produces a match. What matters is the resulting dict of
     captured substrings.
     """
+
     def _configure(self, pattern, flags=0, pos=None, endpos=None):
         super()._configure(pattern, flags=flags)
         if not self.regexp.groupindex:
@@ -241,11 +253,13 @@ class Extract(_RegexpRule):
 
 
 class Sub(_RegexpRule):
+
     """
     Build a string obtained by replacing the leftmost non-overlapping
     occurrences of regexp pattern in fieldname from `data` by a replacement
     string.
     """
+
     def _configure(self, pattern, repl, flags=0, count=0):
         super()._configure(pattern, flags=flags)
         self.repl, self.count = repl, count
@@ -256,9 +270,11 @@ class Sub(_RegexpRule):
 
 
 class Set(_Rule):
+
     """
     Set or update a field in the `data` dict.
     """
+
     def _configure(self, value):
         self.value = value
 
@@ -267,9 +283,11 @@ class Set(_Rule):
 
 
 class Unset(_Rule):
+
     """
     Remove a field from the `data` dict.
     """
+
     def _configure(self):
         pass
 
@@ -281,12 +299,14 @@ class Unset(_Rule):
 
 
 class Lookup(_Rule):
+
     """
     Implements a dead-simple lookup table which perform case sensitive
     (default) or insensitive (icase=True) lookups.
     """
+
     def _configure(self, table=None, icase=False):
-        self.table = table or {}
+        self.table = table or dict()
         self.icase = icase
         if icase:
             self.table = {k.lower(): v for k, v in table.items()}
@@ -308,9 +328,11 @@ class Lookup(_Rule):
 
 
 class Lower(_Rule):
+
     """
     Lower case a string.
     """
+
     def _configure(self):
         pass
 
@@ -320,9 +342,11 @@ class Lower(_Rule):
 
 
 class Upper(_Rule):
+
     """
     Upper case a string.
     """
+
     def _configure(self):
         pass
 
