@@ -285,8 +285,11 @@ class Lookup(_Rule):
     Implements a dead-simple lookup table which perform case sensitive
     (default) or insensitive (icase=True) lookups.
     """
-    def _configure(self, table=None):
-        self.table = table or dict()
+    def _configure(self, table=None, icase=False):
+        self.table = table or {}
+        self.icase = icase
+        if icase:
+            self.table = {k.lower(): v for k, v in table.items()}
 
     def apply(self, data):
         """
@@ -296,9 +299,12 @@ class Lookup(_Rule):
         """
         try:
             fieldval = data[self.fieldname]
+            if self.icase:
+                fieldval = fieldval.lower()
             data[self.fieldname] = self.table[fieldval]
         except KeyError as err:
-            log.debug('Lookup : unknown field %s, ignoring', err)
+            log.debug("Lookup: fieldname '%s' not in data, ignoring", err)
+            return
 
 
 class Lower(_Rule):

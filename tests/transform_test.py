@@ -35,9 +35,20 @@ class TestTransformCases(TestCase):
         rule.apply(self.data)
         self.assertFalse('normal' in self.data)
 
-    def test_005_lookup(self):
+    def test_005a_lookup(self):
         table = {'message': 'lookup'}
         rule = Lookup('normal', table=table)
+        rule.apply(self.data)
+        self.assertEqual(self.data['normal'], 'lookup')
+
+    def test_005b_loopkup_icase(self):
+        table = {'mEsSaGe': 'lookup'}
+
+        rule = Lookup('normal', table=table)
+        rule.apply(self.data)
+        self.assertEqual(self.data['normal'], 'message')
+
+        rule = Lookup('normal', table=table, icase=True)
         rule.apply(self.data)
         self.assertEqual(self.data['normal'], 'lookup')
 
