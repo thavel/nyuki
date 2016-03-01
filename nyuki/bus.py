@@ -18,7 +18,7 @@ class _BusClient(ClientXMPP):
     This class is based on Slixmpp (fork of Sleexmpp) using asyncio event loop.
     """
 
-    def __init__(self, jid, password, host=None, port=5222):
+    def __init__(self, jid, password, host=None, port=5222, certificate=None):
         super().__init__(jid, password)
         host = host or self.boundjid.domain
         self._address = (host, port)
@@ -29,8 +29,8 @@ class _BusClient(ClientXMPP):
         # Disable IPv6 until we really need it
         self.use_ipv6 = False
 
-        # Check the server certificate:
-        self.ca_certs = "./ssl/prosody.crt"
+        if certificate:
+            self.ca_certs = certificate
 
     def connect(self, **kwargs):
         """
@@ -104,8 +104,9 @@ class Bus(Service):
         if timeout:
             await asyncio.wait_for(self._connected.wait(), timeout)
 
-    def configure(self, jid, password, host='localhost', port=5222, muc_domain='mucs.localhost'):
-        self.client = _BusClient(jid, password, host, port)
+    def configure(self, jid, password, host='localhost', port=5222,
+                  muc_domain='mucs.localhost', certificate=None):
+        self.client = _BusClient(jid, password, host, port, certificate=certificate)
         self.client.loop = self._loop
         self.client.add_event_handler('connection_failed', self._on_failure)
         self.client.add_event_handler('disconnected', self._on_disconnect)
