@@ -37,7 +37,7 @@ class ReportingTest(TestCase):
 
     async def test_002_check_send_report(self):
         with assert_raises(ValidationError):
-            await self.reporter.send_report('type', 'nope')
-        await self.reporter.send_report('type', {'key': 'value'})
+            self.reporter.send_report('type', 'nope')
+        self.reporter.send_report('type', {'key': 'value'})
         # Troubles patching datetime.utcnow
         eq_(self.publisher.publish.call_count, 1)
