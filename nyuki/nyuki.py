@@ -140,7 +140,6 @@ class Nyuki(metaclass=CapabilityHandler):
         self.loop.run_until_complete(self._services.start())
 
         if 'bus' in self._services.all:
-            asyncio.ensure_future(self.bus.subscribe(self.report_channel))
             self.reporter = Reporter(
                 self.bus.client.boundjid.user, self.bus, self.report_channel
             )

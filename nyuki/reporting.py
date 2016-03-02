@@ -1,7 +1,7 @@
 from datetime import datetime
 from jsonschema import FormatChecker, validate, ValidationError
 import logging
-
+import asyncio
 
 log = logging.getLogger(__name__)
 
@@ -48,11 +48,31 @@ def _check_isoformat(datetime):
 class Reporter(object):
 
     def __init__(self, name, publisher, channel):
+        if not hasattr(publisher, 'subscribe'):
+            raise TypeError("Nyuki publisher requires the 'subscribe' method")
         if not hasattr(publisher, 'publish'):
             raise TypeError("Nyuki publisher requires the 'publish' method")
+
         self.name = name
         self._publisher = publisher
         self._channel = channel
+        self._handlers = list()
+        asyncio.ensure_future(
+            self._publisher.subscribe(channel, self._handle_report)
+        )
+
+    async def _handle_report(self, data):
+        for handler in self._handlers:
+            await handler(data)
+
+    def register_handler(self, handler):
+        """
+        Register all required handlers for received reports
+        """
+        if handler in self._handlers:
+            # Can't register the same callback twice
+            return
+        self._handlers.append(handler)
 
     def check_report(self, report):
         """
@@ -60,7 +80,10 @@ class Reporter(object):
         """
         validate(report, REPORT_SCHEMA, format_checker=report_checker)
 
-    async def send_report(self, rtype, data):
+    def send_report(self, rtype, data):
+        """
+        Send reports with a type and any data
+        """
         report = {
             'type': rtype,
             'author': self.name,
@@ -69,4 +92,4 @@ class Reporter(object):
         }
         self.check_report(report)
         log.info("Sending report data with type '%s'", rtype)
-        await self._publisher.publish(report, self._channel)
+        asyncio.ensure_future(self._publisher.publish(report, self._channel))
