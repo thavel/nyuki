@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 
@@ -71,6 +72,7 @@ def read_conf_json(path):
     except FileNotFoundError:
         log.warning("File %s does not exist, creating it from default.json", path)
         default = read_default_json(False)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, 'w+') as f:
             f.write(default)
         return json.loads(default)
