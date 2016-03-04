@@ -1,10 +1,11 @@
 import asyncio
 import json
-from jsonschema import validate, ValidationError
+from jsonschema import validate, ValidationError, SchemaError
 import logging
 import logging.config
 from signal import SIGHUP, SIGINT, SIGTERM
 import traceback
+import pijon
 
 from nyuki.bus import Bus
 from nyuki.capabilities import Exposer, Response, resource
@@ -129,6 +130,13 @@ class Nyuki(metaclass=CapabilityHandler):
         self.loop.add_signal_handler(SIGINT, self.abort, SIGINT)
         self.loop.add_signal_handler(SIGHUP, self.hang_up, SIGHUP)
 
+        # At this point all config schemas should have been registered.
+        # Therefore, we can now validate configuration file.
+        try:
+            self._validate_config()
+        except (SchemaError, ValidationError):
+            self.migrate_config()
+
         # Configure services with nyuki's configuration
         log.debug('Running configure for services')
         for name, service in self._services.all.items():
@@ -209,7 +217,6 @@ class Nyuki(metaclass=CapabilityHandler):
         Add a jsonschema to validate on configuration update.
         """
         self._schemas.append((schema, format_checker))
-        self._validate_config()
 
     def _validate_config(self, config=None):
         """
@@ -254,6 +261,16 @@ class Nyuki(metaclass=CapabilityHandler):
             write_conf_json(self.config, self._config_filename)
         else:
             log.warning('Not saving the default read-only configuration file')
+
+    def migrate_config(self):
+        """
+        Migrate configuration dict using pijon migrations.
+        """
+        log.info("Configuration seems out of date, applying migrations")
+        update = pijon.migrate(self._config)
+        self._validate_config(update)
+        self._config = update
+        self.save_config()
 
     async def _reload_config(self, request=None):
         """
