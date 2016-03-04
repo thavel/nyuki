@@ -2,3 +2,4 @@ aiohttp>=0.19,<0.20
 jsonschema>=2.5,<2.6
 slixmpp>=1.1,<1.2
 websockets>=3.0,<3.1
+pijon>=0.1,<0.2
