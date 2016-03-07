@@ -3,9 +3,8 @@ import json
 from jsonschema import validate, ValidationError
 import logging
 import logging.config
-from signal import SIGHUP, SIGINT, SIGTERM
-import traceback
 from pijon import Pijon
+from signal import SIGHUP, SIGINT, SIGTERM
 
 from nyuki.bus import Bus
 from nyuki.capabilities import Exposer, Response, resource
@@ -104,22 +103,21 @@ class Nyuki(metaclass=CapabilityHandler):
             log.warning(context)
             return
 
+        exc = None
         if 'future' in context:
             try:
                 context['future'].result()
             except Exception as e:
-                log.exception(e)
-                exc = traceback.format_exc()
-            else:
-                exc = 'could not retrieve exception'
+                exc = e
         else:
-            log.exception(context['exception'])
-            exc = traceback.format_exc()
+            exc = context['exception']
 
-        asyncio.ensure_future(
-            self.reporter.send_report('exception', {'traceback': exc}),
-            loop=loop
-        )
+        if not exc:
+            exc = Exception("could not retrieve exception's traceback")
+        else:
+            log.exception(exc)
+
+        asyncio.ensure_future(self.reporter.exception(exc), loop=loop)
 
     def start(self):
         """
@@ -280,8 +278,7 @@ class Nyuki(metaclass=CapabilityHandler):
         logging.config.dictConfig(self._config['log'])
         await self.reload()
         for name, service in self._services.all.items():
-            if ((request is not None) and (name in request)) \
-                    or request is None:
+            if (request is not None and name in request) or request is None:
                 await service.stop()
                 service.configure(**self._config[name])
                 asyncio.ensure_future(service.start())

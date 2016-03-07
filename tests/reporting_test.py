@@ -41,3 +41,8 @@ class ReportingTest(TestCase):
         self.reporter.send_report('type', {'key': 'value'})
         # Troubles patching datetime.utcnow
         eq_(self.publisher.publish.call_count, 1)
+
+    async def test_003_exception(self):
+        self.reporter.exception(Exception('nope'))
+        # Troubles patching datetime.utcnow
+        eq_(self.publisher.publish.call_count, 1)

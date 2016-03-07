@@ -1,7 +1,9 @@
-from datetime import datetime
-from jsonschema import FormatChecker, validate, ValidationError
-import logging
 import asyncio
+from datetime import datetime
+from jsonschema import FormatChecker, validate
+import logging
+from traceback import TracebackException
+
 
 log = logging.getLogger(__name__)
 
@@ -93,3 +95,13 @@ class Reporter(object):
         self.check_report(report)
         log.info("Sending report data with type '%s'", rtype)
         asyncio.ensure_future(self._publisher.publish(report, self._channel))
+
+    def exception(self, exc):
+        """
+        Helper to report an exception traceback from its object
+        """
+        traceback = TracebackException.from_exception(exc)
+        self.send_report(
+            'exception',
+            {'traceback': ''.join(traceback.format())}
+        )
