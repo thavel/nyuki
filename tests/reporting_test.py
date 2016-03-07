@@ -1,4 +1,4 @@
-from asynctest import TestCase, CoroutineMock, ignore_loop
+from asynctest import TestCase, CoroutineMock, ignore_loop, exhaust_callbacks
 from datetime import datetime
 from jsonschema import ValidationError
 from nose.tools import assert_raises, eq_
@@ -11,6 +11,9 @@ class ReportingTest(TestCase):
     def setUp(self):
         self.publisher = CoroutineMock()
         self.reporter = Reporter('test', self.publisher, 'errors')
+
+    async def tearDown(self):
+        await exhaust_callbacks(self.loop)
 
     @ignore_loop
     def test_001_check_schema(self):

@@ -117,7 +117,7 @@ class Nyuki(metaclass=CapabilityHandler):
         else:
             log.exception(exc)
 
-        asyncio.ensure_future(self.reporter.exception(exc), loop=loop)
+        self.reporter.exception(exc)
 
     def start(self):
         """
