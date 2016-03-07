@@ -98,10 +98,10 @@ class Nyuki(metaclass=CapabilityHandler):
         return self.config.get('report_channel', 'errors')
 
     def _exception_handler(self, loop, context):
-        log.debug('Exception context: %s', context)
         if 'exception' not in context:
-            log.warning(context)
+            log.warning('No exception in context: %s', context)
             return
+        log.debug('Exception context: %s', context)
 
         exc = None
         if 'future' in context:
