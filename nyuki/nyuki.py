@@ -1,6 +1,6 @@
 import asyncio
 import json
-from jsonschema import validate, ValidationError, SchemaError
+from jsonschema import validate, ValidationError
 import logging
 import logging.config
 from signal import SIGHUP, SIGINT, SIGTERM
