@@ -103,7 +103,7 @@ class Nyuki(metaclass=CapabilityHandler):
             return
         log.debug('Exception context: %s', context)
 
-        exc = None
+        exc = Exception("could not retrieve exception's traceback")
         if 'future' in context:
             try:
                 context['future'].result()
@@ -111,11 +111,6 @@ class Nyuki(metaclass=CapabilityHandler):
                 exc = e
         else:
             exc = context['exception']
-
-        if not exc:
-            exc = Exception("could not retrieve exception's traceback")
-        else:
-            log.exception(exc)
 
         self.reporter.exception(exc)
 

@@ -1,7 +1,7 @@
 from asynctest import TestCase, CoroutineMock, ignore_loop, exhaust_callbacks
 from datetime import datetime
 from jsonschema import ValidationError
-from nose.tools import assert_raises, eq_
+from nose.tools import assert_raises, eq_, assert_true
 
 from nyuki.reporting import Reporter
 
@@ -49,3 +49,6 @@ class ReportingTest(TestCase):
         self.reporter.exception(Exception('nope'))
         # Troubles patching datetime.utcnow
         eq_(self.publisher.publish.call_count, 1)
+        calls = self.publisher.publish
+        call_arg = calls.call_args[0][0]
+        assert_true('nope' in call_arg['data']['traceback'])
