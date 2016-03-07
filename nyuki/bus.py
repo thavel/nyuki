@@ -51,6 +51,15 @@ class _BusClient(ClientXMPP):
             log.error('SSL certificates missing at %s', self.ca_certs)
             self.abort()
 
+    def exception(self, exc):
+        """
+        xmlstream.py catches exceptions itself, calls this method afterwards
+        """
+        self._loop.call_exception_handler({
+            'message': str(exc),
+            'exception': exc
+        })
+
 
 class Bus(Service):
 
