@@ -64,8 +64,22 @@ class Reporter(object):
         )
 
     async def _handle_report(self, data):
+        """
+        Handle report, ignore if it comes from this reporter
+        """
+        if data['author'] == self.name:
+            log.debug('Received own report, ignoring')
+            return
+
+        tasks = []
         for handler in self._handlers:
-            await handler(data)
+            tasks.append(asyncio.ensure_future(handler(data)))
+
+        if not tasks:
+            log.debug('No report handler to execute')
+            return
+
+        await asyncio.wait(tasks)
 
     def register_handler(self, handler):
         """

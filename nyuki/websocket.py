@@ -114,10 +114,11 @@ class WebHandler(Service):
         )
         return token
 
-    async def broadcast(self, message, tokens=None):
+    async def broadcast(self, message, tokens=None, timeout=2.0):
         """
         Send a message to every connected client
         """
+        tasks = []
         if not isinstance(message, str):
             data = json.dumps(message)
         if isinstance(tokens, str):
@@ -125,11 +126,21 @@ class WebHandler(Service):
         if isinstance(tokens, list):
             log.debug('Sending to client list %s: %s', tokens, data)
             for token in tokens:
-                await self.clients[token].send(data)
+                client = self.clients[token]
+                if client is None:
+                    log.warning("Token '%s' initialized but not used", token)
+                    continue
+                tasks.append(asyncio.ensure_future(client.send(data)))
         else:
             log.debug('Sending to all WS clients: %s', data)
             for websocket in self.server.websockets:
-                await websocket.send(data)
+                tasks.append(asyncio.ensure_future(websocket.send(data)))
+
+        if not tasks:
+            log.debug('Nobody to broadcast to')
+            return
+
+        await asyncio.wait(tasks, timeout=timeout)
 
     async def _send_ready(self, websocket, token):
         """
