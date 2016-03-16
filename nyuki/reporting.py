@@ -114,9 +114,7 @@ class Reporter(object):
         """
         Helper to report an exception traceback from its object
         """
-        log.exception(exc)
         traceback = TracebackException.from_exception(exc)
-        self.send_report(
-            'exception',
-            {'traceback': ''.join(traceback.format())}
-        )
+        formatted = ''.join(traceback.format())
+        log.error(formatted)
+        self.send_report('exception', {'traceback': formatted})
