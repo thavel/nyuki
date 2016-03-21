@@ -153,6 +153,9 @@ async def mw_capability(app, capa_handler):
 
         try:
             capa_resp = await capa_handler(api_req, **request.match_info)
+        except web.HTTPNotFound:
+            # Avoid sending a report on a simple 404 Not Found
+            raise
         except Exception as exc:
             # Access private '_exception_handler' attribute to avoid calling
             # the 'default_exception_handler' a second time if no exception
