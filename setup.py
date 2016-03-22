@@ -4,8 +4,11 @@ from pip.req import parse_requirements
 from setuptools import setup, find_packages
 
 
-with open('VERSION.txt', 'r') as v:
-    version = v.read().strip()
+try:
+    with open('VERSION.txt', 'r') as v:
+        version = v.read().strip()
+except FileNotFoundError:
+    version = '0.0.0-dev'
 
 with open('DESCRIPTION', 'r') as d:
     long_description = d.read()
