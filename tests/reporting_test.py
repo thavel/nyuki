@@ -29,6 +29,8 @@ class ReportingTest(TestCase):
             })
 
         self.reporter.check_report({
+            'ipv4': '127.0.1.1',
+            'hostname': 'nosetests',
             'type': 'something',
             'author': 'test',
             'datetime': datetime.utcnow().isoformat(),
