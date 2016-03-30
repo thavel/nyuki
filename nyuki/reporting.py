@@ -2,6 +2,8 @@ import asyncio
 from datetime import datetime
 from jsonschema import FormatChecker, validate
 import logging
+import os
+import socket
 from traceback import TracebackException
 
 
@@ -10,8 +12,16 @@ log = logging.getLogger(__name__)
 
 REPORT_SCHEMA = {
     'type': 'object',
-    'required': ['type', 'author', 'datetime', 'data'],
+    'required': ['hostname', 'ipv4', 'type', 'author', 'datetime', 'data'],
     'properties': {
+        'hostname': {
+            'type': 'string',
+            'minLength': 1
+        },
+        'ipv4': {
+            'type': 'string',
+            'minLength': 1
+        },
         'type': {
             'type': 'string',
             'minLength': 1
@@ -99,8 +109,19 @@ class Reporter(object):
     def send_report(self, rtype, data):
         """
         Send reports with a type and any data
+
+        Using docker/fleet, we require some informations about IP/hostname of
+        our nyuki containers, using environnement vars :
+            - MACHINE_NAME: machine hostname
+            - DEFAULT_IPV4: local container ipv4
+        Otherwise, the nyuki try and search for it by itself.
         """
         report = {
+            'hostname': os.environ.get('MACHINE_NAME', socket.gethostname()),
+            'ipv4': os.environ.get(
+                'DEFAULT_IPV4',
+                socket.gethostbyname(socket.gethostname())
+            ),
             'type': rtype,
             'author': self.name,
             'datetime': datetime.utcnow().isoformat(),
