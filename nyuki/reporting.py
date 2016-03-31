@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime
-from jsonschema import FormatChecker, validate
+from jsonschema import FormatChecker, validate, ValidationError
 import logging
 import os
 import socket
@@ -77,6 +77,12 @@ class Reporter(object):
         """
         Handle report, ignore if it comes from this reporter
         """
+        try:
+            self.check_report(data)
+        except ValidationError:
+            log.debug('Received invalid report format, ignoring')
+            return
+
         if data['author'] == self.name:
             log.debug('Received own report, ignoring')
             return
