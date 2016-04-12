@@ -6,13 +6,12 @@ import logging.config
 from pijon import Pijon
 from signal import SIGHUP, SIGINT, SIGTERM
 
-from nyuki.bus import Bus
+from nyuki.bus import Bus, Reporter, from_isoformat
 from nyuki.capabilities import Exposer, Response, resource
 from nyuki.commands import get_command_kwargs
 from nyuki.config import get_full_config, write_conf_json, merge_configs
 from nyuki.handlers import CapabilityHandler
 from nyuki.logs import DEFAULT_LOGGING
-from nyuki.reporting import Reporter
 from nyuki.services import ServiceManager
 from nyuki.websocket import WebHandler
 
@@ -298,6 +297,26 @@ class Nyuki(metaclass=CapabilityHandler):
             asyncio.ensure_future(self._reload_config(request))
 
             return Response(self._config)
+
+    @resource(endpoint='/replay', version='v1')
+    class BusReplay:
+
+        async def post(self, request):
+            try:
+                self._services.get('bus')
+            except KeyError:
+                return Response(status=404)
+
+            since = request.get('since')
+            if since:
+                try:
+                    since = from_isoformat(since)
+                except ValueError:
+                    return Response({
+                        'error': 'Unknown datetime format: %s'.format(since)
+                    }, status=400)
+
+            await self.bus.replay(since)
 
     @resource(endpoint='/swagger', version='v1')
     class Swagger:

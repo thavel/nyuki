@@ -1,9 +1,11 @@
 import asyncio
+from datetime import datetime
 import json
 import logging
 from slixmpp import ClientXMPP
 from slixmpp.exceptions import IqError, IqTimeout
 
+from nyuki.bus.persistence import BusPersistence
 from nyuki.services import Service
 
 
@@ -78,18 +80,44 @@ class Bus(Service):
                 "type": "object",
                 "required": ["jid", "password"],
                 "properties": {
+                    "certificate": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "host": {
+                        "type": "string",
+                        "minLength": 1
+                    },
                     "jid": {
                         "type": "string",
                         "minLength": 1
                     },
+                    "muc_domain": {"type": ["string", "null"]},
                     "password": {
                         "type": "string",
                         "minLength": 1
                     },
-                    "host": {"type": "string"},
                     "port": {"type": "integer"},
-                    "muc_domain": {"type": ["string", "null"]}
-                }
+                    "storage": {
+                        "type": "object",
+                        "required": ["backend"],
+                        "properties": {
+                            "backend": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "host": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "ttl": {
+                                "type": "integer",
+                                "minimum": 1
+                            }
+                        }
+                    }
+                },
+                "additionalProperties": False
             }
         }
     }
@@ -100,12 +128,18 @@ class Bus(Service):
         self._loop = self._nyuki.loop or asyncio.get_event_loop()
 
         self.client = None
+
+        # Connectivity stuff
         self._connected = asyncio.Event()
         self.reconnect = False
+        self._persistence = None
+        self._disconnection_datetime = None
 
+        # MUCs
         self._callbacks = {}
         self._topic = None
         self._mucs = None
+        self._muc_domain = None
 
     async def start(self, timeout=0):
         self.client.connect()
@@ -113,8 +147,12 @@ class Bus(Service):
             await asyncio.wait_for(self._connected.wait(), timeout)
 
     def configure(self, jid, password, host='localhost', port=5222,
-                  muc_domain='mucs.localhost', certificate=None):
-        self.client = _BusClient(jid, password, host, port, certificate=certificate)
+                  muc_domain='mucs.localhost', certificate=None,
+                  storage=None):
+
+        self.client = _BusClient(
+            jid, password, host, port, certificate=certificate
+        )
         self.client.loop = self._loop
         self.client.add_event_handler('connection_failed', self._on_failure)
         self.client.add_event_handler('disconnected', self._on_disconnect)
@@ -122,9 +160,20 @@ class Bus(Service):
         self.client.add_event_handler('groupchat_message', self._on_event)
         self.client.add_event_handler('register', self._on_register)
         self.client.add_event_handler('session_start', self._on_start)
+        self.client.add_event_handler('stream_error', self._on_stream_error)
+
+        # MUCs
         self._topic = self.client.boundjid.user
         self._mucs = self.client.plugin['xep_0045']
         self._muc_domain = muc_domain
+
+        # Persistence storage
+        if storage:
+            self._persistence = BusPersistence(storage['backend'], self._topic)
+            asyncio.ensure_future(self._persistence.init(
+                storage.get('host', 'localhost'),
+                ttl=storage.get('ttl', 60)
+            ))
 
     async def stop(self):
         if not self.client:
@@ -153,6 +202,7 @@ class Bus(Service):
         resp['type'] = 'set'
         resp['register']['username'] = self.client.boundjid.user
         resp['register']['password'] = self.client.password
+
         try:
             await resp.send()
         except IqError as exc:
@@ -173,6 +223,7 @@ class Bus(Service):
         self.reconnect = True
         self.client.send_presence()
         self.client.get_roster()
+
         # Auto-subscribe to the topic where the nyuki could publish events.
         self._connected.set()
         if self._muc_domain is not None:
@@ -181,6 +232,11 @@ class Bus(Service):
                 if topic != self._topic:
                     await self.subscribe(topic, callback)
 
+        # Replay events that have been lost, if any
+        if self._persistence and self._disconnection_datetime:
+            await self.replay(self._disconnection_datetime)
+        self._disconnection_datetime = None
+
     async def _on_disconnect(self, event):
         """
         XMPP event handler when the client has been disconnected.
@@ -188,6 +244,9 @@ class Bus(Service):
         if self._connected.is_set():
             log.warning('Disconnected from the bus')
             self._connected.clear()
+
+        self._disconnection_datetime = datetime.utcnow()
+
         if self.reconnect:
             # Restart the connection loop
             await self.client._connect_routine()
@@ -201,10 +260,12 @@ class Bus(Service):
         ))
         self.client.abort()
 
+    def _on_stream_error(self, event):
+        pass
+
     async def _on_event(self, event):
         """
         XMPP event handler when a Nyuki Event has been received.
-        Fire EventReceived with (from, body).
         """
         # ignore events from the nyuki itself
         efrom = event['from'].user
@@ -228,29 +289,21 @@ class Bus(Service):
         else:
             log.warning('No callback set for event from %s', efrom)
 
-    async def _on_direct_message(self, event):
+    async def replay(self, since=None):
         """
-        Direct message events end up here
+        Replay events since the given datetime (or all if None)
         """
-        if event.get('type') == 'groupchat':
-            log.debug('Ignoring groupchat message')
-            return
+        log.info('Replaying events from %s', since)
+        tasks = list()
+        events = await self._persistence.retrieve(since)
+        for event in events:
+            tasks.append(asyncio.ensure_future(
+                self.publish(json.loads(event['message']), event['topic'], False)
+            ))
+        if tasks:
+            await asyncio.wait(tasks, loop=self._loop)
 
-        log.debug('direct message received: {}'.format(event))
-        efrom = event['from'].user
-
-        try:
-            body = json.loads(event['body'])
-        except ValueError:
-            body = {}
-
-        if self._direct_message_callback:
-            log.debug('calling direct message callback')
-            await self._direct_message_callback(efrom, body)
-        else:
-            log.warning('No callback set for direct messages')
-
-    async def publish(self, event, dest=None):
+    async def publish(self, event, dest=None, store=True):
         """
         Send an event in the nyuki's own MUC so that other nyukis that joined
         the MUC can process it.
@@ -261,17 +314,24 @@ class Bus(Service):
         if not isinstance(event, dict):
             raise TypeError('Message must be a dict')
 
-        if not self._connected.is_set():
-            log.warning('Waiting for a connection to publish')
-        await self._connected.wait()
-
-        log.debug(">> publishing to '{}': {}".format(self._topic, event))
         msg = self.client.Message()
         msg['type'] = 'groupchat'
         msg['to'] = self._muc_address(dest or self._topic)
         msg['body'] = json.dumps(event)
-        log.info('Publishing an event to %s', msg['to'])
-        msg.send()
+
+        if self._persistence and store:
+            asyncio.ensure_future(self._persistence.store(
+                dest or self._topic, msg['body']
+            ))
+
+        if not self._persistence and not self._connected.is_set():
+            log.warning('Waiting for a connection to publish')
+            await self._connected.wait()
+
+        if self._connected.is_set():
+            log.debug(">> publishing to '{}': {}".format(self._topic, event))
+            log.info('Publishing an event to %s', msg['to'])
+            msg.send()
 
     async def subscribe(self, topic, callback=None):
         """
@@ -315,6 +375,28 @@ class Bus(Service):
         """
         self._direct_message_callback = None
         log.info('Unsubscribed from direct messages')
+
+    async def _on_direct_message(self, event):
+        """
+        Direct message events end up here
+        """
+        if event.get('type') == 'groupchat':
+            log.debug('Ignoring groupchat message')
+            return
+
+        log.debug('direct message received: {}'.format(event))
+        efrom = event['from'].user
+
+        try:
+            body = json.loads(event['body'])
+        except ValueError:
+            body = {}
+
+        if self._direct_message_callback:
+            log.debug('calling direct message callback')
+            await self._direct_message_callback(efrom, body)
+        else:
+            log.warning('No callback set for direct messages')
 
     async def send_message(self, recipient, data):
         """
