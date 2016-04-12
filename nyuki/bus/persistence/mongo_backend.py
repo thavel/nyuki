@@ -30,11 +30,14 @@ class MongoBackend(object):
             log.error("Could not reach mongo at address '%s'", self.host)
 
     async def store(self, topic, message):
-        await self._collection.insert({
-            'created_at': datetime.utcnow(),
-            'topic': str(topic),
-            'message': message
-        })
+        try:
+            await self._collection.insert({
+                'created_at': datetime.utcnow(),
+                'topic': str(topic),
+                'message': message
+            })
+        except AutoReconnect:
+            log.error("Could not reach mongo at address '%s'", self.host)
 
     async def retrieve(self, since=None):
         if since:
@@ -43,4 +46,8 @@ class MongoBackend(object):
             cursor = self._collection.find()
 
         cursor.sort('created_at')
-        return await cursor.to_list(None)
+
+        try:
+            return await cursor.to_list(None)
+        except AutoReconnect:
+            log.error("Could not reach mongo at address '%s'", self.host)
