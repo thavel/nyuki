@@ -6,7 +6,7 @@ from asynctest import (
 from nose.tools import assert_raises, eq_, ok_
 from slixmpp import JID
 
-from nyuki.bus import _BusClient, Bus
+from nyuki.bus.bus import _BusClient, Bus
 from tests import future_func
 
 

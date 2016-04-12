@@ -3,7 +3,7 @@ from datetime import datetime
 from jsonschema import ValidationError
 from nose.tools import assert_raises, eq_, assert_true
 
-from nyuki.reporting import Reporter
+from nyuki.bus import Reporter
 
 
 class ReportingTest(TestCase):
