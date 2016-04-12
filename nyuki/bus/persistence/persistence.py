@@ -8,19 +8,38 @@ log = logging.getLogger(__name__)
 
 class BusPersistence(object):
 
-    def __init__(self, backend, name):
+    def __init__(self, backend, **kwargs):
         # TODO: mongo is the only one yet
         assert backend == 'mongo'
-        self.backend = MongoBackend(name)
+        self.backend = MongoBackend(**kwargs)
 
-    async def init(self, *args, **kwargs):
-        log.info('Backend set to %s', self.backend)
-        return await self.backend.init(*args, **kwargs)
+        # Ensure required methods are available, break if not
+        assert hasattr(self.backend, 'init')
+        assert hasattr(self.backend, 'store')
+        assert hasattr(self.backend, 'retrieve')
 
-    async def store(self, topic, message):
-        log.debug('Storing bus event')
-        return await self.backend.store(topic, message)
+    @property
+    def init(self):
+        """
+        Init
+        """
+        return self.backend.init
 
-    async def retrieve(self, since=None):
-        log.debug('Retrieving events from storage')
-        return await self.backend.retrieve(since)
+    @property
+    def store(self):
+        """
+        Store a bus event as:
+        {
+            "topic": "muc",
+            "message": "json dump"
+        }
+        """
+        return self.backend.store
+
+    @property
+    def retrieve(self):
+        """
+        Must return the list of events stored since the given datetime:
+        [{"topic": "muc", "message": "json dump"}]
+        """
+        return self.backend.retrieve

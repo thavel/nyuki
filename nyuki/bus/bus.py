@@ -105,14 +105,6 @@ class Bus(Service):
                             "backend": {
                                 "type": "string",
                                 "minLength": 1
-                            },
-                            "host": {
-                                "type": "string",
-                                "minLength": 1
-                            },
-                            "ttl": {
-                                "type": "integer",
-                                "minimum": 1
                             }
                         }
                     }
@@ -145,6 +137,9 @@ class Bus(Service):
         self.client.connect()
         if timeout:
             await asyncio.wait_for(self._connected.wait(), timeout)
+        if self._persistence:
+            await self._persistence.init()
+            log.info('Bus persistence set to %s', self._persistence.backend)
 
     def configure(self, jid, password, host='localhost', port=5222,
                   muc_domain='mucs.localhost', certificate=None,
@@ -169,11 +164,7 @@ class Bus(Service):
 
         # Persistence storage
         if storage:
-            self._persistence = BusPersistence(storage['backend'], self._topic)
-            asyncio.ensure_future(self._persistence.init(
-                storage.get('host', 'localhost'),
-                ttl=storage.get('ttl', 60)
-            ))
+            self._persistence = BusPersistence(**{**storage, 'name': self._topic})
 
     async def stop(self):
         if not self.client:
