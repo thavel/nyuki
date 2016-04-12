@@ -1,4 +1,4 @@
-from aiohttp import web, HttpBadRequest
+from aiohttp import web
 from enum import Enum
 import logging
 
@@ -41,7 +41,7 @@ class Api(object):
         self._loop = loop
         self._server = None
         self._handler = None
-        self._middlewares = [mw_json, mw_capability]  # Call order = list order
+        self._middlewares = [mw_capability]  # Call order = list order
         self._debug = debug
         self._app = web.Application(
             loop=self._loop,
@@ -83,65 +83,6 @@ class Api(object):
         log.info('Stopped the http server')
 
 
-async def mw_json(app, next_handler):
-    """
-    Ensure the content type is `application/json` for all POST-like requests.
-    """
-    async def middleware(request):
-        if request.method in request.POST_METHODS:
-            content_type = request.headers.get('CONTENT-TYPE')
-            if content_type:
-                if 'application/json' in content_type:
-                    # Checking that the content is actually JSON
-                    # there could be a charset specified.
-                    try:
-                        await request.json()
-                    except ValueError:
-                        log.error('Invalid JSON request content')
-                        raise HttpBadRequest('Invalid JSON request content')
-                elif 'application/xml' in content_type:
-                    # xml is often user for preflight CORS requests
-                    # so, let's the user implement a middleware to handle it
-                    pass
-                elif 'text/' in content_type:
-                    pass
-                else:
-                    log.error('Invalid Content-Type')
-                    raise HttpBadRequest('Invalid Content-Type')
-            elif (await request.content.read()):
-                log.error('Missing suitable Content-Type')
-                raise HttpBadRequest('Missing suitable Content-Type')
-        response = await next_handler(request)
-        return response
-    return middleware
-
-
-class APIRequest(dict):
-    """
-    Class that stores the request data and the headers as an attribute.
-    """
-
-    headers = None
-
-    @classmethod
-    async def from_request(cls, request):
-        # Get json payload if there is one
-        if request.method in request.POST_METHODS:
-            try:
-                data = await request.json()
-            except ValueError:
-                data = None
-        else:
-            data = dict(getattr(request, request.method, {}))
-
-        # Set up class and headers as request attribute
-        req = cls(**data) if data else cls()
-        req.raw = await request.text()
-        req.headers = request.headers
-        req.raw_path = request.raw_path
-        return req
-
-
 async def mw_capability(app, capa_handler):
     """
     Transform the request data to be passed through a capability and
@@ -149,10 +90,8 @@ async def mw_capability(app, capa_handler):
     From here, we are expecting a JSON content.
     """
     async def middleware(request):
-        api_req = await APIRequest.from_request(request)
-
         try:
-            capa_resp = await capa_handler(api_req, **request.match_info)
+            capa_resp = await capa_handler(request, **request.match_info)
         except web.HTTPNotFound:
             # Avoid sending a report on a simple 404 Not Found
             raise
@@ -169,7 +108,7 @@ async def mw_capability(app, capa_handler):
 
         if capa_resp and isinstance(capa_resp, web.Response):
             return capa_resp
-        else:
-            return web.Response()
+
+        return web.Response()
 
     return middleware

@@ -1,11 +1,11 @@
-from aiohttp import errors, web
+from aiohttp import web
 from asynctest import TestCase, Mock, patch, ignore_loop
 from json import loads
 from nose.tools import (
     assert_is, assert_is_not_none, assert_raises, assert_true, eq_
 )
 
-from nyuki.api import Api, mw_capability, mw_json, APIRequest
+from nyuki.api import Api, mw_capability
 from nyuki.capabilities import Response
 from tests import make_future
 
@@ -42,106 +42,6 @@ class TestApi(TestCase):
         assert_is(self._api.router, self._api._app.router)
 
 
-class TestJsonMiddleware(TestCase):
-
-    def setUp(self):
-        self._request = Mock()
-        self._request.POST_METHODS = ['POST', 'PUT', 'PATCH']
-        self._app = Mock()
-
-    async def test_001a_request_json(self):
-        self._request.headers = {'CONTENT-TYPE': 'application/json'}
-        ret_value = {'test_value': 'kikoo_test'}
-        self._request.json.return_value = make_future(ret_value)
-        self._request.method = 'POST'
-
-        async def _next_handler(r):
-            return ret_value
-
-        mdw = await mw_json(self._app, _next_handler)
-        assert_is_not_none(mdw)
-
-        # Good json
-        response = await mdw(self._request)
-        eq_(self._request.json.call_count, 1)
-        eq_(response, ret_value)
-
-        # Wrong json
-        self._request.json.side_effect = ValueError
-        with assert_raises(errors.HttpBadRequest) as e:
-            await mdw(self._request)
-            eq_(str(e), 'Invalid JSON request content')
-
-    async def test_001b_request_xml(self):
-        self._request.headers = {'CONTENT-TYPE': 'application/xml'}
-        self._request.method = 'POST'
-
-        async def _next_handler(r):
-            return 'ok'
-
-        mdw = await mw_json(self._app, _next_handler)
-        assert_is_not_none(mdw)
-        response = await mdw(self._request)
-        eq_(self._request.json.call_count, 0)
-        eq_(response, 'ok')
-
-    async def test_001c_request_text(self):
-        self._request.headers = {'CONTENT-TYPE': 'text/something'}
-        self._request.method = 'POST'
-
-        async def _next_handler(r):
-            return 'ok'
-
-        mdw = await mw_json(self._app, _next_handler)
-        assert_is_not_none(mdw)
-        response = await mdw(self._request)
-        eq_(self._request.json.call_count, 0)
-        eq_(response, 'ok')
-
-    async def test_001z_request_unsupported_type(self):
-        self._request.headers = {'CONTENT-TYPE': 'application/unsupported'}
-        self._request.method = 'POST'
-
-        async def _next_handler(r):
-            return 'ok'
-
-        mdw = await mw_json(self._app, _next_handler)
-        assert_is_not_none(mdw)
-        with assert_raises(errors.HttpBadRequest) as e:
-            await mdw(self._request)
-            eq_(str(e), 'Invalid Content-Type')
-
-    async def test_002_request_handling_non_post_method(self):
-        self._request.headers = {}
-        ret_value = True
-        self._request.method = 'GET'
-
-        async def _next_handler(r):
-            return ret_value
-
-        mdw = await mw_json(self._app, _next_handler)
-        assert_is_not_none(mdw)
-        response = await mdw(self._request)
-        eq_(response, ret_value)
-
-    async def test_003_request_invalid_or_missing_header(self):
-        headers = [{}, {'CONTENT-TYPE': 'application/octet-stream'}]
-        values = ['', 'this_is_octet']
-        self._request.method = 'POST'
-
-        async def _next_handler(r):
-            return 'dummy'
-
-        for idx, h in enumerate(headers):
-            self._request.headers = h
-            self._request.content = values[idx]
-            mdw = await mw_json(self._app, _next_handler)
-            assert_is_not_none(mdw)
-            if idx > 0:
-                with assert_raises(errors.HttpBadRequest):
-                    await mdw(self._request)
-
-
 class TestCapabilityMiddleware(TestCase):
 
     def setUp(self):
@@ -158,11 +58,6 @@ class TestCapabilityMiddleware(TestCase):
     async def test_001a_extract_data_from_payload_post_method(self):
         self._request.method = 'POST'
         self._request.match_info = {'name': 'test'}
-
-        async def json():
-            return {'capability': 'string_manip'}
-
-        self._request.json = json
 
         async def _capa_handler(d, name):
             eq_(name, 'test')
@@ -229,9 +124,9 @@ class TestCapabilityMiddleware(TestCase):
         self._request.match_info = {'name': 'test'}
         self._request.headers = {'Content-Type': 'application/json'}
 
-        ar = await APIRequest.from_request(self._request)
+        ar = await self._request.json()
         eq_(ar['capability'], 'test')
-        eq_(ar.headers.get('Content-Type'), 'application/json')
+        eq_(self._request.headers.get('Content-Type'), 'application/json')
 
     async def test_004_exception(self):
         self._request.method = 'GET'

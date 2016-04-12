@@ -1,4 +1,3 @@
-import aiohttp
 import asyncio
 import json
 import logging
@@ -332,54 +331,3 @@ class Bus(Service):
         log.debug(">> direct message to '{}': {}".format(recipient, data))
         body = json.dumps(data)
         self.client.send_message(recipient, body)
-
-    async def _execute_request(self, url, method, data=None, headers=None):
-        """
-        Asynchronously send a request of type 'application/json' to method/url.
-        If data is not None, it is supposed to be a dict.
-        """
-        data = json.dumps(data)
-        base_headers = {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        }
-        headers = headers or {}
-        headers.update(base_headers)
-        log.debug('>> sending {} request to {}'.format(method.upper(), url))
-        response = await aiohttp.request(
-            method, url, data=data, headers=headers
-        )
-        try:
-            data = await response.json()
-        except ValueError:
-            data = None
-        response.json = data
-        log.debug('<< received response from {}: {}'.format(url, data))
-        return response
-
-    async def request(self, nyuki, endpoint, method, out=False,
-                      data=None, headers=None, callback=None):
-        """
-        Send a P2P request to another nyuki, async a callback if given.
-        The callback is called with the response object (json).
-        """
-        if not out:
-            endpoint = 'http://localhost:8080/{}/api/{}'.format(nyuki,
-                                                                endpoint)
-        try:
-            response = await self._execute_request(endpoint, method,
-                                                   data, headers)
-        except (aiohttp.HttpProcessingError,
-                aiohttp.ServerDisconnectedError,
-                aiohttp.ClientOSError) as exc:
-            log.error('failed to send request to {}'.format(endpoint))
-            response = exc
-            error = {'error': repr(exc), 'endpoint': endpoint, 'data': data}
-            self.publish(error)
-        if callback:
-            log.debug('calling response callback with {}'.format(response))
-            if asyncio.iscoroutinefunction(callback):
-                asyncio.ensure_future(callback(response))
-            else:
-                self._loop.call_soon(callback, response)
-        return response
