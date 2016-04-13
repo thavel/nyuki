@@ -97,3 +97,23 @@ class TestBus(TestCase):
         msg['body'] = '{"key": "value"}'
         await self.bus._on_direct_message(msg)
         cb.assert_called_once_with('other', {'key': 'value'})
+
+
+@patch('nyuki.bus.persistence.mongo_backend.MongoBackend.init', Mock)
+@patch('slixmpp.xmlstream.stanzabase.StanzaBase.send', Mock)
+class TestMongoPersistence(TestCase):
+
+    async def setUp(self):
+        self.bus = Bus(Mock())
+        self.bus.configure(
+            'login@localhost', 'password',
+            storage={'backend': 'mongo', 'host': 'localhost'}
+        )
+        await self.bus.start()
+
+    @patch('nyuki.bus.persistence.mongo_backend.MongoBackend.store')
+    async def test_001_store(self, store):
+        await self.bus.publish({'something': 'something'})
+        eq_(self.bus._persistence.backend.name, 'login')
+        eq_(self.bus._persistence.backend.host, 'localhost')
+        store.assert_called_once_with('login', '{"something": "something"}')
