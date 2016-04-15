@@ -34,9 +34,11 @@ class Sample(Nyuki):
     class Messages:
 
         def get(self, request):
+            log.info("received GET request: {}".format(request))
             return Response(self.messages)
 
         def post(self, request):
+            log.info("received POST request: {}".format(request))
             self.messages.update(request)
             return Response(self.messages)
 
