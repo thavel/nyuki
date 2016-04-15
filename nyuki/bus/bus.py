@@ -13,7 +13,7 @@ from nyuki.services import Service
 log = logging.getLogger(__name__)
 
 
-class NotSubscribedError(Exception):
+class PublishError(Exception):
     pass
 
 
@@ -166,6 +166,7 @@ class Bus(Service):
         self.client.add_event_handler('message', self._on_direct_message)
         self.client.add_event_handler('register', self._on_register)
         self.client.add_event_handler('session_start', self._on_start)
+        self.client.add_event_handler('stream_error', self._on_stream_error)
 
         # MUCs
         self._topic = self.client.boundjid.user
@@ -233,15 +234,11 @@ class Bus(Service):
 
         # Auto-subscribe to the topic where the nyuki could publish events.
         self._connected.set()
-        if self._muc_domain is not None:
-            await self.subscribe(self._topic)
-            for topic, callback in self._callbacks.items():
-                if topic != self._topic:
-                    await self.subscribe(topic, callback)
+        await self.resubscribe()
 
         # Replay events that have been lost, if any
         if self._persistence and self._disconnection_datetime:
-            await self.replay(self._disconnection_datetime)
+            await self.replay(self._disconnection_datetime, EventStatus.failed())
         self._disconnection_datetime = None
 
     async def _on_disconnect(self, event):
@@ -267,13 +264,29 @@ class Bus(Service):
         ))
         self.client.abort()
 
+    async def _on_stream_error(self, event):
+        """
+        Received on stream_error from prosody
+        (TODO: event informations unknown)
+        """
+        log.error('Received unexpected stream error, resubscribing')
+        log.debug('event dump: %s', event)
+        await self.resubscribe()
+        if event['id'] in self._publish_futures:
+            self._publish_futures[event['id']].set_exception(PublishError)
+
     async def _on_failed_publish(self, event):
+        """
+        Event received when a publish has failed
+        (publish informations in the event)
+        """
         muc = event['from'].user
+        log.warning("Was not subscribed to MUC '%s', retrying", muc)
         if muc == self.client.boundjid.user:
             await self.subscribe(muc)
         else:
             await self.subscribe(muc, self._callbacks[muc])
-        self._publish_futures[event['id']].set_exception(NotSubscribedError)
+        self._publish_futures[event['id']].set_exception(PublishError)
 
     async def _on_event(self, event):
         """
@@ -306,21 +319,21 @@ class Bus(Service):
         else:
             log.warning('No callback set for event from %s', efrom)
 
-    async def replay(self, since=None):
+    async def replay(self, since=None, status=None):
         """
         Replay events since the given datetime (or all if None)
         """
         log.info('Replaying events from %s', since)
         tasks = list()
-        events = await self._persistence.retrieve(since)
+        events = await self._persistence.retrieve(since, status)
         for event in events:
             tasks.append(asyncio.ensure_future(
-                self.publish(json.loads(event['message']), event['topic'], False)
+                self.publish(json.loads(event['message']), event['topic'], True)
             ))
         if tasks:
             await asyncio.wait(tasks, loop=self._loop)
 
-    async def publish(self, event, dest=None, store=True):
+    async def publish(self, event, dest=None, replay=False):
         """
         Send an event in the nyuki's own MUC so that other nyukis that joined
         the MUC can process it.
@@ -353,9 +366,8 @@ class Bus(Service):
                 msg.send()
                 try:
                     await self._publish_futures[uid]
-                except NotSubscribedError:
+                except PublishError:
                     status = EventStatus.FAILED
-                    log.warning("Was not subscribed to MUC '%s', retrying", msg['to'])
                     self._publish_futures[uid] = asyncio.Future()
                 else:
                     status = EventStatus.SENT
@@ -364,7 +376,7 @@ class Bus(Service):
             status = EventStatus.NOT_CONNECTED
 
         # Once we have a result, store it if needed
-        if self._persistence and await self._persistence.ping() and store:
+        if self._persistence and await self._persistence.ping() and not replay:
             await self._persistence.store({
                 'id': uid,
                 'status': status.value,
@@ -385,6 +397,16 @@ class Bus(Service):
         if topic not in self._callbacks:
             self._callbacks[topic] = callback
         log.info("Subscribed to '{}'".format(topic))
+
+    async def resubscribe(self):
+        """
+        Resubscribe everywhere
+        """
+        if self._muc_domain is not None:
+            await self.subscribe(self._topic)
+            for topic, callback in self._callbacks.items():
+                if topic != self._topic:
+                    await self.subscribe(topic, callback)
 
     async def unsubscribe(self, topic):
         """

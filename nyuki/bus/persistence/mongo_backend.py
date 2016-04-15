@@ -3,6 +3,8 @@ import logging
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import AutoReconnect
 
+from nyuki.bus.persistence import EventStatus
+
 
 log = logging.getLogger(__name__)
 
@@ -34,12 +36,8 @@ class MongoBackend(object):
             return True
 
     async def init(self):
-        self.client = AsyncIOMotorClient(self.host)
-
-        if not await self.ping():
-            raise MongoNotConnectedError
-
         # Get collection for this nyuki
+        self.client = AsyncIOMotorClient(self.host)
         db = self.client['bus_persistence']
         self._collection = db[self.name]
         await self._index_ttl()
@@ -59,9 +57,8 @@ class MongoBackend(object):
             await self._index_ttl()
 
         await self._collection.insert({
+            **event,
             'created_at': datetime.utcnow(),
-            'topic': event['topic'],
-            'message': event['message']
         })
 
     async def retrieve(self, since=None, status=None):
@@ -69,16 +66,17 @@ class MongoBackend(object):
             raise MongoNotConnectedError
 
         query = {}
+
         if since:
             query['created_at'] = {'$gte': since}
-        if status:
-            query['status'] = status
 
-        if since:
-            cursor = self._collection.find({'created_at': {'$gte': since}})
-        else:
-            cursor = self._collection.find()
+        if status and isinstance(status, EventStatus):
+            if isinstance(status, list):
+                query['status'] = {'$in': [es.value for es in status]}
+            else:
+                query['status'] = status.value
 
+        cursor = self._collection.find(query)
         cursor.sort('created_at')
 
         return await cursor.to_list(None)

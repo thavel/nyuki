@@ -1,5 +1,4 @@
 import asyncio
-from enum import Enum
 import logging
 
 from nyuki.bus.persistence.mongo_backend import MongoBackend
@@ -10,13 +9,6 @@ log = logging.getLogger(__name__)
 
 class StorageError(Exception):
     pass
-
-
-class EventStatus(Enum):
-
-    FAILED = 'FAILED'
-    NOT_CONNECTED = 'NOT_CONNECTED'
-    SENT = 'SENT'
 
 
 class BusPersistence(object):
