@@ -59,16 +59,20 @@ def _check_isoformat(datetime):
 
 class Reporter(object):
 
-    def __init__(self, name, publisher, channel):
+    EXCEPTION_TTL = 3600
+
+    def __init__(self, name, publisher, channel, loop=None):
         if not hasattr(publisher, 'subscribe'):
             raise TypeError("Nyuki publisher requires the 'subscribe' method")
         if not hasattr(publisher, 'publish'):
             raise TypeError("Nyuki publisher requires the 'publish' method")
 
         self.name = name
+        self._loop = loop or asyncio.get_event_loop()
         self._publisher = publisher
         self._channel = channel
         self._handlers = list()
+        self._last_exceptions = list()
         asyncio.ensure_future(
             self._publisher.subscribe(channel, self._handle_report)
         )
@@ -144,4 +148,18 @@ class Reporter(object):
         traceback = TracebackException.from_exception(exc)
         formatted = ''.join(traceback.format())
         log.error(formatted)
+
+        if formatted in self._last_exceptions:
+            log.debug('Exception already logged')
+            return
+
+        # Retain the formatted exception in memory to avoid looping
+        self._last_exceptions.append(formatted)
+        self._loop.call_later(
+            self.EXCEPTION_TTL, self._forget_exception, formatted
+        )
+
         self.send_report('exception', {'traceback': formatted})
+
+    def _forget_exception(self, formatted):
+        self._last_exceptions.remove(formatted)
