@@ -4,12 +4,17 @@ import json
 import logging
 from slixmpp import ClientXMPP
 from slixmpp.exceptions import IqError, IqTimeout
+from uuid import uuid4
 
-from nyuki.bus.persistence import BusPersistence
+from nyuki.bus.persistence import BusPersistence, EventStatus
 from nyuki.services import Service
 
 
 log = logging.getLogger(__name__)
+
+
+class NotSubscribedError(Exception):
+    pass
 
 
 class _BusClient(ClientXMPP):
@@ -122,13 +127,14 @@ class Bus(Service):
         self.client = None
 
         # Connectivity stuff
-        self._connected = asyncio.Event()
         self.reconnect = False
+        self._connected = asyncio.Event()
         self._persistence = None
         self._disconnection_datetime = None
+        self._publish_futures = dict()
 
         # MUCs
-        self._callbacks = {}
+        self._callbacks = dict()
         self._topic = None
         self._mucs = None
         self._muc_domain = None
@@ -139,12 +145,11 @@ class Bus(Service):
             await asyncio.wait_for(self._connected.wait(), timeout)
         if self._persistence:
             await self._persistence.init()
-            log.info('Bus persistence set to %s', self._persistence.backend)
 
     def configure(self, jid, password, host='localhost', port=5222,
                   muc_domain='mucs.localhost', certificate=None,
                   storage=None):
-
+        # XMPP client and main handlers
         self.client = _BusClient(
             jid, password, host, port, certificate=certificate
         )
@@ -152,19 +157,23 @@ class Bus(Service):
         self.client.add_event_handler('connection_failed', self._on_failure)
         self.client.add_event_handler('disconnected', self._on_disconnect)
         self.client.add_event_handler('message', self._on_direct_message)
-        self.client.add_event_handler('groupchat_message', self._on_event)
         self.client.add_event_handler('register', self._on_register)
         self.client.add_event_handler('session_start', self._on_start)
-        self.client.add_event_handler('stream_error', self._on_stream_error)
 
         # MUCs
         self._topic = self.client.boundjid.user
         self._mucs = self.client.plugin['xep_0045']
         self._muc_domain = muc_domain
+        self.client.add_event_handler('groupchat_message', self._on_event)
+        self.client.add_event_handler(
+            'muc::{}::message_error'.format(self._muc_address(self._topic)),
+            self._on_failed_publish
+        )
 
         # Persistence storage
         if storage:
             self._persistence = BusPersistence(**{**storage, 'name': self._topic})
+            log.info('Bus persistence set to %s', self._persistence.backend)
 
     async def stop(self):
         if not self.client:
@@ -251,8 +260,13 @@ class Bus(Service):
         ))
         self.client.abort()
 
-    def _on_stream_error(self, event):
-        pass
+    async def _on_failed_publish(self, event):
+        muc = event['from'].user
+        if muc == self.client.boundjid.user:
+            await self.subscribe(muc)
+        else:
+            await self.subscribe(muc, self._callbacks[muc])
+        self._publish_futures[event['id']].set_exception(NotSubscribedError)
 
     async def _on_event(self, event):
         """
@@ -261,6 +275,11 @@ class Bus(Service):
         # ignore events from the nyuki itself
         efrom = event['from'].user
         if efrom == self.client.boundjid.user:
+            future = self._publish_futures.get(event['id'])
+            if not efrom:
+                log.warning('Received own publish that was not in memory')
+            else:
+                future.set_result(None)
             return
 
         log.debug('event received: {}'.format(event))
@@ -306,23 +325,45 @@ class Bus(Service):
             raise TypeError('Message must be a dict')
 
         msg = self.client.Message()
+        msg['id'] = uid = str(uuid4())
         msg['type'] = 'groupchat'
         msg['to'] = self._muc_address(dest or self._topic)
         msg['body'] = json.dumps(event)
 
-        if self._persistence and store:
-            asyncio.ensure_future(self._persistence.store(
-                dest or self._topic, msg['body']
-            ))
+        future = asyncio.Future()
 
-        if not self._persistence and not self._connected.is_set():
-            log.warning('Waiting for a connection to publish')
+        self._publish_futures[uid] = future
+        if not self._persistence or not await self._persistence.alive():
+            log.info('Persistence not available, ensuring bus connection')
             await self._connected.wait()
 
+        # Publish in MUC
         if self._connected.is_set():
             log.debug(">> publishing to '{}': {}".format(self._topic, event))
             log.info('Publishing an event to %s', msg['to'])
-            msg.send()
+            status = None
+            while status != EventStatus.SENT:
+                msg.send()
+                try:
+                    await self._publish_futures[uid]
+                except NotSubscribedError:
+                    status = EventStatus.FAILED
+                    log.warning("Was not subscribed to MUC '%s', retrying", msg['to'])
+                    self._publish_futures[uid] = asyncio.Future()
+                else:
+                    status = EventStatus.SENT
+                    log.info("Event successfully sent to MUC '%s'", msg['to'])
+        else:
+            status = EventStatus.NOT_CONNECTED
+
+        # Once we have a result, store it if needed
+        if self._persistence and await self._persistence.alive() and store:
+            await self._persistence.store({
+                'id': uid,
+                'status': status.value,
+                'topic': dest or self._topic,
+                'message': msg['body'],
+            })
 
     async def subscribe(self, topic, callback=None):
         """
@@ -372,7 +413,6 @@ class Bus(Service):
         Direct message events end up here
         """
         if event.get('type') == 'groupchat':
-            log.debug('Ignoring groupchat message')
             return
 
         log.debug('direct message received: {}'.format(event))
