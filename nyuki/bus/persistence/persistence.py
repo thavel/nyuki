@@ -33,11 +33,11 @@ class BusPersistence(object):
         assert hasattr(self.backend, 'store')
         assert hasattr(self.backend, 'retrieve')
 
-    async def alive(self):
+    async def ping(self):
         """
         Connection check
         """
-        return await self.backend.alive()
+        return await self.backend.ping()
 
     async def init(self, *args, **kwargs):
         """

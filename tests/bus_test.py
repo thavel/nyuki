@@ -100,7 +100,7 @@ class TestBus(TestCase):
 
 
 @patch('nyuki.bus.persistence.mongo_backend.MongoBackend.init', Mock)
-@patch('nyuki.bus.persistence.mongo_backend.MongoBackend.alive')
+@patch('nyuki.bus.persistence.mongo_backend.MongoBackend.ping')
 @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send', Mock)
 class TestMongoPersistence(TestCase):
 
@@ -114,8 +114,8 @@ class TestMongoPersistence(TestCase):
         await self.bus.start()
 
     @patch('nyuki.bus.persistence.mongo_backend.MongoBackend.store')
-    async def test_001_store(self, store, alive):
-        alive.return_value = True
+    async def test_001_store(self, store, ping):
+        ping.return_value = True
         await self.bus.publish({'something': 'something'})
         eq_(self.bus._persistence.backend.name, 'login')
         eq_(self.bus._persistence.backend.host, 'localhost')

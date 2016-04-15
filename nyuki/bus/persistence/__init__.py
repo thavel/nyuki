@@ -1,1 +1,1 @@
-from .persistence import BusPersistence, EventStatus
+from .persistence import BusPersistence, EventStatus, StorageError

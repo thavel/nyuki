@@ -6,7 +6,7 @@ from slixmpp import ClientXMPP
 from slixmpp.exceptions import IqError, IqTimeout
 from uuid import uuid4
 
-from nyuki.bus.persistence import BusPersistence, EventStatus
+from nyuki.bus.persistence import BusPersistence, EventStatus, StorageError
 from nyuki.services import Service
 
 
@@ -143,8 +143,15 @@ class Bus(Service):
         self.client.connect()
         if timeout:
             await asyncio.wait_for(self._connected.wait(), timeout)
+
         if self._persistence:
-            await self._persistence.init()
+            try:
+                await self._persistence.init()
+            except StorageError:
+                log.warning(
+                    'Could not init persistence storage with %s',
+                    self._persistence.backend
+                )
 
     def configure(self, jid, password, host='localhost', port=5222,
                   muc_domain='mucs.localhost', certificate=None,
@@ -333,7 +340,7 @@ class Bus(Service):
         future = asyncio.Future()
 
         self._publish_futures[uid] = future
-        if not self._persistence or not await self._persistence.alive():
+        if not self._persistence or not await self._persistence.ping():
             log.info('Persistence not available, ensuring bus connection')
             await self._connected.wait()
 
@@ -357,7 +364,7 @@ class Bus(Service):
             status = EventStatus.NOT_CONNECTED
 
         # Once we have a result, store it if needed
-        if self._persistence and await self._persistence.alive() and store:
+        if self._persistence and await self._persistence.ping() and store:
             await self._persistence.store({
                 'id': uid,
                 'status': status.value,

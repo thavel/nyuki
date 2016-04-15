@@ -1,6 +1,7 @@
 from datetime import datetime
 import logging
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo.errors import AutoReconnect
 
 
 log = logging.getLogger(__name__)
@@ -24,13 +25,18 @@ class MongoBackend(object):
     def __str__(self):
         return "<MongoBackend with host '{}'>".format(self.host)
 
-    async def alive(self):
-        return await self.client.alive() if self.client else False
+    async def ping(self):
+        try:
+            await self.client.admin.command('ping')
+        except AutoReconnect:
+            return False
+        else:
+            return True
 
     async def init(self):
         self.client = AsyncIOMotorClient(self.host)
 
-        if not await self.alive():
+        if not await self.ping():
             raise MongoNotConnectedError
 
         # Get collection for this nyuki
@@ -46,7 +52,7 @@ class MongoBackend(object):
         self._indexed = True
 
     async def store(self, event):
-        if not await self.alive():
+        if not await self.ping():
             raise MongoNotConnectedError
 
         if not self._indexed:
@@ -58,9 +64,15 @@ class MongoBackend(object):
             'message': event['message']
         })
 
-    async def retrieve(self, since=None):
-        if not await self.alive():
+    async def retrieve(self, since=None, status=None):
+        if not await self.ping():
             raise MongoNotConnectedError
+
+        query = {}
+        if since:
+            query['created_at'] = {'$gte': since}
+        if status:
+            query['status'] = status
 
         if since:
             cursor = self._collection.find({'created_at': {'$gte': since}})
