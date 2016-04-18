@@ -4,9 +4,9 @@ from enum import Enum
 class EventStatus(Enum):
 
     FAILED = 'FAILED'
-    NOT_CONNECTED = 'NOT_CONNECTED'
+    PENDING = 'PENDING'
     SENT = 'SENT'
 
     @classmethod
-    def failed(cls):
-        return [cls.FAILED, cls.NOT_CONNECTED]
+    def not_sent(cls):
+        return [cls.FAILED, cls.PENDING]

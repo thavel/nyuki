@@ -6,7 +6,7 @@ from slixmpp import ClientXMPP
 from slixmpp.exceptions import IqError, IqTimeout
 from uuid import uuid4
 
-from nyuki.bus.persistence import BusPersistence, EventStatus, StorageError
+from nyuki.bus.persistence import BusPersistence, EventStatus, PersistenceError
 from nyuki.services import Service
 
 
@@ -103,7 +103,7 @@ class Bus(Service):
                         "minLength": 1
                     },
                     "port": {"type": "integer"},
-                    "storage": {
+                    "persistence": {
                         "type": "object",
                         "required": ["backend"],
                         "properties": {
@@ -147,7 +147,7 @@ class Bus(Service):
         if self._persistence:
             try:
                 await self._persistence.init()
-            except StorageError:
+            except PersistenceError:
                 log.warning(
                     'Could not init persistence storage with %s',
                     self._persistence.backend
@@ -155,7 +155,7 @@ class Bus(Service):
 
     def configure(self, jid, password, host='localhost', port=5222,
                   muc_domain='mucs.localhost', certificate=None,
-                  storage=None):
+                  persistence=None):
         # XMPP client and main handlers
         self.client = _BusClient(
             jid, password, host, port, certificate=certificate
@@ -170,6 +170,7 @@ class Bus(Service):
 
         # MUCs
         self._topic = self.client.boundjid.user
+        self._callbacks[self._topic] = None
         self._mucs = self.client.plugin['xep_0045']
         self._muc_domain = muc_domain
         self.client.add_event_handler('groupchat_message', self._on_event)
@@ -179,8 +180,10 @@ class Bus(Service):
         )
 
         # Persistence storage
-        if storage:
-            self._persistence = BusPersistence(**{**storage, 'name': self._topic})
+        if persistence:
+            self._persistence = BusPersistence(
+                **{**persistence, 'name': self._topic}
+            )
             log.info('Bus persistence set to %s', self._persistence.backend)
 
     async def stop(self):
@@ -234,11 +237,11 @@ class Bus(Service):
 
         # Auto-subscribe to the topic where the nyuki could publish events.
         self._connected.set()
-        await self.resubscribe()
+        await self.subscribe(self._topic)
 
         # Replay events that have been lost, if any
         if self._persistence and self._disconnection_datetime:
-            await self.replay(self._disconnection_datetime, EventStatus.failed())
+            await self.replay(self._disconnection_datetime, EventStatus.not_sent())
         self._disconnection_datetime = None
 
     async def _on_disconnect(self, event):
@@ -271,32 +274,36 @@ class Bus(Service):
         """
         log.error('Received unexpected stream error, resubscribing')
         log.debug('event dump: %s', event)
-        await self.resubscribe()
+        await self._resubscribe()
         if event['id'] in self._publish_futures:
-            self._publish_futures[event['id']].set_exception(PublishError)
+            if not self._publish_futures[event['id']].done():
+                self._publish_futures[event['id']].set_exception(PublishError)
+            else:
+                log.debug('Publish future was already done')
 
     async def _on_failed_publish(self, event):
         """
         Event received when a publish has failed
         (publish informations in the event)
         """
+        uid = event['id']
         muc = event['from'].user
         log.warning("Was not subscribed to MUC '%s', retrying", muc)
-        if muc == self.client.boundjid.user:
-            await self.subscribe(muc)
+        await self.subscribe(muc, self._callbacks.get(muc))
+        if not self._publish_futures[uid].done():
+            self._publish_futures[uid].set_exception(PublishError)
         else:
-            await self.subscribe(muc, self._callbacks[muc])
-        self._publish_futures[event['id']].set_exception(PublishError)
+            log.debug('Publish future was already done for id %s', uid)
 
     async def _on_event(self, event):
         """
         XMPP event handler when a Nyuki Event has been received.
         """
         # ignore events from the nyuki itself
-        efrom = event['from'].user
-        if efrom == self.client.boundjid.user:
+        to = event['to'].user
+        if to == self._topic:
             future = self._publish_futures.get(event['id'])
-            if not efrom:
+            if not future:
                 log.warning('Received own publish that was not in memory')
             else:
                 future.set_result(None)
@@ -309,7 +316,7 @@ class Bus(Service):
         except ValueError:
             body = {}
 
-        callback = self._callbacks.get(efrom)
+        callback = self._callbacks.get(to)
         if callback:
             log.debug('calling callback %s', callback)
             if not asyncio.iscoroutinefunction(callback):
@@ -317,21 +324,21 @@ class Bus(Service):
                 callback = asyncio.coroutine(callback)
             await callback(body)
         else:
-            log.warning('No callback set for event from %s', efrom)
+            log.warning('No callback set for event from %s', to)
 
     async def replay(self, since=None, status=None):
         """
         Replay events since the given datetime (or all if None)
         """
-        log.info('Replaying events from %s', since)
-        tasks = list()
+        log.info('Replaying events')
+        if since:
+            log.info('    since %s', since)
+        if status:
+            log.info('    with status %s', status)
+
         events = await self._persistence.retrieve(since, status)
         for event in events:
-            tasks.append(asyncio.ensure_future(
-                self.publish(json.loads(event['message']), event['topic'], True)
-            ))
-        if tasks:
-            await asyncio.wait(tasks, loop=self._loop)
+            await self.publish(json.loads(event['message']), event['topic'], True)
 
     async def publish(self, event, dest=None, replay=False):
         """
@@ -341,6 +348,7 @@ class Bus(Service):
         if self._muc_domain is None:
             log.warning('No subscription to any muc')
             return
+
         if not isinstance(event, dict):
             raise TypeError('Message must be a dict')
 
@@ -373,7 +381,9 @@ class Bus(Service):
                     status = EventStatus.SENT
                     log.info("Event successfully sent to MUC '%s'", msg['to'])
         else:
-            status = EventStatus.NOT_CONNECTED
+            status = EventStatus.PENDING
+
+        del self._publish_futures[uid]
 
         # Once we have a result, store it if needed
         if self._persistence and await self._persistence.ping() and not replay:
@@ -383,6 +393,13 @@ class Bus(Service):
                 'topic': dest or self._topic,
                 'message': msg['body'],
             })
+
+    async def _resubscribe(self):
+        """
+        Resubscribe everywhere
+        """
+        for topic in self._callbacks.keys():
+            await self.subscribe(topic, self._callbacks.get(topic))
 
     async def subscribe(self, topic, callback=None):
         """
@@ -394,19 +411,11 @@ class Bus(Service):
         await self._connected.wait()
 
         self._mucs.joinMUC(self._muc_address(topic), self._topic)
+        log.info("Subscribed to '{}'".format(topic))
         if topic not in self._callbacks:
             self._callbacks[topic] = callback
-        log.info("Subscribed to '{}'".format(topic))
-
-    async def resubscribe(self):
-        """
-        Resubscribe everywhere
-        """
-        if self._muc_domain is not None:
-            await self.subscribe(self._topic)
-            for topic, callback in self._callbacks.items():
-                if topic != self._topic:
-                    await self.subscribe(topic, callback)
+        else:
+            log.warning("Callback already set for topic: %s", topic)
 
     async def unsubscribe(self, topic):
         """

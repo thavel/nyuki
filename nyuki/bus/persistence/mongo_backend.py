@@ -1,7 +1,8 @@
 from datetime import datetime
 import logging
 from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo.errors import AutoReconnect
+from pymongo.errors import AutoReconnect, OperationFailure
+
 
 from nyuki.bus.persistence import EventStatus
 
@@ -15,9 +16,10 @@ class MongoNotConnectedError(Exception):
 
 class MongoBackend(object):
 
-    def __init__(self, name, host, ttl=60):
+    def __init__(self, name, host='localhost', ttl=3600):
         self.name = name
         self.client = None
+        self.db = None
         self.host = host
         self.ttl = ttl
         self._collection = None
@@ -38,15 +40,24 @@ class MongoBackend(object):
     async def init(self):
         # Get collection for this nyuki
         self.client = AsyncIOMotorClient(self.host)
-        db = self.client['bus_persistence']
-        self._collection = db[self.name]
+        self.db = self.client['bus_persistence']
+        self._collection = self.db[self.name]
         await self._index_ttl()
 
     async def _index_ttl(self):
         # Set a TTL to the documents in this collection
-        await self._collection.create_index(
-            'created_at', expireAfterSeconds=self.ttl*60
-        )
+        async def index():
+            await self._collection.ensure_index(
+                'created_at', expireAfterSeconds=self.ttl
+            )
+
+        try:
+            await index()
+        except OperationFailure:
+            # Value changed, drop and reindex
+            await self._collection.drop_index('created_at_1')
+            await index()
+
         self._indexed = True
 
     async def store(self, event):

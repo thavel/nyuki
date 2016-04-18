@@ -1,12 +1,13 @@
 from aiohttp import ClientOSError
 import asyncio
 from asynctest import (
-    TestCase, patch, Mock, CoroutineMock, ignore_loop, exhaust_callbacks
+    TestCase, patch, Mock, CoroutineMock, ignore_loop, exhaust_callbacks, call
 )
-from nose.tools import assert_raises, eq_, ok_, assert_in
+from nose.tools import assert_raises, eq_, ok_
 from slixmpp import JID
 
-from nyuki.bus.bus import _BusClient, Bus
+from nyuki.bus.bus import _BusClient, Bus, PublishError
+from nyuki.bus.persistence import EventStatus
 from tests import future_func
 
 
@@ -44,14 +45,14 @@ class TestBus(TestCase):
         eq_(muc, 'topic@mucs.localhost')
 
     async def test_002_on_event(self):
+        self.bus._connected.set()
         cb = CoroutineMock()
         with patch.object(self.bus._mucs, 'joinMUC') as join_mock:
-            self.bus._connected.set()
             await self.bus.subscribe('other', cb)
             join_mock.assert_called_once_with('other@mucs.localhost', 'login')
         msg = self.bus.client.Message()
         msg['type'] = 'groupchat'
-        msg['from'] = JID('other@localhost')
+        msg['to'] = JID('other@localhost')
         msg['body'] = '{"key": "value"}'
         await self.bus._on_event(msg)
         cb.assert_called_once_with({'key': 'value'})
@@ -98,10 +99,59 @@ class TestBus(TestCase):
         await self.bus._on_direct_message(msg)
         cb.assert_called_once_with('other', {'key': 'value'})
 
+    async def stream_error(self):
+        for uid in self.bus._publish_futures.keys():
+            await self.bus._on_stream_error({'id': uid})
 
-@patch('nyuki.bus.persistence.mongo_backend.MongoBackend.init', Mock)
-@patch('nyuki.bus.persistence.mongo_backend.MongoBackend.ping')
-@patch('slixmpp.xmlstream.stanzabase.StanzaBase.send', Mock)
+    async def publish_fail(self):
+        for uid in self.bus._publish_futures.keys():
+            await self.bus._on_failed_publish({
+                'id': uid, 'from': self.bus.client.boundjid
+            })
+
+    async def publish_ok(self):
+        for uid in self.bus._publish_futures.keys():
+            await self.bus._on_event({
+                'id': uid, 'to': self.bus.client.boundjid
+            })
+
+    @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send', Mock)
+    @patch('nyuki.bus.Bus.subscribe')
+    async def test_008_stream_error_resubscribe(self, submock):
+        self.bus._connected.set()
+        self.loop.call_later(0.1, asyncio.ensure_future, self.stream_error())
+        self.loop.call_later(0.2, asyncio.ensure_future, self.publish_ok())
+        await self.bus.publish({'one': 'two'})
+        submock.assert_called_once_with('login', None)
+
+    @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send', Mock)
+    @patch('nyuki.bus.Bus.subscribe')
+    async def test_008_failed_publish_resubscribe(self, submock):
+        self.bus._connected.set()
+        self.loop.call_later(0.1, asyncio.ensure_future, self.publish_fail())
+        self.loop.call_later(0.2, asyncio.ensure_future, self.publish_ok())
+        await self.bus.publish({'one': 'two'})
+        submock.assert_called_once_with('login', None)
+
+
+class FakePersistenceBackend(object):
+
+    def __init__(self):
+        self.events = list()
+
+    async def ping(self):
+        return True
+
+    async def init(self):
+        pass
+
+    async def store(self, event):
+        self.events.append(event)
+
+    async def retrieve(self, since, status):
+        return self.events.copy()
+
+
 class TestMongoPersistence(TestCase):
 
     @patch('nyuki.bus.persistence.mongo_backend.MongoBackend.init')
@@ -109,14 +159,34 @@ class TestMongoPersistence(TestCase):
         self.bus = Bus(Mock())
         self.bus.configure(
             'login@localhost', 'password',
-            storage={'backend': 'mongo', 'host': 'localhost'}
+            persistence={'backend': 'mongo'}
         )
-        await self.bus.start()
+        self.backend = FakePersistenceBackend()
+        self.bus._persistence.backend = self.backend
 
-    @patch('nyuki.bus.persistence.mongo_backend.MongoBackend.store')
-    async def test_001_store(self, store, ping):
-        ping.return_value = True
+    @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send', Mock)
+    async def test_001_store_replay(self):
         await self.bus.publish({'something': 'something'})
-        eq_(self.bus._persistence.backend.name, 'login')
-        eq_(self.bus._persistence.backend.host, 'localhost')
-        store.assert_called_once_with('login', '{"something": "something"}')
+        await self.bus.publish({'another': 'event'})
+        # Backend received the events
+        eq_(len(self.backend.events), 2)
+        eq_(self.backend.events[0]['status'], EventStatus.PENDING.value)
+        # Check replay send the same event
+        with patch.object(self.bus, 'publish') as pub:
+            await self.bus.replay()
+            pub.assert_has_calls([
+                call({'something': 'something'}, 'login', True),
+                call({'another': 'event'}, 'login', True),
+            ])
+
+    def finish_publishments(self, fail=False):
+        for future in self.bus._publish_futures.values():
+            future.set_result(None)
+
+    @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send', Mock)
+    async def test_002_store_xmpp_connected(self):
+        self.bus._connected.set()
+        self.loop.call_later(0.1, self.finish_publishments)
+        await self.bus.publish({'something': 'something'})
+        eq_(len(self.backend.events), 1)
+        eq_(self.backend.events[0]['status'], EventStatus.SENT.value)

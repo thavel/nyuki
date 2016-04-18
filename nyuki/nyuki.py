@@ -7,6 +7,7 @@ from pijon import Pijon
 from signal import SIGHUP, SIGINT, SIGTERM
 
 from nyuki.bus import Bus, Reporter, from_isoformat
+from nyuki.bus.persistence import EventStatus
 from nyuki.capabilities import Exposer, Response, resource
 from nyuki.commands import get_command_kwargs
 from nyuki.config import get_full_config, write_conf_json, merge_configs
@@ -298,7 +299,7 @@ class Nyuki(metaclass=CapabilityHandler):
 
             return Response(self._config)
 
-    @resource(endpoint='/replay', version='v1')
+    @resource(endpoint='/bus/replay', version='v1')
     class BusReplay:
 
         async def post(self, request):
@@ -307,6 +308,7 @@ class Nyuki(metaclass=CapabilityHandler):
             except KeyError:
                 return Response(status=404)
 
+            # Format 'since' parameter from isoformat
             since = request.get('since')
             if since:
                 try:
@@ -316,7 +318,22 @@ class Nyuki(metaclass=CapabilityHandler):
                         'error': 'Unknown datetime format: %s'.format(since)
                     }, status=400)
 
-            await self.bus.replay(since)
+            # Check and parse event status
+            event_status = request.get('status')
+            if event_status:
+                try:
+                    if isinstance(event_status, list):
+                        status = list()
+                        for es in event_status:
+                            status.append(EventStatus[es])
+                    else:
+                        status = EventStatus[event_status]
+                except KeyError:
+                    return Response(status=400, body={
+                        'error': 'unknown event status type {}'.format(es)
+                    })
+
+            await self.bus.replay(since, status)
 
     @resource(endpoint='/swagger', version='v1')
     class Swagger:
