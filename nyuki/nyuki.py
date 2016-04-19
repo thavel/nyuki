@@ -311,7 +311,9 @@ class Nyuki(metaclass=CapabilityHandler):
 
         async def post(self, request):
             if request.headers.get('Content-Type') != 'application/json':
-                return Response({'error': 'Wrong content-type'}, 400)
+                return Response({
+                    'error': 'Wrong content-type'
+                }, status=400)
 
             body = await request.json()
 
