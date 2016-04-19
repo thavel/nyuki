@@ -3,8 +3,8 @@ import logging
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import AutoReconnect, OperationFailure
 
-
 from nyuki.bus.persistence import EventStatus
+from nyuki.bus.persistence.backend import PersistenceBackend
 
 
 log = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ class MongoNotConnectedError(Exception):
     pass
 
 
-class MongoBackend(object):
+class MongoBackend(PersistenceBackend):
 
     def __init__(self, name, host='localhost', ttl=3600):
         self.name = name

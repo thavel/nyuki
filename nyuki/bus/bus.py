@@ -181,9 +181,7 @@ class Bus(Service):
 
         # Persistence storage
         if persistence:
-            self._persistence = BusPersistence(
-                **{**persistence, 'name': self._topic}
-            )
+            self._persistence = BusPersistence(name=self._topic, **persistence)
             log.info('Bus persistence set to %s', self._persistence.backend)
 
     async def stop(self):

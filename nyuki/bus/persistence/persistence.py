@@ -1,6 +1,6 @@
-import asyncio
 import logging
 
+from nyuki.bus.persistence.backend import PersistenceBackend
 from nyuki.bus.persistence.mongo_backend import MongoBackend
 
 
@@ -19,20 +19,15 @@ class BusPersistence(object):
     """
 
     def __init__(self, backend, **kwargs):
-        # TODO: mongo is the only one yet
-        assert backend == 'mongo'
+        # TODO: mongo is the only one yet, we should parse available modules
+        #       named `*_backend.py` and select after the given backend.
+        if backend != 'mongo':
+            raise ValueError("'mongo' is the only available backend")
+
         self.backend = MongoBackend(**kwargs)
 
-        # Ensure required methods are available, break if not
-        assert hasattr(self.backend, 'init')
-        assert hasattr(self.backend, 'store')
-        assert hasattr(self.backend, 'retrieve')
-
-    async def ping(self):
-        """
-        Connection check
-        """
-        return await self.backend.ping()
+        if not isinstance(self.backend, PersistenceBackend):
+            raise PersistenceError('Wrong backend selected: {}'.format(backend))
 
     async def init(self, *args, **kwargs):
         """
@@ -42,6 +37,12 @@ class BusPersistence(object):
             return await self.backend.init(*args, **kwargs)
         except Exception as exc:
             raise PersistenceError from exc
+
+    async def ping(self):
+        """
+        Connection check
+        """
+        return await self.backend.ping()
 
     async def store(self, *args, **kwargs):
         """
