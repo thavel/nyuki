@@ -239,7 +239,9 @@ class Bus(Service):
 
         # Replay events that have been lost, if any
         if self._persistence and self._disconnection_datetime:
-            await self.replay(self._disconnection_datetime, EventStatus.not_sent())
+            await self.replay(
+                self._disconnection_datetime, EventStatus.not_sent(), 3
+            )
         self._disconnection_datetime = None
 
     async def _on_disconnect(self, event):
@@ -324,7 +326,7 @@ class Bus(Service):
         else:
             log.warning('No callback set for event from %s', to)
 
-    async def replay(self, since=None, status=None):
+    async def replay(self, since=None, status=None, wait=0):
         """
         Replay events since the given datetime (or all if None)
         """
@@ -334,11 +336,19 @@ class Bus(Service):
         if status:
             log.info('    with status %s', status)
 
+        if wait:
+            log.info('Waiting %d seconds', wait)
+            await asyncio.sleep(wait)
+
         events = await self._persistence.retrieve(since, status)
         for event in events:
-            await self.publish(json.loads(event['message']), event['topic'], True)
+            await self.publish(
+                json.loads(event['message']),
+                event['topic'],
+                event['id']
+            )
 
-    async def publish(self, event, dest=None, replay=False):
+    async def publish(self, event, dest=None, previous_uid=None):
         """
         Send an event in the nyuki's own MUC so that other nyukis that joined
         the MUC can process it.
@@ -351,7 +361,7 @@ class Bus(Service):
             raise TypeError('Message must be a dict')
 
         msg = self.client.Message()
-        msg['id'] = uid = str(uuid4())
+        msg['id'] = uid = previous_uid or str(uuid4())
         msg['type'] = 'groupchat'
         msg['to'] = self._muc_address(dest or self._topic)
         msg['body'] = json.dumps(event)
@@ -384,13 +394,15 @@ class Bus(Service):
         del self._publish_futures[uid]
 
         # Once we have a result, store it if needed
-        if self._persistence and await self._persistence.ping() and not replay:
+        if self._persistence and await self._persistence.ping() and not previous_uid:
             await self._persistence.store({
                 'id': uid,
                 'status': status.value,
                 'topic': dest or self._topic,
                 'message': msg['body'],
             })
+        elif previous_uid:
+            await self._persistence.update(previous_uid, status)
 
     async def _resubscribe(self):
         """

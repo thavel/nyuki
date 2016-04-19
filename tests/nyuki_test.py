@@ -1,4 +1,4 @@
-from asynctest import TestCase, patch, ignore_loop, exhaust_callbacks
+from asynctest import TestCase, patch, ignore_loop, exhaust_callbacks, Mock
 import json
 from jsonschema import ValidationError
 import os
@@ -44,10 +44,15 @@ class TestNyuki(TestCase):
 
     @patch('nyuki.bus.Bus.stop')
     async def test_004_patch_rest_configuration(self, bus_stop_mock):
-        await self.nyuki.Configuration.patch(self.nyuki, {
-            'bus': {'jid': 'updated@localhost'},
-            'new': True
-        })
+        req = Mock()
+        async def json():
+            return {
+                'bus': {'jid': 'updated@localhost'},
+                'new': True
+            }
+        req.headers = {'Content-Type': 'application/json'}
+        req.json = json
+        await self.nyuki.Configuration.patch(self.nyuki, req)
         eq_(self.nyuki._config['new'], True)
         eq_(self.nyuki._config['bus']['jid'], 'updated@localhost')
         # finish coroutines

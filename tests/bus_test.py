@@ -1,14 +1,12 @@
-from aiohttp import ClientOSError
 import asyncio
 from asynctest import (
     TestCase, patch, Mock, CoroutineMock, ignore_loop, exhaust_callbacks, call
 )
-from nose.tools import assert_raises, eq_, ok_
+from nose.tools import assert_raises, eq_
 from slixmpp import JID
 
-from nyuki.bus.bus import _BusClient, Bus, PublishError
+from nyuki.bus.bus import _BusClient, Bus
 from nyuki.bus.persistence import EventStatus
-from tests import future_func
 
 
 class TestBusClient(TestCase):
@@ -168,15 +166,19 @@ class TestMongoPersistence(TestCase):
     async def test_001_store_replay(self):
         await self.bus.publish({'something': 'something'})
         await self.bus.publish({'another': 'event'})
+
         # Backend received the events
         eq_(len(self.backend.events), 2)
         eq_(self.backend.events[0]['status'], EventStatus.PENDING.value)
+
         # Check replay send the same event
+        event_0_uid = self.backend.events[0]['id']
+        event_1_uid = self.backend.events[1]['id']
         with patch.object(self.bus, 'publish') as pub:
             await self.bus.replay()
             pub.assert_has_calls([
-                call({'something': 'something'}, 'login', True),
-                call({'another': 'event'}, 'login', True),
+                call({'something': 'something'}, 'login', event_0_uid),
+                call({'another': 'event'}, 'login', event_1_uid),
             ])
 
     def finish_publishments(self, fail=False):

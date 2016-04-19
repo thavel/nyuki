@@ -72,6 +72,15 @@ class MongoBackend(PersistenceBackend):
             'created_at': datetime.utcnow(),
         })
 
+    async def update(self, uid, status):
+        if not await self.ping():
+            raise MongoNotConnectedError
+
+        await self._collection.update(
+            {'id': uid},
+            {'$set': {'status': status.value}}
+        )
+
     async def retrieve(self, since=None, status=None):
         if not await self.ping():
             raise MongoNotConnectedError
@@ -81,7 +90,7 @@ class MongoBackend(PersistenceBackend):
         if since:
             query['created_at'] = {'$gte': since}
 
-        if status and isinstance(status, EventStatus):
+        if status:
             if isinstance(status, list):
                 query['status'] = {'$in': [es.value for es in status]}
             else:

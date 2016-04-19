@@ -29,12 +29,12 @@ class BusPersistence(object):
         if not isinstance(self.backend, PersistenceBackend):
             raise PersistenceError('Wrong backend selected: {}'.format(backend))
 
-    async def init(self, *args, **kwargs):
+    async def init(self):
         """
         Init
         """
         try:
-            return await self.backend.init(*args, **kwargs)
+            return await self.backend.init()
         except Exception as exc:
             raise PersistenceError from exc
 
@@ -44,25 +44,42 @@ class BusPersistence(object):
         """
         return await self.backend.ping()
 
-    async def store(self, *args, **kwargs):
+    async def store(self, event):
         """
         Store a bus event as:
         {
+            "id": "uuid4",
+            "status": "EventStatus.value"
             "topic": "muc",
             "message": "json dump"
         }
         """
         try:
-            return await self.backend.store(*args, **kwargs)
+            return await self.backend.store(event)
         except Exception as exc:
             raise PersistenceError from exc
 
-    async def retrieve(self, *args, **kwargs):
+    async def update(self, uid, status):
         """
-        Must return the list of events stored since the given datetime:
-        [{"topic": "muc", "message": "json dump"}]
+        Store a bus event as:
+        {
+            "id": "uuid4",
+            "status": "EventStatus.value"
+            "topic": "muc",
+            "message": "json dump"
+        }
+        """
+        log.info("Updating stored event '%s' with status '%s'", uid, status)
+        try:
+            return await self.backend.update(uid, status)
+        except Exception as exc:
+            raise PersistenceError from exc
+
+    async def retrieve(self, since=None, status=None):
+        """
+        Must return the list of events stored since the given datetime
         """
         try:
-            return await self.backend.retrieve(*args, **kwargs)
+            return await self.backend.retrieve(since=since, status=status)
         except Exception as exc:
             raise PersistenceError from exc

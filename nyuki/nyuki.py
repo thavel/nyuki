@@ -285,17 +285,24 @@ class Nyuki(metaclass=CapabilityHandler):
             return Response(self._config)
 
         async def patch(self, request):
+            if request.headers.get('Content-Type') != 'application/json':
+                return Response(body={
+                    'error': 'Wrong content-type'
+                }, status=400)
+
+            body = await request.json()
+
             try:
-                self.update_config(request)
+                self.update_config(body)
             except ValidationError as error:
                 error = {'error': error.message}
-                log.error('Bad configuration received : {}'.format(request))
+                log.error('Bad configuration received : {}'.format(body))
                 log.debug(error)
                 return Response(body=error, status=400)
 
             # Reload what is necessary, return the http response immediately
             self.save_config()
-            asyncio.ensure_future(self._reload_config(request))
+            asyncio.ensure_future(self._reload_config(body))
 
             return Response(self._config)
 
@@ -303,13 +310,18 @@ class Nyuki(metaclass=CapabilityHandler):
     class BusReplay:
 
         async def post(self, request):
+            if request.headers.get('Content-Type') != 'application/json':
+                return Response({'error': 'Wrong content-type'}, 400)
+
+            body = await request.json()
+
             try:
                 self._services.get('bus')
             except KeyError:
                 return Response(status=404)
 
             # Format 'since' parameter from isoformat
-            since = request.get('since')
+            since = body.get('since')
             if since:
                 try:
                     since = from_isoformat(since)
@@ -319,15 +331,15 @@ class Nyuki(metaclass=CapabilityHandler):
                     }, status=400)
 
             # Check and parse event status
-            event_status = request.get('status')
-            if event_status:
+            request_status = body.get('status')
+            status = list()
+            if request_status:
                 try:
-                    if isinstance(event_status, list):
-                        status = list()
-                        for es in event_status:
+                    if isinstance(request_status, list):
+                        for es in request_status:
                             status.append(EventStatus[es])
                     else:
-                        status = EventStatus[event_status]
+                        status.append(EventStatus[request_status])
                 except KeyError:
                     return Response(status=400, body={
                         'error': 'unknown event status type {}'.format(es)
