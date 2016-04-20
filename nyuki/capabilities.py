@@ -11,16 +11,44 @@ log = logging.getLogger(__name__)
 
 
 def resource(endpoint, version=None):
-
     """
     Nyuki resource decorator to register a route.
     A resource has multiple HTTP methods (get, post, etc).
     """
-
     def decorated(cls):
         cls.endpoint = endpoint
         cls.version = version
         return cls
+    return decorated
+
+
+def content_type(ctype):
+    """
+    Limit a request handler to a specific content type, throwing 400 for
+    other content types.
+    """
+    def decorated(func):
+
+        async def wrapper(self, request, **kwargs):
+            if request.headers.get('Content-Type') != ctype:
+                log.debug("content-type '%s' required", ctype)
+                return Response({'error': 'Wrong content-type'}, status=400)
+
+            if ctype == 'application/json':
+                try:
+                    await request.json()
+                except ValueError:
+                    log.debug("request body for application/json must be JSON")
+                    return Response(
+                        {'error': 'application/json requires a JSON body'},
+                        status=400
+                    )
+
+            if asyncio.iscoroutinefunction(func):
+                return await func(self, request, **kwargs)
+            return func(self, request, **kwargs)
+
+        return wrapper
     return decorated
 
 

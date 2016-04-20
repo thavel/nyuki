@@ -8,7 +8,7 @@ from signal import SIGHUP, SIGINT, SIGTERM
 
 from nyuki.bus import Bus, Reporter, from_isoformat
 from nyuki.bus.persistence import EventStatus
-from nyuki.capabilities import Exposer, Response, resource
+from nyuki.capabilities import Exposer, Response, resource, content_type
 from nyuki.commands import get_command_kwargs
 from nyuki.config import get_full_config, write_conf_json, merge_configs
 from nyuki.handlers import CapabilityHandler
@@ -284,12 +284,8 @@ class Nyuki(metaclass=CapabilityHandler):
         def get(self, request):
             return Response(self._config)
 
+        @content_type('application/json')
         async def patch(self, request):
-            if request.headers.get('Content-Type') != 'application/json':
-                return Response(body={
-                    'error': 'Wrong content-type'
-                }, status=400)
-
             body = await request.json()
 
             try:
@@ -309,12 +305,8 @@ class Nyuki(metaclass=CapabilityHandler):
     @resource(endpoint='/bus/replay', version='v1')
     class BusReplay:
 
+        @content_type('application/json')
         async def post(self, request):
-            if request.headers.get('Content-Type') != 'application/json':
-                return Response({
-                    'error': 'Wrong content-type'
-                }, status=400)
-
             body = await request.json()
 
             try:
