@@ -96,7 +96,7 @@ class Nyuki(metaclass=CapabilityHandler):
 
     @property
     def report_channel(self):
-        return self.config.get('report_channel', 'errors')
+        return self.config.get('report_channel', 'monitoring')
 
     def _exception_handler(self, loop, context):
         if 'exception' not in context:
