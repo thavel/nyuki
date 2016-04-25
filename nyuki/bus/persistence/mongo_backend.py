@@ -1,9 +1,7 @@
-from datetime import datetime
 import logging
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import AutoReconnect, OperationFailure
 
-from nyuki.bus.persistence import EventStatus
 from nyuki.bus.persistence.backend import PersistenceBackend
 
 
@@ -67,10 +65,7 @@ class MongoBackend(PersistenceBackend):
         if not self._indexed:
             await self._index_ttl()
 
-        await self._collection.insert({
-            **event,
-            'created_at': datetime.utcnow(),
-        })
+        await self._collection.insert(event)
 
     async def update(self, uid, status):
         if not await self.ping():

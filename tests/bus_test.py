@@ -124,7 +124,7 @@ class TestBus(TestCase):
 
     @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send', Mock)
     @patch('nyuki.bus.Bus.subscribe')
-    async def test_008_failed_publish_resubscribe(self, submock):
+    async def test_009_failed_publish_resubscribe(self, submock):
         self.bus._connected.set()
         self.loop.call_later(0.1, asyncio.ensure_future, self.publish_fail())
         self.loop.call_later(0.2, asyncio.ensure_future, self.publish_ok())

@@ -148,7 +148,7 @@ class Bus(Service):
             try:
                 await self._persistence.init()
             except PersistenceError:
-                log.warning(
+                log.error(
                     'Could not init persistence storage with %s',
                     self._persistence.backend
                 )
@@ -199,6 +199,8 @@ class Bus(Service):
             await asyncio.wait_for(self.client.disconnected, 2.0)
         except asyncio.TimeoutError:
             log.error('Could not end bus connection after 2 seconds')
+
+        await self._persistence.close()
 
     def _muc_address(self, topic):
         return '{}@{}'.format(topic, self._muc_domain)
@@ -366,12 +368,7 @@ class Bus(Service):
         msg['to'] = self._muc_address(dest or self._topic)
         msg['body'] = json.dumps(event)
 
-        future = asyncio.Future()
-
-        self._publish_futures[uid] = future
-        if not self._persistence or not await self._persistence.ping():
-            log.info('Persistence not available, ensuring bus connection')
-            await self._connected.wait()
+        self._publish_futures[uid] = asyncio.Future()
 
         # Publish in MUC
         if self._connected.is_set():
@@ -394,15 +391,17 @@ class Bus(Service):
         del self._publish_futures[uid]
 
         # Once we have a result, store it if needed
-        if self._persistence and await self._persistence.ping() and not previous_uid:
+        if previous_uid:
+            log.info("Updating stored event '%s' with status '%s'", uid, status)
+            await self._persistence.update(previous_uid, status)
+        elif self._persistence:
+            log.info("Storing event '%s'", uid)
             await self._persistence.store({
                 'id': uid,
                 'status': status.value,
                 'topic': dest or self._topic,
                 'message': msg['body'],
             })
-        elif previous_uid:
-            await self._persistence.update(previous_uid, status)
 
     async def _resubscribe(self):
         """
