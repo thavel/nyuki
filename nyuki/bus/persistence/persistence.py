@@ -20,6 +20,9 @@ class FIFOSizedQueue(object):
         self._list = list()
         self._size = size
 
+    def __len__(self):
+        return len(self._list)
+
     @property
     def list(self):
         return self._list

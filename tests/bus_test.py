@@ -192,3 +192,14 @@ class TestMongoPersistence(TestCase):
         await self.bus.publish({'something': 'something'})
         eq_(len(self.backend.events), 1)
         eq_(self.backend.events[0]['status'], EventStatus.SENT.value)
+
+    @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send', Mock)
+    async def test_003_in_memory(self):
+        async def ping():
+            return False
+        self.backend.ping = ping
+
+        await self.bus.publish({'something': 'something'})
+        await self.bus.publish({'another': 'event'})
+
+        eq_(len(self.bus._persistence._last_events), 2)
