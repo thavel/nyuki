@@ -2,7 +2,8 @@ from nose.tools import eq_
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from nyuki.capabilities import (resource, Capability, Response, Exposer)
+from nyuki.api import Response
+from nyuki.capabilities import resource, Capability, Exposer
 
 
 class TestResourceDecorator(TestCase):

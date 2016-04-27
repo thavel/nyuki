@@ -6,9 +6,10 @@ import logging.config
 from pijon import Pijon
 from signal import SIGHUP, SIGINT, SIGTERM
 
+from nyuki.api import Response
 from nyuki.bus import Bus, Reporter, from_isoformat
 from nyuki.bus.persistence import EventStatus
-from nyuki.capabilities import Exposer, Response, resource, content_type
+from nyuki.capabilities import Exposer, resource
 from nyuki.commands import get_command_kwargs
 from nyuki.config import get_full_config, write_conf_json, merge_configs
 from nyuki.handlers import CapabilityHandler
@@ -278,13 +279,12 @@ class Nyuki(metaclass=CapabilityHandler):
                 service.configure(**self._config[name])
                 asyncio.ensure_future(service.start())
 
-    @resource(endpoint='/config', version='v1')
+    @resource('/config', version='v1')
     class Configuration:
 
         def get(self, request):
             return Response(self._config)
 
-        @content_type('application/json')
         async def patch(self, request):
             body = await request.json()
 
@@ -302,10 +302,9 @@ class Nyuki(metaclass=CapabilityHandler):
 
             return Response(self._config)
 
-    @resource(endpoint='/bus/replay', version='v1')
+    @resource('/bus/replay', version='v1')
     class BusReplay:
 
-        @content_type('application/json')
         async def post(self, request):
             body = await request.json()
 
@@ -341,7 +340,7 @@ class Nyuki(metaclass=CapabilityHandler):
 
             await self.bus.replay(since, status)
 
-    @resource(endpoint='/swagger', version='v1')
+    @resource('/swagger', version='v1')
     class Swagger:
 
         def get(self, request):
@@ -355,7 +354,7 @@ class Nyuki(metaclass=CapabilityHandler):
 
             return Response(body=body)
 
-    @resource(endpoint='/websocket', version='v1')
+    @resource('/websocket', version='v1')
     class WebsocketToken:
 
         def get(self, request):

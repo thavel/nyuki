@@ -21,9 +21,11 @@ class CapabilityHandler(type):
         for resrc, desc in cls._filter_resource(nyuki):
             version = desc.version
             endpoint = desc.endpoint
+            content_type = desc.content_type
             for method, handler in cls._filter_capability(desc):
                 name = '{}_{}'.format(method, resrc)
                 wrapper = cls._build_wrapper(nyuki, handler)
+                wrapper.CONTENT_TYPE = content_type
                 nyuki.api.register(Capability(
                     name=name.lower(),
                     method=method,

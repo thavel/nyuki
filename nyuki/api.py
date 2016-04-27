@@ -1,5 +1,6 @@
 from aiohttp import web
 from enum import Enum
+import json
 import logging
 
 
@@ -30,6 +31,35 @@ class Method(Enum):
         return [method.name for method in cls]
 
 
+class Response(web.Response):
+
+    """
+    Overrides aiohttp's response to facilitate its usage
+    """
+
+    ENCODING = 'utf-8'
+
+    def __init__(self, body=None, **kwargs):
+
+        # Check json
+        if isinstance(body, dict) or isinstance(body, list):
+            log.debug('converting dict/list response to bytes')
+            body = json.dumps(body).encode(self.ENCODING)
+            if not self._get_content_type(kwargs):
+                kwargs['content_type'] = 'application/json'
+        # Check body
+        elif body is not None:
+            log.debug('converting string response to bytes')
+            body = str(body).encode(self.ENCODING)
+            if not self._get_content_type(kwargs):
+                kwargs['content_type'] = 'text/plain'
+
+        return super().__init__(body=body, **kwargs)
+
+    def _get_content_type(self, kwargs):
+        return kwargs.get('content_type') or kwargs.get('headers', {}).get('content_type')
+
+
 class Api(object):
 
     """
@@ -41,7 +71,8 @@ class Api(object):
         self._loop = loop
         self._server = None
         self._handler = None
-        self._middlewares = [mw_capability]  # Call order = list order
+        # Call order = list order
+        self._middlewares = [mw_capability]
         self._debug = debug
         self._app = web.Application(
             loop=self._loop,
@@ -87,9 +118,31 @@ async def mw_capability(app, capa_handler):
     """
     Transform the request data to be passed through a capability and
     convert the result into a web response.
-    From here, we are expecting a JSON content.
     """
     async def middleware(request):
+
+        if request.method in request.POST_METHODS and hasattr(capa_handler, 'CONTENT_TYPE'):
+            ctype = capa_handler.CONTENT_TYPE
+
+            # Check content_type from @resource decorator
+            if request.headers.get('Content-Type') != ctype:
+                log.debug("content-type '%s' required", ctype)
+                return Response(
+                    {'error': 'Wrong content-type'},
+                    status=400
+                )
+
+            # Check application/json is really a JSON body
+            if ctype == 'application/json':
+                try:
+                    await request.json()
+                except json.decoder.JSONDecodeError:
+                    log.debug("request body for application/json must be JSON")
+                    return Response(
+                        {'error': 'application/json requires a JSON body'},
+                        status=400
+                    )
+
         try:
             capa_resp = await capa_handler(request, **request.match_info)
         except web.HTTPNotFound:
@@ -106,9 +159,9 @@ async def mw_capability(app, capa_handler):
                 })
             raise exc
 
-        if capa_resp and isinstance(capa_resp, web.Response):
+        if capa_resp and isinstance(capa_resp, Response):
             return capa_resp
 
-        return web.Response()
+        return Response()
 
     return middleware
