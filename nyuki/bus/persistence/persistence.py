@@ -74,8 +74,9 @@ class BusPersistence(object):
         self._feed_future = asyncio.ensure_future(self._feed_backend())
 
     async def close(self):
-        self._feed_future.cancel()
-        await self._feed_future
+        if self._feed_future:
+            self._feed_future.cancel()
+            await self._feed_future
 
     async def _feed_backend(self):
         """
@@ -115,17 +116,22 @@ class BusPersistence(object):
         """
         Init backend
         """
-        try:
-            return await self.backend.init()
-        except Exception as exc:
-            raise PersistenceError from exc
+        if await self.ping():
+            try:
+                return await self.backend.init()
+            except Exception as exc:
+                raise PersistenceError from exc
 
     async def ping(self):
         """
         Connection check
         """
         if self.backend:
-            return await self.backend.ping()
+            try:
+                return await asyncio.wait_for(self.backend.ping(), 2.0)
+            except asyncio.TimeoutError:
+                log.error('Timeout pinging backend')
+                return False
 
     async def store(self, event):
         """

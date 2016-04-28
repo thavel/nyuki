@@ -144,18 +144,17 @@ class Bus(Service):
         if timeout:
             await asyncio.wait_for(self._connected.wait(), timeout)
 
-        if self._persistence:
-            try:
-                await self._persistence.init()
-            except PersistenceError:
-                log.error(
-                    'Could not init persistence storage with %s',
-                    self._persistence.backend
-                )
+        try:
+            await self._persistence.init()
+        except PersistenceError:
+            log.error(
+                'Could not init persistence storage with %s',
+                self._persistence.backend
+            )
 
     def configure(self, jid, password, host='localhost', port=5222,
                   muc_domain='mucs.localhost', certificate=None,
-                  persistence=None):
+                  persistence={}):
         # XMPP client and main handlers
         self.client = _BusClient(
             jid, password, host, port, certificate=certificate
@@ -180,9 +179,8 @@ class Bus(Service):
         )
 
         # Persistence storage
-        if persistence:
-            self._persistence = BusPersistence(name=self._topic, **persistence)
-            log.info('Bus persistence set to %s', self._persistence.backend)
+        self._persistence = BusPersistence(name=self._topic, **persistence)
+        log.info('Bus persistence set to %s', self._persistence.backend)
 
     async def stop(self):
         if not self.client:
