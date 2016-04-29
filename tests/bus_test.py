@@ -30,7 +30,6 @@ class TestBusClient(TestCase):
         eq_(port, 5555)
 
 
-@patch('nyuki.bus.Bus', 'connect')
 class TestBus(TestCase):
 
     def setUp(self):
@@ -57,12 +56,10 @@ class TestBus(TestCase):
 
     @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send')
     async def test_003a_publish(self, send_mock):
+        self.bus._connected.set()
         asyncio.ensure_future(self.bus.publish({'message': '1'}))
         asyncio.ensure_future(self.bus.publish({'message': '2'}))
         asyncio.ensure_future(self.bus.publish({'message': '3'}))
-        # Waiting for connection
-        eq_(send_mock.call_count, 0)
-        self.bus._connected.set()
         await exhaust_callbacks(self.loop)
         eq_(send_mock.call_count, 3)
 
@@ -168,6 +165,7 @@ class TestMongoPersistence(TestCase):
         await self.bus.publish({'another': 'event'})
 
         # Backend received the events
+        await self.bus._persistence._empty_last_events()
         eq_(len(self.backend.events), 2)
         eq_(self.backend.events[0]['status'], EventStatus.PENDING.value)
 
@@ -190,16 +188,18 @@ class TestMongoPersistence(TestCase):
         self.bus._connected.set()
         self.loop.call_later(0.1, self.finish_publishments)
         await self.bus.publish({'something': 'something'})
+        await self.bus._persistence._empty_last_events()
         eq_(len(self.backend.events), 1)
         eq_(self.backend.events[0]['status'], EventStatus.SENT.value)
 
     @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send', Mock)
     async def test_003_in_memory(self):
-        async def ping():
-            return False
-        self.backend.ping = ping
-
         await self.bus.publish({'something': 'something'})
         await self.bus.publish({'another': 'event'})
-
         eq_(len(self.bus._persistence._last_events), 2)
+        eq_(len(self.backend.events), 0)
+
+        # Empty to DB
+        await self.bus._persistence._empty_last_events()
+        eq_(len(self.bus._persistence._last_events), 0)
+        eq_(len(self.backend.events), 2)

@@ -48,17 +48,15 @@ class BusPersistence(object):
     current asyncio cache which is out of our control. (cf internal NYUKI-59)
     """
 
-    # One day
-    MEMORY_TTL = 86400
-    QUEUE_SIZE = 1000
+    FEED_DELAY = 2
 
-    def __init__(self, backend=None, loop=None, **kwargs):
+    def __init__(self, backend=None, memory_size=None, loop=None, **kwargs):
         """
         TODO: mongo is the only one yet, we should parse available modules
               named `*_backend.py` and select after the given backend.
         """
         self._loop = loop or asyncio.get_event_loop()
-        self._last_events = FIFOSizedQueue(self.QUEUE_SIZE)
+        self._last_events = FIFOSizedQueue(memory_size or 10000)
         self.backend = None
         self._feed_future = None
 
@@ -86,7 +84,7 @@ class BusPersistence(object):
         """
         while True:
             try:
-                await asyncio.sleep(10)
+                await asyncio.sleep(self.FEED_DELAY)
             except asyncio.CancelledError:
                 log.debug('_feed_backend cancelled')
                 await self._empty_last_events()
