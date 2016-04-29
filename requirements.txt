@@ -1,4 +1,4 @@
-aiohttp>=0.19,<0.20
+aiohttp>=0.21,<0.22
 jsonschema>=2.5,<2.6
 motor>=0.6,<0.7
 pijon>=0.1,<0.2
