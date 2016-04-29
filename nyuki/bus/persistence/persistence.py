@@ -48,7 +48,7 @@ class BusPersistence(object):
     current asyncio cache which is out of our control. (cf internal NYUKI-59)
     """
 
-    FEED_DELAY = 2
+    FEED_DELAY = 5
 
     def __init__(self, backend=None, memory_size=None, loop=None, **kwargs):
         """
@@ -97,6 +97,8 @@ class BusPersistence(object):
 
     async def _empty_last_events(self):
         if await self.backend.ping():
+            if self._last_events.list:
+                log.info('Dumping all event into backend')
             try:
                 for event in self._last_events.empty():
                     await self.backend.store(event)
@@ -106,8 +108,6 @@ class BusPersistence(object):
                     'message': str(exc),
                     'exception': exc
                 })
-            else:
-                log.debug('Events from memory dumped into backend')
         else:
             log.warning('No connection to backend to empty in-memory events')
 
@@ -190,15 +190,21 @@ class BusPersistence(object):
 
             return since_check and status_check
 
-        in_memory = list(filter(check_params, self._last_events.list))
         in_backend = list()
 
         if self.backend:
-            try:
-                in_backend = await self.backend.retrieve(
-                    since=since, status=status
-                )
-            except Exception as exc:
-                raise PersistenceError from exc
+            async def _ensure_backend():
+                while True:
+                    try:
+                        return await self.backend.retrieve(
+                            since=since, status=status
+                        )
+                    except Exception as exc:
+                        log.exception(exc)
+                    log.error('Backend not available, retrying retrieve in 5')
+                    await asyncio.sleep(5)
 
+            in_backend = await _ensure_backend()
+
+        in_memory = list(filter(check_params, self._last_events.list))
         return in_backend + in_memory
