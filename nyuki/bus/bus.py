@@ -265,6 +265,9 @@ class Bus(Service):
         log.error('Connection to XMPP server {}:{} failed'.format(
             *self.client._address
         ))
+        # If prosody was not up at nyuki started
+        if not self._disconnection_datetime:
+            self._disconnection_datetime = datetime.utcnow()
         self.client.abort()
 
     async def _on_stream_error(self, event):
@@ -390,10 +393,8 @@ class Bus(Service):
 
         # Once we have a result, store it if needed
         if previous_uid:
-            log.info("Updating stored event '%s' with status '%s'", uid, status)
             await self._persistence.update(previous_uid, status)
         elif self._persistence:
-            log.info("Storing event '%s'", uid)
             await self._persistence.store({
                 'id': uid,
                 'status': status.value,

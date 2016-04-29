@@ -60,6 +60,7 @@ class BusPersistence(object):
         self._loop = loop or asyncio.get_event_loop()
         self._last_events = FIFOSizedQueue(self.QUEUE_SIZE)
         self.backend = None
+        self._feed_future = None
 
         if not backend:
             log.info('No persistence backend selected, in-memory only')
@@ -85,7 +86,7 @@ class BusPersistence(object):
         """
         while True:
             try:
-                await asyncio.sleep(5)
+                await asyncio.sleep(10)
             except asyncio.CancelledError:
                 log.debug('_feed_backend cancelled')
                 await self._empty_last_events()
@@ -116,7 +117,7 @@ class BusPersistence(object):
         """
         Init backend
         """
-        if await self.ping():
+        if self.backend:
             try:
                 return await self.backend.init()
             except Exception as exc:
@@ -144,49 +145,38 @@ class BusPersistence(object):
         }
         adding a 'created_at' key.
         """
+        log.info("New event stored with uid '%s'", event['id'])
         event['created_at'] = datetime.utcnow()
-
-        if await self.ping():
-            try:
-                return await self.backend.store(event)
-            except Exception as exc:
-                raise PersistenceError from exc
-
-        # No backend, put in memory
         self._last_events.put(event)
-
-        def del_event():
-            self._last_events.remove(event)
-
-        self._loop.call_later(self.MEMORY_TTL, del_event)
 
     async def update(self, uid, status):
         """
         Update the status of a stored event
         """
-        if await self.ping():
-            try:
-                return await self.backend.update(uid, status)
-            except Exception as exc:
-                raise PersistenceError from exc
-
-        # No backend, update in-memory
+        log.info("Updating status of event '%s' to '%s'", uid, status)
         for event in self._last_events.list:
             if event['id'] == uid:
                 event['status'] = status.value
-                break
+                return
+
+        log.debug('event not found in memory, checking backend')
+
+        if self.backend:
+            async def _ensure_status():
+                while True:
+                    try:
+                        return await self.backend.update(uid, status)
+                    except Exception as exc:
+                        raise PersistenceError from exc
+                    log.error('Backend not available, retrying update in 5')
+                    await asyncio.sleep(5)
+            asyncio.ensure_future(_ensure_status())
 
     async def retrieve(self, since=None, status=None):
         """
-        Must return the list of events stored since the given datetime
+        Return the list of events stored since the given datetime
         """
-        if await self.ping():
-            try:
-                return await self.backend.retrieve(since=since, status=status)
-            except Exception as exc:
-                raise PersistenceError from exc
-
-        # No backend, retrieve in-memory
+        # Retrieve in-memory
         def check_params(item):
             since_check = True
             status_check = True
@@ -202,4 +192,15 @@ class BusPersistence(object):
 
             return since_check and status_check
 
-        return filter(check_params, self._last_events.list)
+        in_memory = list(filter(check_params, self._last_events.list))
+        in_backend = list()
+
+        if self.backend:
+            try:
+                in_backend = await self.backend.retrieve(
+                    since=since, status=status
+                )
+            except Exception as exc:
+                raise PersistenceError from exc
+
+        return in_backend + in_memory
