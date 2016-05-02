@@ -12,7 +12,7 @@ from nyuki.bus.persistence import EventStatus
 class TestBusClient(TestCase):
 
     def setUp(self):
-        self.client = _BusClient('login@localhost', 'password')
+        self.client = _BusClient('test@localhost', 'password')
 
     @ignore_loop
     def test_001a_init(self):
@@ -24,7 +24,7 @@ class TestBusClient(TestCase):
     @ignore_loop
     def test_001b_init(self):
         # Ensure bus client instanciation (method 2)
-        client = _BusClient('login', 'password', '127.0.0.1', 5555)
+        client = _BusClient('test', 'password', '127.0.0.1', 5555)
         host, port = client._address
         eq_(host, '127.0.0.1')
         eq_(port, 5555)
@@ -34,7 +34,7 @@ class TestBus(TestCase):
 
     def setUp(self):
         self.bus = Bus(Mock())
-        self.bus.configure('login@localhost', 'password')
+        self.bus.configure('test@localhost', 'password')
 
     @ignore_loop
     def test_001_muc_address(self):
@@ -45,11 +45,12 @@ class TestBus(TestCase):
         self.bus._connected.set()
         cb = CoroutineMock()
         with patch.object(self.bus._mucs, 'joinMUC') as join_mock:
-            await self.bus.subscribe('other', cb)
-            join_mock.assert_called_once_with('other@mucs.localhost', 'login')
+            await self.bus.subscribe('someone', cb)
+            join_mock.assert_called_once_with('someone@mucs.localhost', 'test')
         msg = self.bus.client.Message()
         msg['type'] = 'groupchat'
-        msg['to'] = JID('other@localhost')
+        msg['to'] = JID('test@localhost')
+        msg['from'] = JID('someone@localhost')
         msg['body'] = '{"key": "value"}'
         await self.bus._on_event(msg)
         cb.assert_called_once_with({'key': 'value'})
@@ -101,13 +102,15 @@ class TestBus(TestCase):
     async def publish_fail(self):
         for uid in self.bus._publish_futures.keys():
             await self.bus._on_failed_publish({
-                'id': uid, 'from': self.bus.client.boundjid
+                'id': uid,
+                'to': JID('someone@localhost'),
+                'from': JID('test@localhost')
             })
 
     async def publish_ok(self):
         for uid in self.bus._publish_futures.keys():
             await self.bus._on_event({
-                'id': uid, 'to': self.bus.client.boundjid
+                'id': uid, 'from': JID('test@localhost')
             })
 
     @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send', Mock)
@@ -117,7 +120,7 @@ class TestBus(TestCase):
         self.loop.call_later(0.1, asyncio.ensure_future, self.stream_error())
         self.loop.call_later(0.2, asyncio.ensure_future, self.publish_ok())
         await self.bus.publish({'one': 'two'})
-        submock.assert_called_once_with('login', None)
+        submock.assert_called_once_with('test', None)
 
     @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send', Mock)
     @patch('nyuki.bus.Bus.subscribe')
@@ -126,7 +129,7 @@ class TestBus(TestCase):
         self.loop.call_later(0.1, asyncio.ensure_future, self.publish_fail())
         self.loop.call_later(0.2, asyncio.ensure_future, self.publish_ok())
         await self.bus.publish({'one': 'two'})
-        submock.assert_called_once_with('login', None)
+        submock.assert_called_once_with('test', None)
 
 
 class FakePersistenceBackend(object):
@@ -153,7 +156,7 @@ class TestMongoPersistence(TestCase):
     async def setUp(self, init):
         self.bus = Bus(Mock())
         self.bus.configure(
-            'login@localhost', 'password',
+            'test@localhost', 'password',
             persistence={'backend': 'mongo'}
         )
         self.backend = FakePersistenceBackend()
@@ -175,8 +178,8 @@ class TestMongoPersistence(TestCase):
         with patch.object(self.bus, 'publish') as pub:
             await self.bus.replay()
             pub.assert_has_calls([
-                call({'something': 'something'}, 'login', event_0_uid),
-                call({'another': 'event'}, 'login', event_1_uid),
+                call({'something': 'something'}, 'test', event_0_uid),
+                call({'another': 'event'}, 'test', event_1_uid),
             ])
 
     def finish_publishments(self, fail=False):

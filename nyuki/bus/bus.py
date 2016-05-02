@@ -303,8 +303,8 @@ class Bus(Service):
         XMPP event handler when a Nyuki Event has been received.
         """
         # ignore events from the nyuki itself
-        to = event['to'].user
-        if to == self._topic:
+        efrom = event['from'].user
+        if efrom == self._topic:
             future = self._publish_futures.get(event['id'])
             if not future:
                 log.warning('Received own publish that was not in memory')
@@ -319,7 +319,7 @@ class Bus(Service):
         except ValueError:
             body = {}
 
-        callback = self._callbacks.get(to)
+        callback = self._callbacks.get(efrom)
         if callback:
             log.debug('calling callback %s', callback)
             if not asyncio.iscoroutinefunction(callback):
@@ -327,7 +327,7 @@ class Bus(Service):
                 callback = asyncio.coroutine(callback)
             await callback(body)
         else:
-            log.warning('No callback set for event from %s', to)
+            log.warning('No callback set for event from %s', efrom)
 
     async def replay(self, since=None, status=None, wait=0):
         """
