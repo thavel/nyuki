@@ -165,7 +165,10 @@ class BusPersistence(object):
                     try:
                         return await self.backend.update(uid, status)
                     except Exception as exc:
-                        raise PersistenceError from exc
+                        self._loop.call_exception_handler({
+                            'message': str(exc),
+                            'exception': exc
+                        })
                     log.error('Backend not available, retrying update in 5')
                     await asyncio.sleep(5)
             asyncio.ensure_future(_ensure_status())
@@ -200,7 +203,10 @@ class BusPersistence(object):
                             since=since, status=status
                         )
                     except Exception as exc:
-                        log.exception(exc)
+                        self._loop.call_exception_handler({
+                            'message': str(exc),
+                            'exception': exc
+                        })
                     log.error('Backend not available, retrying retrieve in 5')
                     await asyncio.sleep(5)
 
