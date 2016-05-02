@@ -19,22 +19,40 @@ class FIFOSizedQueue(object):
     def __init__(self, size):
         self._list = list()
         self._size = size
+        self._free_slot = asyncio.Event()
+        self._free_slot.set()
 
     def __len__(self):
         return len(self._list)
 
     @property
+    def size(self):
+        return self._size
+
+    @property
     def list(self):
         return self._list
 
+    @property
+    def is_full(self):
+        return len(self._list) >= self.size
+
+    @property
+    def free_slot(self):
+        return self._free_slot
+
     def put(self, item):
-        while len(self._list) > self._size:
+        while self.is_full:
             log.debug('queue full (%d), poping first item', len(self._list))
             self._list.pop(0)
         self._list.append(item)
+        if self.is_full:
+            self.free_slot.clear()
 
     def pop(self):
-        return self._list.pop(0)
+        item = self._list.pop(0)
+        self._free_slot.set()
+        return item
 
     def empty(self):
         while self._list:
@@ -71,6 +89,10 @@ class BusPersistence(object):
         if not isinstance(self.backend, PersistenceBackend):
             raise PersistenceError('Wrong backend selected: {}'.format(backend))
         self._feed_future = asyncio.ensure_future(self._feed_backend())
+
+    @property
+    def memory_buffer(self):
+        return self._last_events
 
     async def close(self):
         if self._feed_future:

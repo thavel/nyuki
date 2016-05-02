@@ -232,6 +232,13 @@ class Nyuki(metaclass=CapabilityHandler):
         """
         log.warning('Teardown called, but not overridden')
 
+    async def buffer_full(self, free_slot):
+        """
+        Called when the bus memory buffer is full of published events.
+        `await free_slot.wait()` blocks until a slot becomes available.
+        """
+        log.warning('Buffer full callback not overridden')
+
     def update_config(self, *new_confs):
         """
         Update the current configuration with the given list of dicts.

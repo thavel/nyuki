@@ -105,7 +105,6 @@ class Bus(Service):
                     "port": {"type": "integer"},
                     "persistence": {
                         "type": "object",
-                        "required": ["backend"],
                         "properties": {
                             "backend": {
                                 "type": "string",
@@ -401,6 +400,11 @@ class Bus(Service):
                 'topic': dest or self._topic,
                 'message': msg['body'],
             })
+            in_memory = self._persistence.memory_buffer
+            if in_memory.is_full:
+                asyncio.ensure_future(
+                    self._nyuki.buffer_full(in_memory.free_slot)
+                )
 
     async def _resubscribe(self):
         """
