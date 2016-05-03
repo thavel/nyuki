@@ -35,7 +35,7 @@ class FIFOSizedQueue(object):
 
     @property
     def is_full(self):
-        return len(self._list) >= self.size
+        return len(self._list) >= self._size
 
     @property
     def free_slot(self):
@@ -47,7 +47,7 @@ class FIFOSizedQueue(object):
             self._list.pop(0)
         self._list.append(item)
         if self.is_full:
-            self.free_slot.clear()
+            self._free_slot.clear()
 
     def pop(self):
         item = self._list.pop(0)

@@ -214,6 +214,14 @@ class Nyuki(metaclass=CapabilityHandler):
         for schema, checker in self._schemas:
             validate(config, schema, format_checker=checker)
 
+    async def on_buffer_full(self, free_slot):
+        """
+        Called when the bus memory buffer is full of published events.
+        """
+        asyncio.ensure_future(self.buffer_full())
+        await free_slot.wait()
+        asyncio.ensure_future(self.free_slot())
+
     async def setup(self):
         """
         First thing called when starting the event loop, coroutine or not.
@@ -232,12 +240,17 @@ class Nyuki(metaclass=CapabilityHandler):
         """
         log.warning('Teardown called, but not overridden')
 
-    async def buffer_full(self, free_slot):
+    async def buffer_full(self):
         """
-        Called when the bus memory buffer is full of published events.
-        `await free_slot.wait()` blocks until a slot becomes available.
+        Called when the bus memory buffer is full.
         """
         log.warning('Buffer full callback not overridden')
+
+    async def free_slot(self):
+        """
+        Called when the bus memory buffer has free slots available.
+        """
+        log.warning('Buffer free slot callback not overridden')
 
     def update_config(self, *new_confs):
         """
