@@ -6,8 +6,9 @@ import logging.config
 from pijon import Pijon
 from signal import SIGHUP, SIGINT, SIGTERM
 
+from nyuki import reporting
 from nyuki.api import Response
-from nyuki.bus import Bus, Reporter, from_isoformat
+from nyuki.bus import Bus, from_isoformat
 from nyuki.bus.persistence import EventStatus
 from nyuki.capabilities import Exposer, resource
 from nyuki.commands import get_command_kwargs
@@ -75,7 +76,6 @@ class Nyuki(metaclass=CapabilityHandler):
         if self._config.get('websocket') is not None:
             self._services.add('websocket', WebHandler(self))
 
-        self.reporter = None
         self.is_stopping = False
 
     def __getattribute__(self, name):
@@ -98,6 +98,15 @@ class Nyuki(metaclass=CapabilityHandler):
     def report_channel(self):
         return self.config.get('report_channel', 'monitoring')
 
+    @property
+    def reporter(self):
+        """
+        Ensure backwards compatibility
+        TODO: must be removed
+        """
+        log.warning('Deprecated reporting call, use nyuki.bus.reporting')
+        return reporting._reporter
+
     def _exception_handler(self, loop, context):
         if 'exception' not in context:
             log.warning('No exception in context: %s', context)
@@ -113,7 +122,7 @@ class Nyuki(metaclass=CapabilityHandler):
         else:
             exc = context['exception']
 
-        self.reporter.exception(exc)
+        reporting.exception(exc)
 
     def start(self):
         """
@@ -134,7 +143,7 @@ class Nyuki(metaclass=CapabilityHandler):
         self.loop.run_until_complete(self._services.start())
 
         if 'bus' in self._services.all:
-            self.reporter = Reporter(
+            reporting.init(
                 self.bus.client.boundjid.user, self.bus, self.report_channel
             )
             self.loop.set_exception_handler(self._exception_handler)

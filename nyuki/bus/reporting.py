@@ -10,6 +10,33 @@ from traceback import TracebackException
 log = logging.getLogger(__name__)
 
 
+_reporter = None
+
+
+def init(*args, **kwargs):
+    global _reporter
+    if _reporter:
+        log.warning('Reporter already initiated')
+        return
+    _reporter = Reporter(*args, **kwargs)
+
+
+def send_report(*args, **kwargs):
+    global _reporter
+    if not _reporter:
+        log.warning('Reporter not initiated')
+        return
+    _reporter.send_report(*args, **kwargs)
+
+
+def exception(exc):
+    global _reporter
+    if not _reporter:
+        log.warning('Reporter not initiated')
+        return
+    _reporter.exception(exc)
+
+
 REPORT_SCHEMA = {
     'type': 'object',
     'required': ['hostname', 'ipv4', 'type', 'author', 'datetime', 'data'],
