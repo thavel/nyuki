@@ -8,7 +8,7 @@ from signal import SIGHUP, SIGINT, SIGTERM
 
 from nyuki import reporting
 from nyuki.api import Response
-from nyuki.bus import Bus, from_isoformat
+from nyuki.bus import Bus
 from nyuki.bus.persistence import EventStatus
 from nyuki.capabilities import Exposer, resource
 from nyuki.commands import get_command_kwargs
@@ -16,6 +16,7 @@ from nyuki.config import get_full_config, write_conf_json, merge_configs
 from nyuki.handlers import CapabilityHandler
 from nyuki.logs import DEFAULT_LOGGING
 from nyuki.services import ServiceManager
+from nyuki.utils import from_isoformat
 from nyuki.websocket import WebHandler
 
 
@@ -105,7 +106,7 @@ class Nyuki(metaclass=CapabilityHandler):
         TODO: must be removed
         """
         log.warning('Deprecated reporting call, use nyuki.bus.reporting')
-        return reporting._reporter
+        return reporting
 
     def _exception_handler(self, loop, context):
         if 'exception' not in context:

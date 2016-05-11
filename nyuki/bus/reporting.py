@@ -4,37 +4,13 @@ from jsonschema import FormatChecker, validate, ValidationError
 import logging
 import os
 import socket
+import sys
 from traceback import TracebackException
+
+from nyuki.utils import from_isoformat
 
 
 log = logging.getLogger(__name__)
-
-
-_reporter = None
-
-
-def init(*args, **kwargs):
-    global _reporter
-    if _reporter:
-        log.warning('Reporter already initiated')
-        return
-    _reporter = Reporter(*args, **kwargs)
-
-
-def send_report(*args, **kwargs):
-    global _reporter
-    if not _reporter:
-        log.warning('Reporter not initiated')
-        return
-    _reporter.send_report(*args, **kwargs)
-
-
-def exception(exc):
-    global _reporter
-    if not _reporter:
-        log.warning('Reporter not initiated')
-        return
-    _reporter.exception(exc)
 
 
 REPORT_SCHEMA = {
@@ -67,10 +43,6 @@ REPORT_SCHEMA = {
 }
 
 
-def from_isoformat(iso):
-    return datetime.strptime(iso, '%Y-%m-%dT%H:%M:%S.%f')
-
-
 report_checker = FormatChecker()
 
 
@@ -88,7 +60,15 @@ class Reporter(object):
 
     EXCEPTION_TTL = 3600
 
-    def __init__(self, name, publisher, channel, loop=None):
+    def __init__(self):
+        self.name = None
+        self._loop = None
+        self._publisher = None
+        self._channel = None
+        self._handlers = list()
+        self._last_exceptions = list()
+
+    def init(self, name, publisher, channel, loop=None):
         if not hasattr(publisher, 'subscribe'):
             raise TypeError("Nyuki publisher requires the 'subscribe' method")
         if not hasattr(publisher, 'publish'):
@@ -98,8 +78,6 @@ class Reporter(object):
         self._loop = loop or asyncio.get_event_loop()
         self._publisher = publisher
         self._channel = channel
-        self._handlers = list()
-        self._last_exceptions = list()
         asyncio.ensure_future(
             self._publisher.subscribe(channel, self._handle_report)
         )
@@ -190,3 +168,6 @@ class Reporter(object):
 
     def _forget_exception(self, formatted):
         self._last_exceptions.remove(formatted)
+
+
+sys.modules[__name__] = Reporter()
