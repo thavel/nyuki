@@ -3,6 +3,8 @@ from enum import Enum
 import json
 import logging
 
+from nyuki.bus import reporting
+
 
 log = logging.getLogger(__name__)
 # aiohttp needs its own logger, and always prints HTTP hits using INFO level
@@ -149,14 +151,7 @@ async def mw_capability(app, capa_handler):
             # Avoid sending a report on a simple 404 Not Found
             raise
         except Exception as exc:
-            # Access private '_exception_handler' attribute to avoid calling
-            # the 'default_exception_handler' a second time if no exception
-            # handler has been set on our side (no bus)
-            if app.loop._exception_handler:
-                app.loop.call_exception_handler({
-                    'message': str(exc),
-                    'exception': exc
-                })
+            reporting.exception(exc)
             raise exc
 
         if capa_resp and isinstance(capa_resp, Response):

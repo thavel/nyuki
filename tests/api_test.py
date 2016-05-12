@@ -127,7 +127,8 @@ class TestCapabilityMiddleware(TestCase):
         eq_(ar['capability'], 'test')
         eq_(self._request.headers.get('Content-Type'), 'application/json')
 
-    async def test_004_exception(self):
+    @patch('nyuki.bus.reporting.exception')
+    async def test_004_exception(self, exc_mock):
         self._request.method = 'GET'
         self._request.GET = {}
         self._request.match_info = {}
@@ -139,10 +140,7 @@ class TestCapabilityMiddleware(TestCase):
         mdw = await mw_capability(self._app, _capa_handler)
         assert_is_not_none(mdw)
 
-        with patch.object(self._app.loop, 'call_exception_handler') as exc_handler:
-            with assert_raises(Exception):
-                await mdw(self._request)
-            exc_handler.assert_called_once_with({
-                'message': str(exc),
-                'exception': exc
-            })
+        with assert_raises(Exception):
+            await mdw(self._request)
+
+        exc_mock.asser_called_once_with(exc)

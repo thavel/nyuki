@@ -131,6 +131,10 @@ class Reporter(object):
             - DEFAULT_IPV4: local container ipv4
         Otherwise, the nyuki try and search for it by itself.
         """
+        if not self._publisher:
+            log.warning('Reporting not initiated')
+            return
+
         report = {
             'hostname': os.environ.get('MACHINE_NAME', socket.gethostname()),
             'ipv4': os.environ.get(

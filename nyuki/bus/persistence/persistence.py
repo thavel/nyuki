@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime
 import logging
 
+from nyuki.bus import reporting
 from nyuki.bus.persistence.backend import PersistenceBackend
 from nyuki.bus.persistence.events import EventStatus
 from nyuki.bus.persistence.mongo_backend import MongoBackend
@@ -125,11 +126,7 @@ class BusPersistence(object):
                 for event in self._last_events.empty():
                     await self.backend.store(event)
             except Exception as exc:
-                # Reporter not accessible, call loop exception handler
-                self._loop.call_exception_handler({
-                    'message': str(exc),
-                    'exception': exc
-                })
+                reporting.exception(exc)
         else:
             log.warning('No connection to backend to empty in-memory events')
 
@@ -187,10 +184,7 @@ class BusPersistence(object):
                     try:
                         return await self.backend.update(uid, status)
                     except Exception as exc:
-                        self._loop.call_exception_handler({
-                            'message': str(exc),
-                            'exception': exc
-                        })
+                        reporting.exception(exc)
                     log.error('Backend not available, retrying update in 5')
                     await asyncio.sleep(5)
             asyncio.ensure_future(_ensure_status())
@@ -225,10 +219,7 @@ class BusPersistence(object):
                             since=since, status=status
                         )
                     except Exception as exc:
-                        self._loop.call_exception_handler({
-                            'message': str(exc),
-                            'exception': exc
-                        })
+                        reporting.exception(exc)
                     log.error('Backend not available, retrying retrieve in 5')
                     await asyncio.sleep(5)
 

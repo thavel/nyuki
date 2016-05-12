@@ -6,6 +6,7 @@ from slixmpp import ClientXMPP
 from slixmpp.exceptions import IqError, IqTimeout
 from uuid import uuid4
 
+from nyuki.bus import reporting
 from nyuki.bus.persistence import BusPersistence, EventStatus, PersistenceError
 from nyuki.services import Service
 
@@ -61,10 +62,7 @@ class _BusClient(ClientXMPP):
         """
         xmlstream.py catches exceptions itself, calls this method afterwards
         """
-        self._loop.call_exception_handler({
-            'message': str(exc),
-            'exception': exc
-        })
+        reporting.exception(exc)
 
 
 class Bus(Service):
