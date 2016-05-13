@@ -5,17 +5,17 @@ import logging
 import logging.config
 from pijon import Pijon
 from signal import SIGHUP, SIGINT, SIGTERM
+import uvloop
 
 from nyuki import reporting
 from nyuki.api import Response
-from nyuki.bus import Bus
+from nyuki.bus import Bus, MqttBus
 from nyuki.bus.persistence import EventStatus
 from nyuki.capabilities import Exposer, resource
 from nyuki.commands import get_command_kwargs
 from nyuki.config import get_full_config, write_conf_json, merge_configs
 from nyuki.handlers import CapabilityHandler
 from nyuki.logs import DEFAULT_LOGGING
-from nyuki.mqtt import MqttBus
 from nyuki.services import ServiceManager
 from nyuki.utils import from_isoformat
 from nyuki.websocket import WebHandler
@@ -65,6 +65,7 @@ class Nyuki(metaclass=CapabilityHandler):
         self.register_schema(self.BASE_CONF_SCHEMA)
 
         # Set loop
+        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
         self.loop = asyncio.get_event_loop() or asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
 
@@ -150,6 +151,13 @@ class Nyuki(metaclass=CapabilityHandler):
         if 'bus' in self._services.all:
             reporting.init(
                 self.bus.client.boundjid.user, self.bus, self.report_channel
+            )
+            self.loop.set_exception_handler(self._exception_handler)
+        elif 'mqtt' in self._services.all:
+            reporting.init(
+                self.mqtt.name,
+                self.mqtt,
+                'monitoring/{}'.format(self.mqtt.name)
             )
             self.loop.set_exception_handler(self._exception_handler)
 

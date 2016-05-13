@@ -13,10 +13,14 @@ from nyuki.services import Service
 log = logging.getLogger(__name__)
 
 
-class Request(object):
+class RequestAPI(object):
 
-    def __init__(self, nyuki, capability, uuid):
-        pass
+    def __init__(self, body):
+        self._body = body
+        self.headers = None
+
+    async def json(self):
+        return self._body
 
 
 class ReMQTTClient(MQTTClient):
@@ -32,29 +36,31 @@ class MqttBus(Service):
     """
     Nyuki topics formatted as:
         - global publications:
-            {nyuki_name}/publications
-        - request/response:
-            {nyuki_name}/{capability_name}/{request_id}/<request|response>
+            publications/{nyuki_name}
+        - requests/response:
+            <request|response>/{nyuki_name}/{capability_name}/{request_id}
     """
 
-    def __init__(self, nyuki):
+    def __init__(self, nyuki, loop=None):
         self._nyuki = nyuki
-        self._loop = nyuki.loop or asyncio.get_event_loop()
+        self._loop = loop or asyncio.get_event_loop()
         self._host = None
         self._self_topic = None
         self._request_topic = None
         self.client = ReMQTTClient(loop=self._loop)
         self._pending = {}
         self._subscriptions = {}
+        self.name = None
 
         # Coroutines
         self._frun = None
 
-    def configure(self, host, name):
-        self._host = host
-        self._name = name
-        self._self_topic = '{}/publications'.format(self._name)
-        self._request_topic = '{}/+/+/request'.format(self._name)
+    def configure(self, host, name, port=1883, certificate=None):
+        self._host = '{}:{}'.format(host, port)
+        self.name = name
+        self._self_topic = self._publish_topic(self.name)
+        self._request_topic = 'requests/{}/+/+'.format(self.name)
+        self._certificate = certificate
 
     async def start(self):
         self._frun = asyncio.ensure_future(self._run(), loop=self._loop)
@@ -73,18 +79,16 @@ class MqttBus(Service):
         log.info('MQTT service stopped')
 
     def _publish_topic(self, nyuki):
-        return '{}/publications'.format(nyuki)
+        return 'publications/{}'.format(nyuki)
 
     def _resp_topic_from_req(self, req_topic):
-        return req_topic.replace('/request', '/response')
+        return req_topic.replace('requests/', 'response/')
 
     async def _sub(self, topic, callback):
+        if not asyncio.iscoroutinefunction(callback):
+            raise ValueError('event callback must be a coroutine')
         log.debug('MQTT subscription to %s', topic)
         await self.client.subscribe([(topic, QOS_2)])
-
-        if not asyncio.iscoroutinefunction(callback):
-            log.warning('event callback must be a coroutine')
-            callback = asyncio.coroutine(callback)
         self._subscriptions[topic] = callback
 
     async def _unsub(self, topic):
@@ -112,7 +116,7 @@ class MqttBus(Service):
         await self.client.publish(topic, data.encode())
 
     async def request(self, nyuki, capability, data):
-        req_topic = '{}/{}/{}/request'.format(nyuki, capability, str(uuid4())[:8])
+        req_topic = 'requests/{}/{}/{}'.format(nyuki, capability, str(uuid4())[:8])
         resp_topic = self._resp_topic_from_req(req_topic)
         future = asyncio.Future()
         self._pending[resp_topic] = future
@@ -138,7 +142,7 @@ class MqttBus(Service):
 
     async def reply(self, topic, data):
         resp_topic = self._resp_topic_from_req(topic)
-        if not resp_topic.endswith('/response'):
+        if not resp_topic.startswith('response/'):
             log.error('Reply failure: %s', resp_topic)
             return
         await self.publish(data, resp_topic)
@@ -152,7 +156,10 @@ class MqttBus(Service):
             try:
                 log.info('Trying MQTT connection to %s', self._host)
                 try:
-                    await self.client.connect(self._host, cafile='ssl/ca.crt')
+                    await self.client.connect(
+                        self._host,
+                        cafile=self._certificate
+                    )
                 except (ConnectException, NoDataException) as e:
                     log.error(e)
                     current_delay = (delay * 2) + 1
@@ -182,14 +189,14 @@ class MqttBus(Service):
             topic = message.topic
 
             # Ignore own message
-            if topic == self._publish_topic(self._name):
+            if topic == self._publish_topic(self.name):
                 return
 
             # Check subscription event
             if topic in self._subscriptions:
                 asyncio.ensure_future(self._handle_event(message), loop=self._loop)
             # Check request
-            elif re.match(r'^%s/\w+/\w{8}/request$' % self._name, topic):
+            elif re.match(r'^requests/%s/\w+/\w{8}$' % self.name, topic):
                 asyncio.ensure_future(self._handle_request(message), loop=self._loop)
             else:
                 log.debug('Unknown event received on topic: %s', topic)
@@ -211,10 +218,10 @@ class MqttBus(Service):
         """
         # Check topic validity
         m = re.match(
-            r'^(?P<nyuki_name>\w+)/'
+            r'^(?P<mtype>\w+)/'
+            r'(?P<nyuki_name>\w+)/'
             r'(?P<capability>\w+)/'
-            r'(?P<uuid>\w{8})/'
-            r'(?P<mtype>\w+)$',
+            r'(?P<uuid>\w{8})$',
             message.topic
         )
         if not m:
@@ -225,12 +232,14 @@ class MqttBus(Service):
         log.info("Message from topic '%s'", message.topic)
         log.debug('dump: %s', data)
 
-        if m.group('mtype') == 'response' and message.topic in self._pending:
+        if m.group('mtype') == 'responses' and message.topic in self._pending:
             # Is a pending response, set future result
             self._pending[message.topic].set_result(data)
-        elif m.group('mtype') == 'request':
+        elif m.group('mtype') == 'requests':
             # Is a request
-            resp = await self._nyuki.api.call(m.group('capability'), data)
+            resp = await self._nyuki.api.call(
+                m.group('capability'), RequestAPI(data)
+            )
             await self.reply(message.topic, resp)
         else:
             log.error('Message type does not match: %s', m.group('mtype'))
