@@ -7,6 +7,7 @@ import logging
 import re
 from uuid import uuid4
 
+from nyuki.bus.persistence import BusPersistence, EventStatus, PersistenceError
 from nyuki.services import Service
 
 
@@ -38,8 +39,48 @@ class MqttBus(Service):
         - global publications:
             publications/{nyuki_name}
         - requests/response:
-            <request|response>/{nyuki_name}/{capability_name}/{request_id}
+            <requests|responses>/{nyuki_name}/{capability_name}/{request_id}
     """
+
+    CONF_SCHEMA = {
+        "type": "object",
+        "required": ["bus"],
+        "properties": {
+            "bus": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                    "certificate": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "host": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "name": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "port": {"type": "integer"},
+                    "persistence": {
+                        "type": "object",
+                        "properties": {
+                            "backend": {
+                                "type": "string",
+                                "minLength": 1
+                            }
+                        }
+                    }
+                },
+                "additionalProperties": False
+            }
+        }
+    }
+
+    BASE_PUB = 'publications'
+    BASE_REQ = 'requests'
+    BASE_RESP = 'responses'
 
     def __init__(self, nyuki, loop=None):
         self._nyuki = nyuki
@@ -59,11 +100,19 @@ class MqttBus(Service):
         self._host = '{}:{}'.format(host, port)
         self.name = name
         self._self_topic = self._publish_topic(self.name)
-        self._request_topic = 'requests/{}/+/+'.format(self.name)
+        self._request_topic = '{}/{}/+/+'.format(self.BASE_REQ, self.name)
         self._certificate = certificate
 
     async def start(self):
         self._frun = asyncio.ensure_future(self._run(), loop=self._loop)
+
+        try:
+            await self._persistence.init()
+        except PersistenceError:
+            log.error(
+                'Could not init persistence storage with %s',
+                self._persistence.backend
+            )
 
     async def stop(self):
         # Clean tasks
@@ -79,10 +128,14 @@ class MqttBus(Service):
         log.info('MQTT service stopped')
 
     def _publish_topic(self, nyuki):
-        return 'publications/{}'.format(nyuki)
+        return '{}/{}'.format(self.BASE_PUB, nyuki)
 
     def _resp_topic_from_req(self, req_topic):
-        return req_topic.replace('requests/', 'response/')
+        return re.sub(
+            r'%s/' % self.BASE_REQ,
+            r'%s/' % self.BASE_RESP,
+            req_topic
+        )
 
     async def _sub(self, topic, callback):
         if not asyncio.iscoroutinefunction(callback):
@@ -116,7 +169,12 @@ class MqttBus(Service):
         await self.client.publish(topic, data.encode())
 
     async def request(self, nyuki, capability, data):
-        req_topic = 'requests/{}/{}/{}'.format(nyuki, capability, str(uuid4())[:8])
+        req_topic = '{}/{}/{}/{}'.format(
+            self.BASE_REQ,
+            nyuki,
+            capability,
+            str(uuid4())[:8]
+        )
         resp_topic = self._resp_topic_from_req(req_topic)
         future = asyncio.Future()
         self._pending[resp_topic] = future
@@ -142,7 +200,7 @@ class MqttBus(Service):
 
     async def reply(self, topic, data):
         resp_topic = self._resp_topic_from_req(topic)
-        if not resp_topic.startswith('response/'):
+        if not resp_topic.startswith(self.BASE_RESP + '/'):
             log.error('Reply failure: %s', resp_topic)
             return
         await self.publish(data, resp_topic)
@@ -161,7 +219,7 @@ class MqttBus(Service):
                         cafile=self._certificate
                     )
                 except (ConnectException, NoDataException) as e:
-                    log.error(e)
+                    log.exception(e)
                     current_delay = (delay * 2) + 1
                     log.info('Waiting %d seconds to reconnect', current_delay)
                     await asyncio.sleep(current_delay)
@@ -171,13 +229,15 @@ class MqttBus(Service):
                 # Reset reconnection delay
                 delay = 1
                 log.info('Connection made with MQTT')
+                # Subscribe to nyuki publications
+                await self._sub()
                 # Subscribe to own requests topic
                 await self._sub(self._request_topic, self._handle_request)
 
                 try:
                     await self._listen()
                 except ClientException as e:
-                    log.error(e)
+                    log.exception(e)
 
             except asyncio.CancelledError:
                 log.debug('Connection loop cancelled')
@@ -196,7 +256,7 @@ class MqttBus(Service):
             if topic in self._subscriptions:
                 asyncio.ensure_future(self._handle_event(message), loop=self._loop)
             # Check request
-            elif re.match(r'^requests/%s/\w+/\w{8}$' % self.name, topic):
+            elif re.match(r'^%s/%s/\w+/\w{8}$' % (self.BASE_REQ, self.name), topic):
                 asyncio.ensure_future(self._handle_request(message), loop=self._loop)
             else:
                 log.debug('Unknown event received on topic: %s', topic)
@@ -232,10 +292,10 @@ class MqttBus(Service):
         log.info("Message from topic '%s'", message.topic)
         log.debug('dump: %s', data)
 
-        if m.group('mtype') == 'responses' and message.topic in self._pending:
+        if m.group('mtype') == self.BASE_RESP and message.topic in self._pending:
             # Is a pending response, set future result
             self._pending[message.topic].set_result(data)
-        elif m.group('mtype') == 'requests':
+        elif m.group('mtype') == self.BASE_REQ:
             # Is a request
             resp = await self._nyuki.api.call(
                 m.group('capability'), RequestAPI(data)

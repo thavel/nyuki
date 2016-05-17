@@ -7,8 +7,7 @@ from pijon import Pijon
 from signal import SIGHUP, SIGINT, SIGTERM
 import uvloop
 
-from nyuki import reporting
-from nyuki.api import Response
+from nyuki import reporting, Response
 from nyuki.bus import Bus, MqttBus
 from nyuki.bus.persistence import EventStatus
 from nyuki.capabilities import Exposer, resource
