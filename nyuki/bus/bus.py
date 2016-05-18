@@ -422,7 +422,7 @@ class Bus(Service):
 
         self._mucs.joinMUC(self._muc_address(topic), self._topic)
         log.info("Subscribed to '{}'".format(topic))
-        if topic not in self._callbacks:
+        if self._callbacks.get(topic) is None:
             self._callbacks[topic] = callback
         else:
             log.warning("Callback already set for topic: %s", topic)

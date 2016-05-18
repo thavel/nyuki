@@ -121,9 +121,10 @@ async def mw_capability(app, capa_handler):
     Transform the request data to be passed through a capability and
     convert the result into a web response.
     """
-    async def middleware(request):
 
-        if request.method in request.POST_METHODS and hasattr(capa_handler, 'CONTENT_TYPE'):
+    async def middleware(request):
+        # Ensure a content-type check is necessary
+        if hasattr(capa_handler, 'CONTENT_TYPE') and await request.text():
             ctype = capa_handler.CONTENT_TYPE
 
             # Check content_type from @resource decorator
