@@ -2,5 +2,7 @@ aiohttp>=0.21,<0.22
 jsonschema>=2.5,<2.6
 motor>=0.6,<0.7
 pijon>=0.1,<0.2
+# pycares-2.0.0 breaks errno.ECONNRESET
+pycares==1.0.0
 slixmpp>=1.1,<1.2
 websockets>=3.0,<3.1
