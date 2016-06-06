@@ -7,7 +7,7 @@ import logging
 import re
 from uuid import uuid4
 
-from nyuki.bus.persistence import BusPersistence, EventStatus, PersistenceError
+# from nyuki.bus.persistence import BusPersistence, EventStatus, PersistenceError
 from nyuki.services import Service
 
 
@@ -90,8 +90,9 @@ class MqttBus(Service):
         self._request_topic = None
         self.client = ReMQTTClient(loop=self._loop)
         self._pending = {}
-        self._subscriptions = {}
         self.name = None
+        self._default_callback = None
+        self._subscriptions = {}
 
         # Coroutines
         self._frun = None
@@ -106,13 +107,13 @@ class MqttBus(Service):
     async def start(self):
         self._frun = asyncio.ensure_future(self._run(), loop=self._loop)
 
-        try:
-            await self._persistence.init()
-        except PersistenceError:
-            log.error(
-                'Could not init persistence storage with %s',
-                self._persistence.backend
-            )
+        # try:
+        #     await self._persistence.init()
+        # except PersistenceError:
+        #     log.error(
+        #         'Could not init persistence storage with %s',
+        #         self._persistence.backend
+        #     )
 
     async def stop(self):
         # Clean tasks
@@ -137,30 +138,39 @@ class MqttBus(Service):
             req_topic
         )
 
-    async def _sub(self, topic, callback):
+    def set_default_callback(self, callback):
+        """
+        Default callback, mandatory if topic wildcards are used
+        """
         if not asyncio.iscoroutinefunction(callback):
             raise ValueError('event callback must be a coroutine')
+        self._default_callback = callback
+
+    async def subscribe(self, topic, callback=None):
+        """
+        Subscribe, with callback if given
+        (wildcards won't trigger callbacks)
+        """
+        if callback:
+            if not asyncio.iscoroutinefunction(callback):
+                raise ValueError('event callback must be a coroutine')
+            self._subscriptions[topic] = callback
         log.debug('MQTT subscription to %s', topic)
         await self.client.subscribe([(topic, QOS_2)])
-        self._subscriptions[topic] = callback
 
-    async def _unsub(self, topic):
+    async def unsubscribe(self, topic):
+        """
+        Unsubscribe from the topic, remove callback if set
+        """
         log.debug('MQTT unsubscription from %s', topic)
         await self.client.unsubscribe([topic])
         if topic in self._subscriptions:
             del self._subscriptions[topic]
 
-    async def subscribe(self, nyuki, callback):
-        log.info('Subscribing to %s', nyuki)
-        topic = self._publish_topic(nyuki)
-        await self._sub(topic, callback)
-
-    async def unsubscribe(self, nyuki):
-        log.info('Unsubscribing from %s', nyuki)
-        topic = self._publish_topic(nyuki)
-        await self._unsub(topic)
-
     async def publish(self, data, topic=None):
+        """
+        Publish in given topic or default one
+        """
         topic = topic or self._self_topic
         log.info('Publishing into %s', topic)
         data = json.dumps(data)
@@ -230,9 +240,9 @@ class MqttBus(Service):
                 delay = 1
                 log.info('Connection made with MQTT')
                 # Subscribe to nyuki publications
-                await self._sub()
+                # await self._sub()
                 # Subscribe to own requests topic
-                await self._sub(self._request_topic, self._handle_request)
+                # await self._sub(self._request_topic, self._handle_request)
 
                 try:
                     await self._listen()
@@ -244,33 +254,37 @@ class MqttBus(Service):
                 break
 
     async def _listen(self):
+        """
+        Listen to events after a successful connection
+        """
         while True:
             message = await self.client.deliver_message()
             topic = message.topic
 
             # Ignore own message
             if topic == self._publish_topic(self.name):
-                return
+                continue
 
-            # Check subscription event
-            if topic in self._subscriptions:
-                asyncio.ensure_future(self._handle_event(message), loop=self._loop)
+            cb = self._subscriptions.get(topic, self._default_callback)
+            if not cb:
+                log.warning('no callback for event')
+                continue
+
+            asyncio.ensure_future(
+                self._handle_event(message, cb),
+                loop=self._loop
+            )
             # Check request
-            elif re.match(r'^%s/%s/\w+/\w{8}$' % (self.BASE_REQ, self.name), topic):
-                asyncio.ensure_future(self._handle_request(message), loop=self._loop)
-            else:
-                log.debug('Unknown event received on topic: %s', topic)
+            # elif re.match(r'^%s/%s/\w+/\w{8}$' % (self.BASE_REQ, self.name), topic):
+            #     asyncio.ensure_future(self._handle_request(message), loop=self._loop)
 
-    async def _handle_event(self, message):
+    async def _handle_event(self, message, callback):
         """
-        Handle an event from a subscribed topic
+        Handle an event from mqtt
         """
         data = json.loads(message.data.decode())
-        log.info("Event from topic '%s'", message.topic)
-        log.debug('dump: %s', data)
-
-        callback = self._subscriptions[message.topic]
-        await callback(data)
+        log.debug("Event from topic '%s': %s", message.topic, data)
+        await callback(message.topic, data)
 
     async def _handle_request(self, message):
         """

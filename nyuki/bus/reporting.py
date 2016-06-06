@@ -78,9 +78,9 @@ class Reporter(object):
         self._loop = loop or asyncio.get_event_loop()
         self._publisher = publisher
         self._channel = channel
-        asyncio.ensure_future(
-            self._publisher.subscribe(channel, self._handle_report)
-        )
+        asyncio.ensure_future(self._publisher.subscribe(
+            channel, self._handle_report
+        ))
 
     async def _handle_report(self, data):
         """
