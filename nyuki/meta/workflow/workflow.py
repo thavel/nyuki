@@ -58,6 +58,10 @@ class WorkflowNyuki(Nyuki):
         self.engine = None
         self.storage = None
 
+        self.AVAILABLE_TASKS = {}
+        for name, value in TaskRegistry.all().items():
+            self.AVAILABLE_TASKS[name] = getattr(value[0], 'SCHEMA', {})
+
     @property
     def mongo_host(self):
         return self.config['mongo']['host']
@@ -473,10 +477,7 @@ class WorkflowNyuki(Nyuki):
             """
             Return the available tasks
             """
-            AVAILABLE_TASKS = {}
-            for name, value in TaskRegistry.all().items():
-                AVAILABLE_TASKS[name] = getattr(value[0], 'SCHEMA', {})
-            return Response(AVAILABLE_TASKS)
+            return Response(self.AVAILABLE_TASKS)
 
     @resource('/topics', version='v1')
     class Topics:
