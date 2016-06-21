@@ -14,7 +14,7 @@ class MongoNotConnectedError(Exception):
 
 class MongoBackend(PersistenceBackend):
 
-    def __init__(self, name, host='localhost', ttl=3600):
+    def __init__(self, name, host='localhost', ttl=3600, **kwargs):
         self.name = name
         self.client = None
         self.db = None
@@ -23,6 +23,8 @@ class MongoBackend(PersistenceBackend):
         self._collection = None
         # Ensure TTL is set
         self._indexed = False
+        # Options
+        self._options = kwargs
 
     def __str__(self):
         return "<MongoBackend with host '{}'>".format(self.host)
@@ -37,7 +39,7 @@ class MongoBackend(PersistenceBackend):
 
     async def init(self):
         # Get collection for this nyuki
-        self.client = AsyncIOMotorClient(self.host)
+        self.client = AsyncIOMotorClient(self.host, **self._options)
         self.db = self.client['bus_persistence']
         self._collection = self.db[self.name]
         await self._index_ttl()
