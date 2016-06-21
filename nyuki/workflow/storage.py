@@ -233,6 +233,62 @@ class _InstanceCollection:
         self._instances = instances_collection
 
 
+class _DataProcessingCollection:
+
+    def __init__(self, data_collection):
+        self._rules = data_collection
+        asyncio.ensure_future(_index(data_collection, 'id', unique=True))
+
+    async def get_all(self):
+        """
+        Return a list of all rules
+        """
+        cursor = self._rules.find(None, {'_id': 0})
+        rules = []
+        with _report_connection():
+            rules = await cursor.to_list(None)
+        return rules
+
+    async def get(self, rule_id):
+        """
+        Return the rule for given id or None
+        """
+        cursor = self._rules.find({'id': rule_id}, {'_id': 0})
+        with _report_connection():
+            await cursor.fetch_next
+        return cursor.next_object()
+
+    async def insert(self, data):
+        """
+        Insert a new data processing rule:
+        {
+            "id": "rule_id",
+            "name": "rule_name",
+            "config": {
+                "some": "configuration"
+            }
+        }
+        """
+        query = {'id': data['id']}
+        log.info(
+            "Inserting data processing rule in collection '%s'",
+            self._rules.name
+        )
+        log.debug('insert query: %s', query)
+        with _report_connection():
+            await self._rules.update(query, data, upsert=True)
+
+    async def delete(self, rule_id=None):
+        """
+        Delete a rule from its id or all rules
+        """
+        query = {'id': rule_id} if rule_id is not None else None
+        log.info("Removing rule(s) from collection '%s'", self._rules.name)
+        log.debug('delete query: %s', query)
+        with _report_connection():
+            await self._rules.remove(query)
+
+
 class MongoStorage:
 
     DEFAULT_DATABASE = 'workflow'
@@ -247,3 +303,5 @@ class MongoStorage:
         # Collections
         self.templates = _TemplateCollection(db['templates'], db['metadata'])
         self.instances = _InstanceCollection(db['instances'])
+        self.regexs = _DataProcessingCollection(db['regexs'])
+        self.lookups = _DataProcessingCollection(db['lookups'])

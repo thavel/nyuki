@@ -5,6 +5,7 @@ import json
 import logging
 from tukio import Engine, Workflow, WorkflowTemplate, TaskRegistry
 from tukio.workflow import TemplateGraphError
+from uuid import uuid4
 
 from nyuki import Nyuki, resource, Response
 from nyuki.bus import reporting
@@ -136,7 +137,7 @@ class WorkflowNyuki(Nyuki):
             errors = err.as_dict()
         return errors
 
-    @resource('/templates', version='v1')
+    @resource('/workflow/templates', version='v1')
     class Templates:
 
         async def get(self, request):
@@ -198,7 +199,7 @@ class WorkflowNyuki(Nyuki):
                 'errors': self.errors_from_validation(template)
             })
 
-    @resource(r'/templates/{tid}', version='v1')
+    @resource('/workflow/templates/{tid}', version='v1')
     class Template:
 
         async def get(self, request, tid):
@@ -286,7 +287,7 @@ class WorkflowNyuki(Nyuki):
 
             return Response(tmpl)
 
-    @resource(r'/templates/{tid}/{version:\d+}', version='v1')
+    @resource('/workflow/templates/{tid}/{version:\d+}', version='v1')
     class TemplateVersion:
 
         async def get(self, request, tid, version):
@@ -310,7 +311,7 @@ class WorkflowNyuki(Nyuki):
             await self.storage.templates.delete(tid, version)
             return Response(tmpl[0])
 
-    @resource(r'/templates/{tid}/draft', version='v1')
+    @resource('/workflow/templates/{tid}/draft', version='v1')
     class TemplateDraft:
 
         async def get(self, request, tid):
@@ -408,7 +409,7 @@ class WorkflowNyuki(Nyuki):
             return obj.report()
         raise TypeError('obj not serializable')
 
-    @resource('/instances', version='v1')
+    @resource('/workflow/instances', version='v1')
     class Workflows:
 
         async def get(self, request):
@@ -445,7 +446,7 @@ class WorkflowNyuki(Nyuki):
                 content_type='application/json'
             )
 
-    @resource(r'/instances/{iid}', version='v1')
+    @resource('/workflow/instances/{iid}', version='v1')
     class Workflow:
 
         async def get(self, request, iid):
@@ -466,7 +467,7 @@ class WorkflowNyuki(Nyuki):
             Operate on a workflow instance
             """
 
-    @resource('/tasks', version='v1')
+    @resource('/workflow/tasks', version='v1')
     class Tasks:
 
         async def get(self, request):
@@ -475,7 +476,7 @@ class WorkflowNyuki(Nyuki):
             """
             return Response(self.AVAILABLE_TASKS)
 
-    @resource('/topics', version='v1')
+    @resource('/workflow/topics', version='v1')
     class Topics:
 
         async def get(self, request):
@@ -484,8 +485,181 @@ class WorkflowNyuki(Nyuki):
             """
             return Response(self.topics)
 
+    @resource('/workflow/regexs', version='v1')
+    class Regexs:
+
+        async def get(self, request):
+            """
+            Return the list of all regexs
+            """
+            return Response(await self.storage.regexs.get_all())
+
+        async def put(self, request):
+            """
+            Insert a new rule
+            """
+            request = await request.json()
+
+            try:
+                data = {
+                    'id': str(uuid4()),
+                    'name': request['name'],
+                    'type': request.get['type'],
+                    'config': request.get('config', {})
+                }
+            except KeyError as exc:
+                return Response(status=400, body={
+                    'error': 'missing parameter {}'.format(exc)
+                })
+
+            if data['type'] not in ['sub', 'extract']:
+                return Response(status=400, body={
+                    'error': "regex must be of type 'sub' or 'extract'"
+                })
+
+            await self.storage.regexs.insert(data)
+            return Response(data)
+
+        async def delete(self, request):
+            """
+            Delete all regexs and return the list
+            """
+            rules = await self.storage.regexs.get_all()
+            await self.storage.regexs.delete()
+            return Response(rules)
+
+    @resource('/workflow/regexs/{rule_id}', version='v1')
+    class Regex:
+
+        async def get(self, request, rule_id):
+            """
+            Return the rule for id `rule_id`
+            """
+            rule = await self.storage.regexs.get(rule_id)
+            if not rule:
+                return Response(status=404)
+            return Response(rule)
+
+        async def patch(self, request, rule_id):
+            """
+            Modify an existing regex rule
+            """
+            rule = await self.storage.regexs.get(rule_id)
+            if not rule:
+                return Response(status=404)
+
+            request = await request.json()
+
+            data = {
+                'id': rule_id,
+                'name': request.get('name', rule['name']),
+                'type': request.get('type', rule['type']),
+                'config': request.get('config', rule['config'])
+            }
+
+            await self.storage.regexs.insert(data)
+            return Response(data)
+
+        async def delete(self, request, rule_id):
+            """
+            Delete the rule with id `rule_id`
+            """
+            rule = await self.storage.regexs.get(rule_id)
+            if not rule:
+                return Response(status=F404)
+
+            await self.storage.regexs.delete(rule_id=rule_id)
+            return Response(rule)
+
+    @resource('/workflow/lookups', version='v1')
+    class Lookups:
+
+        async def get(self, request):
+            """
+            Return the list of all lookups
+            """
+            return Response(await self.storage.lookups.get_all())
+
+        async def put(self, request):
+            """
+            Insert a new rule
+            """
+            request = await request.json()
+
+            if 'name' not in request:
+                return Response(status=400, body={
+                    'error': "missing parameter 'name'"
+                })
+
+            data = {
+                'id': str(uuid4()),
+                'name': request['name'],
+                'config': request.get('config', {})
+            }
+
+            await self.storage.lookups.insert(data)
+            return Response(data)
+
+        async def delete(self, request):
+            """
+            Delete all lookups and return the list
+            """
+            rules = await self.storage.lookups.get_all()
+            await self.storage.lookups.delete()
+            return Response(rules)
+
+    @resource('/workflow/lookups/{rule_id}', version='v1')
+    class Lookup:
+
+        async def get(self, request, rule_id):
+            """
+            Return the rule for id `rule_id`
+            """
+            rule = await self.storage.lookups.get(rule_id)
+            if not rule:
+                return Response(status=404)
+            return Response(rule)
+
+        async def patch(self, request, rule_id):
+            """
+            Modify an existing lookup rule
+            """
+            rule = await self.storage.lookups.get(rule_id)
+            if not rule:
+                return Response(status=404)
+
+            request = await request.json()
+
+            data = {
+                'id': rule_id,
+                'name': request.get('name', rule['name']),
+                'config': request.get('config', rule['config'])
+            }
+
+            await self.storage.lookups.insert(data)
+            return Response(data)
+
+        async def delete(self, request, rule_id):
+            """
+            Delete the rule with id `rule_id`
+            """
+            rule = await self.storage.lookups.get(rule_id)
+            if not rule:
+                return Response(status=404)
+
+            await self.storage.lookups.delete(rule_id=rule_id)
+            return Response(rule)
+
     @resource('/test', version='v1')
     class Test:
 
         async def post(self, request):
-            await self.workflow_event(await request.json())
+            # Send data to all topics
+            await self.Test.post(self, request, None)
+
+    @resource('/test/{topic}', version='v1')
+    class Test:
+
+        async def post(self, request, topic):
+            # Send data to the given topic
+            await self.workflow_event(await request.json(), topic)
