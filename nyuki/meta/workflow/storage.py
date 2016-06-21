@@ -237,9 +237,9 @@ class MongoStorage:
 
     DEFAULT_DATABASE = 'workflow'
 
-    def __init__(self, host, database=None):
+    def __init__(self, host, database=None, **kwargs):
         log.info("Setting up workflow mongo storage with host '%s'", host)
-        client = AsyncIOMotorClient(host)
+        client = AsyncIOMotorClient(host, **kwargs)
         db_name = database or self.DEFAULT_DATABASE
         db = client[db_name]
         log.info("Workflow database: '%s'", db_name)

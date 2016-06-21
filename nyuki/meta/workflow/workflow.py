@@ -63,12 +63,8 @@ class WorkflowNyuki(Nyuki):
             self.AVAILABLE_TASKS[name] = getattr(value[0], 'SCHEMA', {})
 
     @property
-    def mongo_host(self):
-        return self.config['mongo']['host']
-
-    @property
-    def mongo_database(self):
-        return self.config['mongo'].get('database')
+    def mongo_config(self):
+        return self.config['mongo']
 
     @property
     def topics(self):
@@ -98,7 +94,7 @@ class WorkflowNyuki(Nyuki):
         """
         Check mongo, retrieve and load all templates
         """
-        self.storage = MongoStorage(self.mongo_host, self.mongo_database)
+        self.storage = MongoStorage(**self.mongo_config)
 
         templates = await self.storage.templates.get_all(
             latest=True,
