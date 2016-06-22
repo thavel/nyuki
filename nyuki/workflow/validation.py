@@ -49,9 +49,7 @@ class TemplateError(Exception):
             "info": "<extra>"
         }
         """
-        assert isinstance(exc, jsonschema.ValidationError)
-
-        path = list(exc.absolute_path)
+        path = [str(i) for i in list(exc.absolute_path)]
         error = exc.validator
         value = exc.validator_value
 
@@ -60,6 +58,7 @@ class TemplateError(Exception):
             cursor = task.get('config', {})
             for key in path:
                 cursor = cursor[key]
+            # We are looking for the missing key (not always the first item)
             for key in value:
                 if key not in cursor:
                     path.append(key)
@@ -122,7 +121,7 @@ def validate_task(task, tasks=None):
     try:
         validate_schema(config, schema, cls=custom_validator(tasks))
     except ValidationError as exc:
-        return _get_details(exc, task)
+        return TemplateError.format_details(exc, task)
 
 
 def custom_validator(tasks=None):
