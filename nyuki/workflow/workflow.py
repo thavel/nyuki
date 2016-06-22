@@ -500,22 +500,16 @@ class WorkflowNyuki(Nyuki):
             """
             request = await request.json()
 
-            try:
-                data = {
-                    'id': str(uuid4()),
-                    'name': request['name'],
-                    'type': request.get['type'],
-                    'config': request.get('config', {})
-                }
-            except KeyError as exc:
+            if 'name' not in request:
                 return Response(status=400, body={
-                    'error': 'missing parameter {}'.format(exc)
+                    'error': "missing parameter 'name'"
                 })
 
-            if data['type'] not in ['sub', 'extract']:
-                return Response(status=400, body={
-                    'error': "regex must be of type 'sub' or 'extract'"
-                })
+            data = {
+                'id': str(uuid4()),
+                'name': request['name'],
+                'config': request.get('config', {})
+            }
 
             await self.storage.regexs.insert(data)
             return Response(data)
@@ -553,7 +547,6 @@ class WorkflowNyuki(Nyuki):
             data = {
                 'id': rule_id,
                 'name': request.get('name', rule['name']),
-                'type': request.get('type', rule['type']),
                 'config': request.get('config', rule['config'])
             }
 
