@@ -1,4 +1,5 @@
 import logging
+from enum import Enum
 from jsonschema import ValidationError, validate as validate_schema
 from jsonschema.validators import Draft4Validator, extend as extend_validator
 from jsonschema._validators import type_draft4
@@ -11,25 +12,65 @@ from tukio.workflow import WorkflowRootTaskError
 log = logging.getLogger(__name__)
 
 
+class ErrorInfo(Enum):
+    """
+    Generic error messages for template validation.
+    """
+    UNKNOWN = 'Unknown error'
+    UNKNOWN_TASK = 'Unknown task name'
+    INVALID_GRAPH = 'Invalid graph semantic'
+    INVALID_TASK = 'Invalid task config'
+
+
 class TemplateError(Exception):
-
     """
-    Template error details are formatted in JSON:
-    {
-        "task_id": "<id>",
-        "config_path": "<key.key.key>",
-        "error": "<type>",
-        "info": "<extra>"
-    }
-    Any other error is available through `message`.
+    Workflow template exception descriptor.
     """
-
-    def __init__(self, message, details=None):
-        self.message = message
+    def __init__(self, *, key=ErrorInfo.UNKNOWN, message=None, details=None):
+        self.key = key
+        self.message = message or key.value
         self.details = details or list()
 
     def as_dict(self):
-        return {'message': self.message, 'details': self.details}
+        return {
+            'key': self.key.name,
+            'message': self.message,
+            'details': self.details
+        }
+
+    @staticmethod
+    def format_details(exc, task):
+        """
+        Gives JSON formatted details for a given exception on a task:
+        {
+            "task_id": "<id>",
+            "config_path": "<key.key.key>",
+            "error": "<type>",
+            "info": "<extra>"
+        }
+        """
+        assert isinstance(exc, jsonschema.ValidationError)
+
+        path = list(exc.absolute_path)
+        error = exc.validator
+        value = exc.validator_value
+
+        # Get a proper path for the `required` validation error
+        if error == 'required':
+            cursor = task.get('config', {})
+            for key in path:
+                cursor = cursor[key]
+            for key in value:
+                if key not in cursor:
+                    path.append(key)
+                    break
+
+        return {
+            'task_id': task['id'],
+            'config_path': '.'.join(path),
+            'error': error,
+            'info': value
+        }
 
     def __str__(self):
         return self.message
@@ -44,12 +85,16 @@ def validate(template):
         template.validate()
     except UnknownTaskName as exc:
         log.debug('unknown task: %s', exc)
-        raise TemplateError('Unknown task name: {}'.format(exc))
+        raise TemplateError(
+            key=ErrorInfo.UNKNOWN_TASK,
+            message='Unknown task name: {}'.format(exc),
+        )
     except WorkflowRootTaskError as exc:
         log.debug('workflow validation error: %s', exc)
-        raise TemplateError('Workflow validation error: {}'.format(
-            exc
-        )) from exc
+        raise TemplateError(
+            key=ErrorInfo.INVALID_GRAPH,
+            message='Workflow validation error: {}'.format(exc),
+        ) from exc
 
     errors = list()
     tasks = template.as_dict().get('tasks', [])
@@ -59,37 +104,12 @@ def validate(template):
             errors.append(err)
 
     if errors:
-        raise TemplateError('Invalid task configurations', details=errors)
+        raise TemplateError(
+            key=ErrorInfo.INVALID_TASK,
+            details=errors
+        )
 
     return template
-
-
-def _get_details(exc, task):
-    """
-    Gives JSON formatted details for a given exception on a task.
-    """
-    assert isinstance(exc, ValidationError)
-
-    path = [str(i) for i in list(exc.absolute_path)]
-    error = exc.validator
-    value = exc.validator_value
-
-    # Get a proper path for the `required` validation error
-    if error == 'required':
-        cursor = task.get('config', {})
-        for key in path:
-            cursor = cursor[key]
-        for key in value:
-            if key not in cursor:
-                path.append(key)
-                break
-
-    return {
-        'task_id': task['id'],
-        'config_path': '.'.join(path),
-        'error': error,
-        'info': value
-    }
 
 
 def validate_task(task, tasks=None):
