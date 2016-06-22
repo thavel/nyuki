@@ -80,28 +80,37 @@ def validate(template):
     Validate a template dict and aggregate all errors that could occur.
     Return a tempplate object or raise a ValidationError
     """
-    try:
-        template.validate()
-    except UnknownTaskName as exc:
-        log.debug('unknown task: %s', exc)
+    # Task name validation
+    errors = list()
+    for task in template.tasks:
+        try:
+            TaskRegistry.get(task.name)
+        except UnknownTaskName:
+            errors.append(task.name)
+    if errors:
+        log.debug('unknown tasks: %s', errors)
         raise TemplateError(
             key=ErrorInfo.UNKNOWN_TASK,
-            message='Unknown task name: {}'.format(exc),
+            details=errors
         )
+
+    # DAG semantic validation
+    try:
+        template.validate()
     except WorkflowRootTaskError as exc:
         log.debug('workflow validation error: %s', exc)
         raise TemplateError(
             key=ErrorInfo.INVALID_GRAPH,
-            message='Workflow validation error: {}'.format(exc),
+            message='Workflow validation error: {}'.format(exc)
         ) from exc
 
+    # Task config validation
     errors = list()
     tasks = template.as_dict().get('tasks', [])
     for task in tasks:
         err = validate_task(task, tasks)
         if err:
             errors.append(err)
-
     if errors:
         raise TemplateError(
             key=ErrorInfo.INVALID_TASK,
