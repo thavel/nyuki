@@ -117,6 +117,7 @@ class _TemplateCollection:
             query['draft'] = draft
 
         cursor = self._templates.find(query, {'_id': 0})
+        cursor.sort('version', DESCENDING)
 
         templates = []
         with _report_connection():
