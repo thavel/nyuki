@@ -1,5 +1,9 @@
-import jsonschema
 import logging
+from jsonschema import ValidationError, validate as validate_schema
+from jsonschema.validators import Draft4Validator, extend as extend_validator
+from jsonschema._validators import type_draft4
+from jsonschema import _utils
+
 from tukio import TaskRegistry, UnknownTaskName
 from tukio.workflow import WorkflowRootTaskError
 
@@ -48,8 +52,9 @@ def validate(template):
         )) from exc
 
     errors = list()
-    for task in template.as_dict().get('tasks', []):
-        err = validate_task(task)
+    tasks = template.as_dict().get('tasks', [])
+    for task in tasks:
+        err = validate_task(task, tasks)
         if err:
             errors.append(err)
 
@@ -63,9 +68,9 @@ def _get_details(exc, task):
     """
     Gives JSON formatted details for a given exception on a task.
     """
-    assert isinstance(exc, jsonschema.ValidationError)
+    assert isinstance(exc, ValidationError)
 
-    path = list(exc.absolute_path)
+    path = [str(i) for i in list(exc.absolute_path)]
     error = exc.validator
     value = exc.validator_value
 
@@ -87,7 +92,7 @@ def _get_details(exc, task):
     }
 
 
-def validate_task(task):
+def validate_task(task, tasks=None):
     """
     Validate the jsonschema configuration of a task
     """
@@ -95,6 +100,25 @@ def validate_task(task):
     config = task.get('config', {})
     schema = getattr(TaskRegistry.get(name)[0], 'SCHEMA', {})
     try:
-        jsonschema.validate(config, schema)
-    except jsonschema.ValidationError as exc:
+        validate_schema(config, schema, cls=custom_validator(tasks))
+    except ValidationError as exc:
         return _get_details(exc, task)
+
+
+def custom_validator(tasks=None):
+    """
+    Custom validator for task_id fields.
+    """
+    # Validation for `type`
+    def type_draft4_custom(validator, types, instance, schema):
+        i_type = schema.get('type')
+        i_description = schema.get('description')
+        # Should match `{'type': 'string', 'description': 'task_id'}`
+        if i_type == 'string' and i_description == 'task_id' and tasks:
+            # Check the task_id exists
+            if not list(filter(lambda t: t['id'] == instance, tasks)):
+                yield ValidationError(_utils.types_msg(instance, ['task_id']))
+        # Default validation
+        return type_draft4(validator, types, instance, schema)
+
+    return extend_validator(Draft4Validator, {'type': type_draft4_custom})
