@@ -485,14 +485,14 @@ class WorkflowNyuki(Nyuki):
             """
             return Response(self.topics)
 
-    @resource('/workflow/regexs', version='v1')
-    class Regexs:
+    @resource('/workflow/regexes', version='v1')
+    class Regexes:
 
         async def get(self, request):
             """
-            Return the list of all regexs
+            Return the list of all regexes
             """
-            return Response(await self.storage.regexs.get_all())
+            return Response(await self.storage.regexes.get_all())
 
         async def put(self, request):
             """
@@ -511,25 +511,25 @@ class WorkflowNyuki(Nyuki):
                 'config': request.get('config', {})
             }
 
-            await self.storage.regexs.insert(data)
+            await self.storage.regexes.insert(data)
             return Response(data)
 
         async def delete(self, request):
             """
-            Delete all regexs and return the list
+            Delete all regexes and return the list
             """
-            rules = await self.storage.regexs.get_all()
-            await self.storage.regexs.delete()
+            rules = await self.storage.regexes.get_all()
+            await self.storage.regexes.delete()
             return Response(rules)
 
-    @resource('/workflow/regexs/{rule_id}', version='v1')
+    @resource('/workflow/regexes/{rule_id}', version='v1')
     class Regex:
 
         async def get(self, request, rule_id):
             """
             Return the rule for id `rule_id`
             """
-            rule = await self.storage.regexs.get(rule_id)
+            rule = await self.storage.regexes.get(rule_id)
             if not rule:
                 return Response(status=404)
             return Response(rule)
@@ -538,7 +538,7 @@ class WorkflowNyuki(Nyuki):
             """
             Modify an existing regex rule
             """
-            rule = await self.storage.regexs.get(rule_id)
+            rule = await self.storage.regexes.get(rule_id)
             if not rule:
                 return Response(status=404)
 
@@ -550,18 +550,18 @@ class WorkflowNyuki(Nyuki):
                 'config': request.get('config', rule['config'])
             }
 
-            await self.storage.regexs.insert(data)
+            await self.storage.regexes.insert(data)
             return Response(data)
 
         async def delete(self, request, rule_id):
             """
             Delete the rule with id `rule_id`
             """
-            rule = await self.storage.regexs.get(rule_id)
+            rule = await self.storage.regexes.get(rule_id)
             if not rule:
                 return Response(status=F404)
 
-            await self.storage.regexs.delete(rule_id=rule_id)
+            await self.storage.regexes.delete(rule_id=rule_id)
             return Response(rule)
 
     @resource('/workflow/lookups', version='v1')

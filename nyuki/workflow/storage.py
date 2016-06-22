@@ -303,5 +303,5 @@ class MongoStorage:
         # Collections
         self.templates = _TemplateCollection(db['templates'], db['metadata'])
         self.instances = _InstanceCollection(db['instances'])
-        self.regexs = _DataProcessingCollection(db['regexs'])
+        self.regexes = _DataProcessingCollection(db['regexes'])
         self.lookups = _DataProcessingCollection(db['lookups'])
