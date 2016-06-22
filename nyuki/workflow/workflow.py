@@ -8,9 +8,9 @@ from tukio.workflow import TemplateGraphError
 
 from nyuki import Nyuki, resource, Response
 from nyuki.bus import reporting
-from nyuki.meta.workflow.storage import MongoStorage, DuplicateTemplateError
-from nyuki.meta.workflow.tasks import *
-from nyuki.meta.workflow.validation import validate, TemplateError
+from .storage import MongoStorage, DuplicateTemplateError
+from .tasks import *
+from .validation import validate, TemplateError
 
 
 log = logging.getLogger(__name__)
