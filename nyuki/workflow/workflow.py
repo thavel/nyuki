@@ -648,10 +648,10 @@ class WorkflowNyuki(Nyuki):
 
         async def post(self, request):
             # Send data to all topics
-            await self.Test.post(self, request, None)
+            await self.TestTopic.post(self, request, None)
 
     @resource('/test/{topic}', version='v1')
-    class Test:
+    class TestTopic:
 
         async def post(self, request, topic):
             # Send data to the given topic
