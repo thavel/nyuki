@@ -127,8 +127,9 @@ def validate_task(task, tasks=None):
     name = task['name']
     config = task.get('config', {})
     schema = getattr(TaskRegistry.get(name)[0], 'SCHEMA', {})
+    format_checker = getattr(TaskRegistry.get(name)[0], 'FORMAT_CHECKER', None)
     try:
-        validate_schema(config, schema, cls=custom_validator(tasks))
+        validate_schema(config, schema, cls=custom_validator(tasks), format_checker=format_checker)
     except ValidationError as exc:
         return TemplateError.format_details(exc, task)
 
