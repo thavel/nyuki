@@ -1,28 +1,27 @@
 import asyncio
 import json
-from jsonschema import validate, ValidationError
+from jsonschema import validate
 import logging
 import logging.config
 from pijon import Pijon
 from signal import SIGHUP, SIGINT, SIGTERM
 
-from nyuki import reporting, Response
-from nyuki.bus import XmppBus, MqttBus
-from nyuki.bus.persistence import EventStatus
-from nyuki.capabilities import Exposer, resource
-from nyuki.commands import get_command_kwargs
-from nyuki.config import get_full_config, write_conf_json, merge_configs
-from nyuki.handlers import CapabilityHandler
-from nyuki.logs import DEFAULT_LOGGING
-from nyuki.services import ServiceManager
-from nyuki.utils import from_isoformat
-from nyuki.websocket import WebHandler
+from .api import (
+    APIBusReplay, APIBusTopics, APIConfiguration, APISwagger, APIWebsocketToken
+)
+from .api.capabilities import Api
+from .bus import XmppBus, MqttBus, reporting
+from .commands import get_command_kwargs
+from .config import get_full_config, write_conf_json, merge_configs
+from .logs import DEFAULT_LOGGING
+from .services import ServiceManager
+from .websocket import WebHandler
 
 
 log = logging.getLogger(__name__)
 
 
-class Nyuki(metaclass=CapabilityHandler):
+class Nyuki:
 
     """
     A lightweigh base class to build nyukis. A nyuki provides tools that shall
@@ -41,6 +40,14 @@ class Nyuki(metaclass=CapabilityHandler):
         "type": "object",
         "required": ["log"]
     }
+    # API endpoints
+    ENDPOINTS = [
+        APIBusReplay,
+        APIBusTopics,
+        APIConfiguration,
+        APISwagger,
+        APIWebsocketToken,
+    ]
 
     def __init__(self, **kwargs):
         # List of configuration schemas
@@ -67,7 +74,7 @@ class Nyuki(metaclass=CapabilityHandler):
         asyncio.set_event_loop(self.loop)
 
         self._services = ServiceManager(self)
-        self._services.add('api', Exposer(self))
+        self._services.add('api', Api(self))
 
         # Add bus service if in conf file, xmpp (default) or mqtt
         bus_config = self._config.get('bus')
@@ -306,115 +313,3 @@ class Nyuki(metaclass=CapabilityHandler):
                 await service.stop()
                 service.configure(**self._config[name])
                 asyncio.ensure_future(service.start())
-
-    @resource('/config', version='v1')
-    class Configuration:
-
-        def get(self, request):
-            return Response(self._config)
-
-        async def patch(self, request):
-            body = await request.json()
-
-            try:
-                self.update_config(body)
-            except ValidationError as error:
-                error = {'error': error.message}
-                log.error('Bad configuration received : {}'.format(body))
-                log.debug(error)
-                return Response(body=error, status=400)
-
-            # Reload what is necessary, return the http response immediately
-            self.save_config()
-            asyncio.ensure_future(self._reload_config(body))
-
-            return Response(self._config)
-
-    @resource('/bus/publish', version='v1')
-    class BusPublish:
-
-        async def post(self, request):
-            await self.BusPublishTopic.post(self, request, None)
-
-    @resource('/bus/publish/{topic}', version='v1')
-    class BusPublishTopic:
-
-        async def post(self, request, topic):
-            try:
-                self._services.get('bus')
-            except KeyError:
-                return Response(status=404)
-
-            asyncio.ensure_future(self.bus.publish(
-                await request.json(), topic
-            ))
-
-    @resource('/bus/replay', version='v1')
-    class BusReplay:
-
-        async def post(self, request):
-            try:
-                self._services.get('bus')
-            except KeyError:
-                return Response(status=404)
-
-            body = await request.json()
-
-            # Format 'since' parameter from isoformat
-            since = body.get('since')
-            if since:
-                try:
-                    since = from_isoformat(since)
-                except ValueError:
-                    return Response({
-                        'error': 'Unknown datetime format: %s'.format(since)
-                    }, status=400)
-
-            # Check and parse event status
-            request_status = body.get('status')
-            status = list()
-            if request_status:
-                try:
-                    if isinstance(request_status, list):
-                        for es in request_status:
-                            status.append(EventStatus[es])
-                    else:
-                        status.append(EventStatus[request_status])
-                except KeyError:
-                    return Response(status=400, body={
-                        'error': 'unknown event status type {}'.format(es)
-                    })
-
-            await self.bus.replay(since, status)
-
-    @resource('/bus/topics', version='v1')
-    class BusTopics:
-
-        async def get(self, request):
-            return Response(self.bus.topics)
-
-    @resource('/swagger', version='v1')
-    class Swagger:
-
-        def get(self, request):
-            try:
-                with open('swagger.json', 'r') as f:
-                    body = json.loads(f.read())
-            except OSError:
-                return Response(status=404, body={
-                    'error': 'Missing swagger documentation'
-                })
-
-            return Response(body=body)
-
-    @resource('/websocket', version='v1')
-    class WebsocketToken:
-
-        def get(self, request):
-            try:
-                self._services.get('websocket')
-            except KeyError:
-                return Response(status=404)
-
-            token = self.websocket.new_token()
-            return Response({'token': token})

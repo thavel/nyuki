@@ -1,5 +1,4 @@
 from aiohttp import web
-from enum import Enum
 import json
 import logging
 
@@ -10,27 +9,6 @@ log = logging.getLogger(__name__)
 # aiohttp needs its own logger, and always prints HTTP hits using INFO level
 access_log = logging.getLogger('.'.join([__name__, 'access']))
 access_log.info = access_log.debug
-
-
-class Method(Enum):
-
-    """
-    Supported HTTP methods by the REST API.
-    """
-
-    GET = 'GET'
-    POST = 'POST'
-    PUT = 'PUT'
-    DELETE = 'DELETE'
-    HEAD = 'HEAD'
-    OPTIONS = 'OPTIONS'
-    TRACE = 'TRACE'
-    CONNECT = 'CONNECT'
-    PATCH = 'PATCH'
-
-    @classmethod
-    def list(cls):
-        return [method.name for method in cls]
 
 
 class Response(web.Response):
@@ -62,7 +40,7 @@ class Response(web.Response):
         return kwargs.get('content_type') or kwargs.get('headers', {}).get('content_type')
 
 
-class Api(object):
+class WebServer(object):
 
     """
     The goal of this class is to gather all http-related behaviours.
@@ -121,10 +99,9 @@ async def mw_capability(app, capa_handler):
     Transform the request data to be passed through a capability and
     convert the result into a web response.
     """
-
     async def middleware(request):
         # Ensure a content-type check is necessary
-        if hasattr(capa_handler, 'CONTENT_TYPE') and await request.text():
+        if getattr(capa_handler, 'CONTENT_TYPE', None) and await request.text():
             ctype = capa_handler.CONTENT_TYPE
 
             # Check content_type from @resource decorator
@@ -144,7 +121,7 @@ async def mw_capability(app, capa_handler):
                 try:
                     await request.json()
                 except json.decoder.JSONDecodeError:
-                    log.debug("request body for application/json must be JSON")
+                    log.debug('request body for application/json must be JSON')
                     return Response(
                         {'error': 'application/json requires a JSON body'},
                         status=400
