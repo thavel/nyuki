@@ -57,7 +57,7 @@ class TemplateError(Exception):
         if error == 'required':
             cursor = task.get('config', {})
             for key in path:
-                cursor = cursor[key]
+                cursor = cursor[key] if isinstance(cursor, dict) else cursor[int(key)]
             # We are looking for the missing key (not always the first item)
             for key in value:
                 if key not in cursor:
