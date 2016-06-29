@@ -438,9 +438,10 @@ class WorkflowNyuki(Nyuki):
                     'error': "Template's ID key 'id' is mandatory"
                 })
 
+            draft = request.get('draft', False)
             templates = await self.storage.templates.get(
                 request['id'],
-                draft=request.get('draft', False),
+                draft=draft,
                 with_metadata=False
             )
 
@@ -449,11 +450,16 @@ class WorkflowNyuki(Nyuki):
                     'error': 'Could not find a suitable template to run'
                 })
 
-            wflow = self.engine.run(
+            run_method = self.engine.side_run if draft else self.engine.run
+            wflow = run_method(
                 WorkflowTemplate.from_dict(templates[0]),
                 request.get('inputs', {})
             )
 
+            if wflow is None:
+                return Response(status=400, body={
+                    'error': 'Could not start any workflow from this template'
+                })
             return Response(
                 json.dumps(wflow, default=self.serialize_wflow_exec),
                 content_type='application/json'
