@@ -6,5 +6,6 @@ from .sleep import SleepTask
 # Generic schema to reference a task ID
 TASKID_SCHEMA = {
     'type': 'string',
-    'description': 'task_id'
+    'description': 'task_id',
+    'maxLength': 128
 }
