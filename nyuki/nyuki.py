@@ -370,6 +370,12 @@ class Nyuki(metaclass=CapabilityHandler):
 
             await self.bus.replay(since, status)
 
+    @resource('/bus/topics', version='v1')
+    class BusTopics:
+
+        async def get(self, request):
+            return Response(self.bus.topics)
+
     @resource('/swagger', version='v1')
     class Swagger:
 

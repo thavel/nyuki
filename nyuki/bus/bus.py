@@ -136,6 +136,12 @@ class Bus(Service):
         self._mucs = None
         self._muc_domain = None
 
+    @property
+    def topics(self):
+        if not self._mucs:
+            return []
+        return [topic.split('@')[0] for topic in self._mucs.rooms.keys()]
+
     async def start(self, timeout=0):
         self.client.connect()
         if timeout:
