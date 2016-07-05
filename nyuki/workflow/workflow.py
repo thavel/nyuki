@@ -450,11 +450,12 @@ class WorkflowNyuki(Nyuki):
                     'error': 'Could not find a suitable template to run'
                 })
 
-            run_method = self.engine.side_run if draft else self.engine.run
-            wflow = run_method(
-                WorkflowTemplate.from_dict(templates[0]),
-                request.get('inputs', {})
-            )
+            wf_tmpl = WorkflowTemplate.from_dict(templates[0])
+            data = request.get('inputs', {})
+            if draft:
+                wflow = self.engine.run_once(wf_tmpl, data)
+            else:
+                wflow = self.engine.trigger(wf_tmpl.uid, data)
 
             if wflow is None:
                 return Response(status=400, body={
