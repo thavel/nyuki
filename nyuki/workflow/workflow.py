@@ -407,7 +407,7 @@ class WorkflowNyuki(Nyuki):
             return obj.isoformat()
         if isinstance(obj, Workflow):
             return obj.report()
-        raise TypeError('obj not serializable')
+        raise TypeError('obj not serializable: {}'.format(obj))
 
     @resource('/workflow/instances', version='v1')
     class Workflows:
@@ -453,9 +453,9 @@ class WorkflowNyuki(Nyuki):
             wf_tmpl = WorkflowTemplate.from_dict(templates[0])
             data = request.get('inputs', {})
             if draft:
-                wflow = self.engine.run_once(wf_tmpl, data)
+                wflow = await self.engine.run_once(wf_tmpl, data)
             else:
-                wflow = self.engine.trigger(wf_tmpl.uid, data)
+                wflow = await self.engine.trigger(wf_tmpl.uid, data)
 
             if wflow is None:
                 return Response(status=400, body={
