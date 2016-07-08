@@ -21,10 +21,10 @@ class SleepTask(TaskHolder):
         }
     }
 
-    async def execute(self, data):
+    async def execute(self, event):
         task = asyncio.Task.current_task()
         time = self.config.get('time', 2)
         log.info('%s: sleeping %s second%s', task.uid, time, 's' if time > 1 else '')
         await asyncio.sleep(time)
         log.info('%s: done sleeping', task.uid)
-        return data
+        return event.data

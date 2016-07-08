@@ -15,6 +15,6 @@ class ReportTask(TaskHolder):
 
     NAME = 'report'
 
-    async def execute(self, data):
-        log.info('workflow report data: \033[92m"{data}"\033[1;m'.format(data=data))
+    async def execute(self, event):
+        log.info('workflow report data: \033[92m"{}"\033[1;m'.format(event.data))
         return 200

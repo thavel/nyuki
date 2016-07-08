@@ -34,12 +34,11 @@ class FactoryTask(TaskHolder):
         see nyuki transformations.
     """
 
-    NAME = 'factory'
-
-    async def execute(self, data):
+    async def execute(self, event):
         """
         Factory task that apply regex, lookup, set, unset moves on items.
         """
+        data = event.data
         converter = Converter.from_dict(self.config)
         converter.apply(data)
         return data
