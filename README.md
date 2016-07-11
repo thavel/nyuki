@@ -181,6 +181,24 @@ python sample.py -j myjid@myhost -c sample.json
 
 Mandatory parameters are the Jabber ID (`jid`) and the password. Others are optional in both the command-line and the configuration file.
 
+## Bus persistence
+
+Bus events persistence can be enabled to ensure the delivery of every publication on the bus. These fields of the configuration file are available:
+```json
+{
+    ...
+    "bus": {
+        ...
+        "persistence": {
+            "backend": "mongo", (only choice, mandatory)
+            "host": "localhost",
+            "ttl": 60, (in minutes)
+            "memory_size": 1000 (in-memory, does not relate to backend)
+        }
+    }
+    ...
+}
+```
 
 ## Contributing
 
