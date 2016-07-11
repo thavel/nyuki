@@ -373,6 +373,21 @@ class Bus(Service):
         msg['body'] = json.dumps(event)
 
         self._publish_futures[uid] = asyncio.Future()
+        status = EventStatus.PENDING
+
+        # Store the event as PENDING if it is new
+        if previous_uid is None:
+            await self._persistence.store({
+                'id': uid,
+                'status': status.value,
+                'topic': dest or self._topic,
+                'message': msg['body'],
+            })
+            in_memory = self._persistence.memory_buffer
+            if in_memory.is_full:
+                asyncio.ensure_future(
+                    self._nyuki.on_buffer_full(in_memory.free_slot)
+                )
 
         # Publish in MUC
         if self._connected.is_set():
@@ -389,26 +404,10 @@ class Bus(Service):
                 else:
                     status = EventStatus.SENT
                     log.info("Event successfully sent to MUC '%s'", msg['to'])
-        else:
-            status = EventStatus.PENDING
 
         del self._publish_futures[uid]
-
-        # Once we have a result, store it if needed
-        if previous_uid:
-            await self._persistence.update(previous_uid, status)
-        elif self._persistence:
-            await self._persistence.store({
-                'id': uid,
-                'status': status.value,
-                'topic': dest or self._topic,
-                'message': msg['body'],
-            })
-            in_memory = self._persistence.memory_buffer
-            if in_memory.is_full:
-                asyncio.ensure_future(
-                    self._nyuki.on_buffer_full(in_memory.free_slot)
-                )
+        # Once we have a result, update the stored event
+        await self._persistence.update(previous_uid or uid, status)
 
     async def _resubscribe(self):
         """
