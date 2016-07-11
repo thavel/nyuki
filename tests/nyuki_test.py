@@ -42,7 +42,7 @@ class TestNyuki(TestCase):
         response = self.nyuki.Configuration.get(self.nyuki, None)
         eq_(json.loads(bytes.decode(response.body)), self.nyuki._config)
 
-    @patch('nyuki.bus.Bus.stop')
+    @patch('nyuki.bus.XmppBus.stop')
     async def test_004_patch_rest_configuration(self, bus_stop_mock):
         req = Mock()
         async def json():

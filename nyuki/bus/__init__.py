@@ -1,2 +1,2 @@
-from .bus import Bus
+from .xmpp import XmppBus
 from .mqtt import MqttBus

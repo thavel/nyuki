@@ -15,16 +15,6 @@ from nyuki.services import Service
 log = logging.getLogger(__name__)
 
 
-class RequestAPI(object):
-
-    def __init__(self, body):
-        self._body = body
-        self.headers = None
-
-    async def json(self):
-        return self._body
-
-
 class MqttBus(Service):
 
     """
@@ -87,7 +77,6 @@ class MqttBus(Service):
         )
         self._pending = {}
         self.name = None
-        self._default_callback = None
         self._subscriptions = {}
         self._disconnection_datetime = None
 
@@ -143,7 +132,7 @@ class MqttBus(Service):
     def _publish_topic(self, nyuki):
         return '{}/{}'.format(self.BASE_PUB, nyuki)
 
-    async def replay(self, since=None, status=None, wait=0):
+    async def replay(self, since=None, status=None):
         """
         Replay events since the given datetime (or all if None)
         """
@@ -153,10 +142,6 @@ class MqttBus(Service):
         if status:
             log.info('    with status %s', status)
 
-        if wait:
-            log.info('Waiting %d seconds', wait)
-            await asyncio.sleep(wait)
-
         events = await self._persistence.retrieve(since, status)
         for event in events:
             await self.publish(json.loads(
@@ -164,14 +149,6 @@ class MqttBus(Service):
                 event['topic'],
                 event['id']
             )
-
-    def set_default_callback(self, callback):
-        """
-        Default callback, mandatory if topic wildcards are used
-        """
-        if not asyncio.iscoroutinefunction(callback):
-            raise ValueError('event callback must be a coroutine')
-        self._default_callback = callback
 
     async def subscribe(self, topic, callback):
         """
@@ -181,6 +158,7 @@ class MqttBus(Service):
             raise ValueError('event callback must be a coroutine')
         log.debug('MQTT subscription to %s', topic)
         await self.client.subscribe([(topic, QOS_2)])
+        # Transform the mqtt pattern into a regex one
         regex = r'^{}$'.format(
             topic.replace('+', '[^\/]+').replace('#', '.+')
         )
@@ -229,9 +207,8 @@ class MqttBus(Service):
 
     async def _run(self):
         """
-        Handle reconnection every (last * 2) + 1 seconds
+        Handle reconnection every 3 seconds
         """
-        delay = 1
         while True:
             log.info('Trying MQTT connection to %s', self._host)
             try:
@@ -239,25 +216,18 @@ class MqttBus(Service):
                     self._host,
                     cafile=self._certificate
                 )
-            except (ConnectException, NoDataException) as e:
-                log.exception(e)
-                # TODO: useless mechanism ?
-                current_delay = (delay * 2) + 1
-                log.info('Waiting %d seconds to reconnect', current_delay)
-                await asyncio.sleep(current_delay)
-                delay = current_delay
+            except (ConnectException, NoDataException) as exc:
+                log.error(exc)
+                log.info('Waiting 3 seconds to reconnect')
+                await asyncio.sleep(3.0)
                 continue
 
-            # Reset reconnection delay
-            delay = 1
-            log.info('Connection made with MQTT')
-
             # Replaying events
+            log.info('Connection made with MQTT')
             if self._persistence and self._disconnection_datetime:
                 asyncio.ensure_future(self.replay(
                     self._disconnection_datetime,
-                    EventStatus.not_sent(),
-                    3
+                    EventStatus.not_sent()
                 ))
 
             self._disconnection_datetime = None

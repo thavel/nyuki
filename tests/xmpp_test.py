@@ -5,14 +5,14 @@ from asynctest import (
 from nose.tools import assert_raises, eq_
 from slixmpp import JID
 
-from nyuki.bus.bus import _BusClient, Bus
+from nyuki.bus.xmpp import _XmppClient, XmppBus
 from nyuki.bus.persistence import EventStatus
 
 
 class TestBusClient(TestCase):
 
     def setUp(self):
-        self.client = _BusClient('test@localhost', 'password')
+        self.client = _XmppClient('test@localhost', 'password')
 
     @ignore_loop
     def test_001a_init(self):
@@ -24,16 +24,16 @@ class TestBusClient(TestCase):
     @ignore_loop
     def test_001b_init(self):
         # Ensure bus client instanciation (method 2)
-        client = _BusClient('test', 'password', '127.0.0.1', 5555)
+        client = _XmppClient('test', 'password', '127.0.0.1', 5555)
         host, port = client._address
         eq_(host, '127.0.0.1')
         eq_(port, 5555)
 
 
-class TestBus(TestCase):
+class TestXmppBus(TestCase):
 
     def setUp(self):
-        self.bus = Bus(Mock())
+        self.bus = XmppBus(Mock())
         self.bus.configure('test@localhost', 'password')
 
     @ignore_loop
@@ -114,7 +114,7 @@ class TestBus(TestCase):
             })
 
     @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send', Mock)
-    @patch('nyuki.bus.Bus.subscribe')
+    @patch('nyuki.bus.XmppBus.subscribe')
     async def test_008_stream_error_resubscribe(self, submock):
         self.bus._connected.set()
         self.loop.call_later(0.1, asyncio.ensure_future, self.stream_error())
@@ -123,7 +123,7 @@ class TestBus(TestCase):
         submock.assert_called_once_with('test', None)
 
     @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send', Mock)
-    @patch('nyuki.bus.Bus.subscribe')
+    @patch('nyuki.bus.XmppBus.subscribe')
     async def test_009_failed_publish_resubscribe(self, submock):
         self.bus._connected.set()
         self.loop.call_later(0.1, asyncio.ensure_future, self.publish_fail())
@@ -154,7 +154,7 @@ class TestMongoPersistence(TestCase):
 
     @patch('nyuki.bus.persistence.mongo_backend.MongoBackend.init')
     async def setUp(self, init):
-        self.bus = Bus(Mock())
+        self.bus = XmppBus(Mock())
         self.bus.configure(
             'test@localhost', 'password',
             persistence={'backend': 'mongo'}

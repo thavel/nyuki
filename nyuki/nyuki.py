@@ -5,10 +5,9 @@ import logging
 import logging.config
 from pijon import Pijon
 from signal import SIGHUP, SIGINT, SIGTERM
-import uvloop
 
 from nyuki import reporting, Response
-from nyuki.bus import Bus, MqttBus
+from nyuki.bus import XmppBus, MqttBus
 from nyuki.bus.persistence import EventStatus
 from nyuki.capabilities import Exposer, resource
 from nyuki.commands import get_command_kwargs
@@ -64,7 +63,6 @@ class Nyuki(metaclass=CapabilityHandler):
         self.register_schema(self.BASE_CONF_SCHEMA)
 
         # Set loop
-        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
         self.loop = asyncio.get_event_loop() or asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
 
@@ -73,7 +71,11 @@ class Nyuki(metaclass=CapabilityHandler):
 
         # Add bus service if in conf file
         if self._config.get('bus') is not None:
-            self._services.add('bus', Bus(self))
+            bus_service = self._config['bus'].get('service', 'xmpp')
+            if bus_service == 'xmpp':
+                self._services.add('bus', XmppBus(self))
+            elif bus_service == 'mqtt':
+                self._services.add('bus', MqttBus(self))
         # Add websocket server if in conf file
         if self._config.get('websocket') is not None:
             self._services.add('websocket', WebHandler(self))

@@ -18,7 +18,7 @@ class PublishError(Exception):
     pass
 
 
-class _BusClient(ClientXMPP):
+class _XmppClient(ClientXMPP):
 
     """
     XMPP client to connect to the bus.
@@ -65,7 +65,7 @@ class _BusClient(ClientXMPP):
         reporting.exception(exc)
 
 
-class Bus(Service):
+class XmppBus(Service):
 
     """
     A simple class that implements Publish/Subscribe-like communications over
@@ -158,7 +158,7 @@ class Bus(Service):
                   muc_domain='mucs.localhost', certificate=None,
                   persistence={}):
         # XMPP client and main handlers
-        self.client = _BusClient(
+        self.client = _XmppClient(
             jid, password, host, port, certificate=certificate
         )
         self.client.loop = self._loop
