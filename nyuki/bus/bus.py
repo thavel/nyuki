@@ -376,7 +376,7 @@ class Bus(Service):
         status = EventStatus.PENDING
 
         # Store the event as PENDING if it is new
-        if previous_uid is None:
+        if self._persistence and previous_uid is None:
             await self._persistence.store({
                 'id': uid,
                 'status': status.value,
@@ -407,7 +407,8 @@ class Bus(Service):
 
         del self._publish_futures[uid]
         # Once we have a result, update the stored event
-        await self._persistence.update(previous_uid or uid, status)
+        if self._persistence:
+            await self._persistence.update(previous_uid or uid, status)
 
     async def _resubscribe(self):
         """
