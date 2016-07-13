@@ -127,7 +127,6 @@ class Bus(Service):
         self.reconnect = False
         self._connected = asyncio.Event()
         self._persistence = None
-        self._disconnection_datetime = None
         self._publish_futures = dict()
 
         # MUCs
@@ -241,11 +240,8 @@ class Bus(Service):
         await self.subscribe(self._topic)
 
         # Replay events that have been lost, if any
-        if self._persistence and self._disconnection_datetime:
-            await self.replay(
-                self._disconnection_datetime, EventStatus.not_sent(), 3
-            )
-        self._disconnection_datetime = None
+        if self._persistence:
+            await self.replay(status=EventStatus.FAILED, wait=3)
 
     async def _on_disconnect(self, event):
         """
@@ -255,7 +251,8 @@ class Bus(Service):
             log.warning('Disconnected from the bus')
             self._connected.clear()
 
-        self._disconnection_datetime = datetime.utcnow()
+        for future in self._publish_futures.values():
+            future.cancel()
 
         if self.reconnect:
             # Restart the connection loop
@@ -268,9 +265,6 @@ class Bus(Service):
         log.error('Connection to XMPP server {}:{} failed'.format(
             *self.client._address
         ))
-        # If prosody was not up at nyuki started
-        if not self._disconnection_datetime:
-            self._disconnection_datetime = datetime.utcnow()
         self.client.abort()
 
     async def _on_stream_error(self, event):
@@ -342,6 +336,9 @@ class Bus(Service):
         if status:
             log.info('    with status %s', status)
 
+        for future in self._publish_futures.values():
+            future.cancel()
+
         if wait:
             log.info('Waiting %d seconds', wait)
             await asyncio.sleep(wait)
@@ -350,8 +347,8 @@ class Bus(Service):
         for event in events:
             await self.publish(
                 json.loads(event['message']),
-                event['topic'],
-                event['id']
+                dest=event['topic'],
+                previous_uid=event['id']
             )
 
     async def publish(self, event, dest=None, previous_uid=None):
@@ -385,25 +382,39 @@ class Bus(Service):
             })
             in_memory = self._persistence.memory_buffer
             if in_memory.is_full:
-                asyncio.ensure_future(
-                    self._nyuki.on_buffer_full(in_memory.free_slot)
-                )
+                asyncio.ensure_future(self._nyuki.on_buffer_full(
+                    in_memory.free_slot
+                ))
 
         # Publish in MUC
         if self._connected.is_set():
             log.debug(">> publishing to '{}': {}".format(self._topic, event))
             log.info('Publishing an event to %s', msg['to'])
             status = None
-            while status != EventStatus.SENT:
+            while True:
                 msg.send()
                 try:
-                    await self._publish_futures[uid]
+                    await asyncio.wait_for(self._publish_futures[uid], 10.0)
+                except asyncio.TimeoutError:
+                    log.warning('Publication timed out, disconnecting slixmpp')
+                    status = EventStatus.FAILED
+                    # Crash connection and try to reconnect
+                    self.reconnect = True
+                    self.client.abort()
+                    break
+                except asyncio.CancelledError:
+                    log.warning('Publication cancelled due to disconnection')
+                    status = EventStatus.FAILED
+                    break
                 except PublishError:
                     status = EventStatus.FAILED
                     self._publish_futures[uid] = asyncio.Future()
                 else:
-                    status = EventStatus.SENT
                     log.info("Event successfully sent to MUC '%s'", msg['to'])
+                    status = EventStatus.SENT
+                    break
+        else:
+            status = EventStatus.FAILED
 
         del self._publish_futures[uid]
         # Once we have a result, update the stored event

@@ -170,7 +170,7 @@ class TestMongoPersistence(TestCase):
         # Backend received the events
         await self.bus._persistence._empty_last_events()
         eq_(len(self.backend.events), 2)
-        eq_(self.backend.events[0]['status'], EventStatus.PENDING.value)
+        eq_(self.backend.events[0]['status'], EventStatus.FAILED.value)
 
         # Check replay send the same event
         event_0_uid = self.backend.events[0]['id']
@@ -178,8 +178,8 @@ class TestMongoPersistence(TestCase):
         with patch.object(self.bus, 'publish') as pub:
             await self.bus.replay()
             pub.assert_has_calls([
-                call({'something': 'something'}, 'test', event_0_uid),
-                call({'another': 'event'}, 'test', event_1_uid),
+                call({'something': 'something'}, dest='test', previous_uid=event_0_uid),
+                call({'another': 'event'}, dest='test', previous_uid=event_1_uid),
             ])
 
     def finish_publishments(self, fail=False):
