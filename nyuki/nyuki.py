@@ -69,9 +69,10 @@ class Nyuki(metaclass=CapabilityHandler):
         self._services = ServiceManager(self)
         self._services.add('api', Exposer(self))
 
-        # Add bus service if in conf file
-        if self._config.get('bus') is not None:
-            bus_service = self._config['bus'].get('service', 'xmpp')
+        # Add bus service if in conf file, xmpp (default) or mqtt
+        bus_config = self._config.get('bus')
+        if bus_config is not None:
+            bus_service = bus_config.get('service', 'xmpp')
             if bus_service == 'xmpp':
                 self._services.add('bus', XmppBus(self))
             elif bus_service == 'mqtt':
@@ -79,9 +80,6 @@ class Nyuki(metaclass=CapabilityHandler):
         # Add websocket server if in conf file
         if self._config.get('websocket') is not None:
             self._services.add('websocket', WebHandler(self))
-        # Add mqtt service if in conf file
-        if self._config.get('mqtt') is not None:
-            self._services.add('mqtt', MqttBus(self))
 
         self.is_stopping = False
 
@@ -100,10 +98,6 @@ class Nyuki(metaclass=CapabilityHandler):
     @property
     def config(self):
         return self._config
-
-    @property
-    def report_channel(self):
-        return self.config.get('report_channel', 'monitoring')
 
     @property
     def reporter(self):
@@ -150,16 +144,7 @@ class Nyuki(metaclass=CapabilityHandler):
         self.loop.run_until_complete(self._services.start())
 
         if 'bus' in self._services.all:
-            reporting.init(
-                self.bus.client.boundjid.user, self.bus, self.report_channel
-            )
-            self.loop.set_exception_handler(self._exception_handler)
-        elif 'mqtt' in self._services.all:
-            reporting.init(
-                self.mqtt.name,
-                self.mqtt,
-                'monitoring/{}'.format(self.mqtt.name)
-            )
+            self.bus.init_reporting()
             self.loop.set_exception_handler(self._exception_handler)
 
         # Call for setup

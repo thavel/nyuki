@@ -8,6 +8,7 @@ import logging
 import re
 from uuid import uuid4
 
+from nyuki.bus import reporting
 from nyuki.bus.persistence import BusPersistence, EventStatus, PersistenceError
 from nyuki.services import Service
 
@@ -21,8 +22,6 @@ class MqttBus(Service):
     Nyuki topics formatted as:
         - global publications:
             publications/{nyuki_name}
-        - requests/response:
-            <requests|responses>/{nyuki_name}/{capability_name}/{request_id}
     """
 
     CONF_SCHEMA = {
@@ -31,20 +30,11 @@ class MqttBus(Service):
         "properties": {
             "bus": {
                 "type": "object",
-                "required": ["name"],
+                "required": ["host", "name"],
                 "properties": {
-                    "certificate": {
-                        "type": "string",
-                        "minLength": 1
-                    },
-                    "host": {
-                        "type": "string",
-                        "minLength": 1
-                    },
-                    "name": {
-                        "type": "string",
-                        "minLength": 1
-                    },
+                    "certificate": {"type": "string", "minLength": 1},
+                    "host": {"type": "string", "minLength": 1},
+                    "name": {"type": "string", "minLength": 1},
                     "port": {"type": "integer"},
                     "persistence": {
                         "type": "object",
@@ -54,7 +44,9 @@ class MqttBus(Service):
                                 "minLength": 1
                             }
                         }
-                    }
+                    },
+                    "report_channel": {"type": "string", "minLength": 1},
+                    "service": {"type": "string", "minLength": 1}
                 },
                 "additionalProperties": False
             }
@@ -62,7 +54,6 @@ class MqttBus(Service):
     }
 
     BASE_PUB = 'publications'
-    BASE_REQ = 'requests'
     BASE_RESP = 'responses'
 
     def __init__(self, nyuki, loop=None):
@@ -70,7 +61,6 @@ class MqttBus(Service):
         self._loop = loop or asyncio.get_event_loop()
         self._host = None
         self._self_topic = None
-        # self._request_topic = None
         self.client = MQTTClient(
             config={'auto_reconnect': False},
             loop=self._loop
@@ -84,12 +74,13 @@ class MqttBus(Service):
         self.connect_future = None
         self.listen_future = None
 
-    def configure(self, host, name, port=1883, certificate=None, persistence={}):
+    def configure(self, host, name, port=1883, certificate=None,
+                  persistence={}, report_channel='monitoring', service=None):
         self._host = '{}:{}'.format(host, port)
         self.name = name
         self._self_topic = self._publish_topic(self.name)
-        # self._request_topic = '{}/{}/+/+'.format(self.BASE_REQ, self.name)
         self._certificate = certificate
+        self._report_channel = report_channel
 
         # Persistence storage
         self._persistence = BusPersistence(name=name, **persistence)
@@ -128,6 +119,14 @@ class MqttBus(Service):
             await self.client.disconnect()
         await self._persistence.close()
         log.info('MQTT service stopped')
+
+    def init_reporting(self):
+        """
+        Initialize reporting module
+        """
+        reporting.init(self.name, self, '{}/{}'.format(
+            self._report_channel, self.name
+        ))
 
     def _publish_topic(self, nyuki):
         return '{}/{}'.format(self.BASE_PUB, nyuki)

@@ -1,5 +1,4 @@
 import asyncio
-from datetime import datetime
 import json
 import logging
 from slixmpp import ClientXMPP
@@ -83,24 +82,11 @@ class XmppBus(Service):
                 "type": "object",
                 "required": ["jid", "password"],
                 "properties": {
-                    "certificate": {
-                        "type": "string",
-                        "minLength": 1
-                    },
-                    "host": {
-                        "type": "string",
-                        "minLength": 1
-                    },
-                    "jid": {
-                        "type": "string",
-                        "minLength": 1
-                    },
+                    "certificate": {"type": "string","minLength": 1},
+                    "host": {"type": "string","minLength": 1},
+                    "jid": {"type": "string", "minLength": 1},
                     "muc_domain": {"type": ["string", "null"]},
-                    "password": {
-                        "type": "string",
-                        "minLength": 1
-                    },
-                    "port": {"type": "integer"},
+                    "password": {"type": "string", "minLength": 1},
                     "persistence": {
                         "type": "object",
                         "properties": {
@@ -109,7 +95,10 @@ class XmppBus(Service):
                                 "minLength": 1
                             }
                         }
-                    }
+                    },
+                    "port": {"type": "integer"},
+                    "report_channel": {"type": "string", "minLength": 1},
+                    "service": {"type": "string", "minLength": 1}
                 },
                 "additionalProperties": False
             }
@@ -156,7 +145,7 @@ class XmppBus(Service):
 
     def configure(self, jid, password, host='localhost', port=5222,
                   muc_domain='mucs.localhost', certificate=None,
-                  persistence={}):
+                  persistence={}, report_channel='monitoring', service=None):
         # XMPP client and main handlers
         self.client = _XmppClient(
             jid, password, host, port, certificate=certificate
@@ -179,6 +168,7 @@ class XmppBus(Service):
             'muc::{}::message_error'.format(self._muc_address(self._topic)),
             self._on_failed_publish
         )
+        self._report_channel = report_channel
 
         # Persistence storage
         self._persistence = BusPersistence(name=self._topic, **persistence)
@@ -201,6 +191,12 @@ class XmppBus(Service):
             log.error('Could not end bus connection after 2 seconds')
 
         await self._persistence.close()
+
+    def init_reporting(self):
+        """
+        Initialize reporting module
+        """
+        reporting.init(self.client.boundjid.user, self, self._report_channel)
 
     def _muc_address(self, topic):
         return '{}@{}'.format(topic, self._muc_domain)
