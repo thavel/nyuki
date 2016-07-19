@@ -1,6 +1,6 @@
 from tukio.task.join import JoinTask
 
-from .factory import FactoryTask
+from .factory import FactoryTask, FACTORY_SCHEMAS
 from .report import ReportTask
 from .sleep import SleepTask
 

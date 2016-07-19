@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime
 import json
+import jsonschema
 import logging
 from tukio import Engine, TaskRegistry, get_broker, EXEC_TOPIC
 from tukio.workflow import (
@@ -10,6 +11,7 @@ from uuid import uuid4
 
 from nyuki import Nyuki, resource, Response
 from nyuki.bus import reporting
+
 from .storage import MongoStorage, DuplicateTemplateError
 from .tasks import *
 from .validation import validate, TemplateError
@@ -554,16 +556,30 @@ class WorkflowNyuki(Nyuki):
             """
             request = await request.json()
 
-            if 'name' not in request:
+            try:
+                data = {
+                    'id': str(uuid4()),
+                    'name': request['name'],
+                    'type': request['type'],
+                    'rule': request['rule']
+                }
+            except KeyError as exc:
                 return Response(status=400, body={
-                    'error': "missing parameter 'name'"
+                    'error': 'missing parameter {}'.format(exc)
                 })
 
-            data = {
-                'id': str(uuid4()),
-                'name': request['name'],
-                'config': request.get('config', {})
-            }
+            if data['type'] not in ['sub', 'extract']:
+                return Response(status=400, body={
+                    'error': 'unknown regex type'
+                })
+
+            try:
+                jsonschema.validate(data['rule'], FACTORY_SCHEMAS[data['type']])
+            except jsonschema.ValidationError as exc:
+                log.debug(exc)
+                return Response(status=400, body={
+                    'error': 'bad regex configuration'
+                })
 
             await self.storage.regexes.insert(data)
             return Response(data)
@@ -601,8 +617,17 @@ class WorkflowNyuki(Nyuki):
             data = {
                 'id': rule_id,
                 'name': request.get('name', rule['name']),
-                'config': request.get('config', rule['config'])
+                'type': rule['type'],
+                'rule': request.get('rule', rule['rule'])
             }
+
+            try:
+                jsonschema.validate(data['rule'], FACTORY_SCHEMAS[data['type']])
+            except jsonschema.ValidationError as exc:
+                log.debug(exc)
+                return Response(status=400, body={
+                    'error': 'bad regex configuration'
+                })
 
             await self.storage.regexes.insert(data)
             return Response(data)
@@ -633,16 +658,24 @@ class WorkflowNyuki(Nyuki):
             """
             request = await request.json()
 
-            if 'name' not in request:
+            try:
+                data = {
+                    'id': str(uuid4()),
+                    'name': request['name'],
+                    'rule': request['rule']
+                }
+            except KeyError as exc:
                 return Response(status=400, body={
-                    'error': "missing parameter 'name'"
+                    'error': 'missing parameter {}'.format(exc)
                 })
 
-            data = {
-                'id': str(uuid4()),
-                'name': request['name'],
-                'config': request.get('config', {})
-            }
+            try:
+                jsonschema.validate(data['rule'], FACTORY_SCHEMAS['lookup'])
+            except jsonschema.ValidationError as exc:
+                log.debug(exc)
+                return Response(status=400, body={
+                    'error': 'bad regex configuration'
+                })
 
             await self.storage.lookups.insert(data)
             return Response(data)
@@ -680,8 +713,16 @@ class WorkflowNyuki(Nyuki):
             data = {
                 'id': rule_id,
                 'name': request.get('name', rule['name']),
-                'config': request.get('config', rule['config'])
+                'rule': request.get('rule', rule['rule'])
             }
+
+            try:
+                jsonschema.validate(data['rule'], FACTORY_SCHEMAS['lookup'])
+            except jsonschema.ValidationError as exc:
+                log.debug(exc)
+                return Response(status=400, body={
+                    'error': 'bad regex configuration'
+                })
 
             await self.storage.lookups.insert(data)
             return Response(data)
