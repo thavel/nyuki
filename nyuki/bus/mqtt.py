@@ -25,30 +25,36 @@ class MqttBus(Service):
     """
 
     CONF_SCHEMA = {
-        "type": "object",
-        "required": ["bus"],
-        "properties": {
-            "bus": {
-                "type": "object",
-                "required": ["host", "name"],
-                "properties": {
-                    "certificate": {"type": "string", "minLength": 1},
-                    "host": {"type": "string", "minLength": 1},
-                    "name": {"type": "string", "minLength": 1},
-                    "port": {"type": "integer"},
-                    "persistence": {
-                        "type": "object",
-                        "properties": {
-                            "backend": {
-                                "type": "string",
-                                "minLength": 1
+        'type': 'object',
+        'required': ['bus'],
+        'properties': {
+            'bus': {
+                'type': 'object',
+                'required': ['name'],
+                'properties': {
+                    'cafile': {'type': 'string', 'minLength': 1},
+                    'certfile': {'type': 'string', 'minLength': 1},
+                    'host': {'type': 'string', 'minLength': 1},
+                    'keyfile': {'type': 'string', 'minLength': 1},
+                    'name': {'type': 'string', 'minLength': 1},
+                    'port': {'type': 'integer'},
+                    'persistence': {
+                        'type': 'object',
+                        'properties': {
+                            'backend': {
+                                'type': 'string',
+                                'minLength': 1
                             }
                         }
                     },
-                    "report_channel": {"type": "string", "minLength": 1},
-                    "service": {"type": "string", "minLength": 1}
+                    'report_channel': {'type': 'string', 'minLength': 1},
+                    'scheme': {
+                        'type': 'string',
+                        'enum': ['ws', 'wss', 'mqtt', 'mqtts']
+                    },
+                    'service': {'type': 'string', 'minLength': 1}
                 },
-                "additionalProperties": False
+                'additionalProperties': False
             }
         }
     }
@@ -61,10 +67,7 @@ class MqttBus(Service):
         self._loop = loop or asyncio.get_event_loop()
         self._host = None
         self._self_topic = None
-        self.client = MQTTClient(
-            config={'auto_reconnect': False},
-            loop=self._loop
-        )
+        self.client = None
         self._pending = {}
         self.name = None
         self._subscriptions = {}
@@ -74,13 +77,28 @@ class MqttBus(Service):
         self.connect_future = None
         self.listen_future = None
 
-    def configure(self, host, name, port=1883, certificate=None,
-                  persistence={}, report_channel='monitoring', service=None):
-        self._host = '{}:{}'.format(host, port)
+    def configure(self, name, scheme='mqtt', host='localhost', port=1883,
+                  cafile=None, certfile=None, keyfile=None, persistence={},
+                  report_channel='monitoring', service=None):
+        if scheme in ['mqtts', 'wss']:
+            if not cafile or not certfile or not keyfile:
+                raise ValueError(
+                    "secured scheme requires 'cafile', 'certfile' and 'keyfile'"
+                )
+
+        self._host = '{}://{}:{}'.format(scheme, host, port)
         self.name = name
         self._self_topic = self._publish_topic(self.name)
-        self._certificate = certificate
+        self._cafile = cafile
         self._report_channel = report_channel
+        self.client = MQTTClient(
+            config={
+                'auto_reconnect': False,
+                'certfile': certfile,
+                'keyfile': keyfile
+            },
+            loop=self._loop
+        )
 
         # Persistence storage
         self._persistence = BusPersistence(name=name, **persistence)
@@ -104,19 +122,21 @@ class MqttBus(Service):
             )
 
     async def stop(self):
+        # Clean client
+        if self.client is not None:
+            for task in self.client.client_tasks:
+                log.debug('cancelling mqtt client tasks')
+                task.cancel()
+            if self.client._connected_state.is_set():
+                log.debug('disconnecting mqtt client')
+                await self.client.disconnect()
         # Clean tasks
-        for task in self.client.client_tasks:
-            log.debug('cancelling mqtt client tasks')
-            task.cancel()
         if self.connect_future:
             log.debug('cancelling _run coroutine')
             self.connect_future.cancel()
         if self.listen_future:
             log.debug('cancelling _listen coroutine')
             self.listen_future.cancel()
-        if self.client._connected_state.is_set():
-            log.debug('disconnecting mqtt client')
-            await self.client.disconnect()
         await self._persistence.close()
         log.info('MQTT service stopped')
 
@@ -211,10 +231,7 @@ class MqttBus(Service):
         while True:
             log.info('Trying MQTT connection to %s', self._host)
             try:
-                await self.client.connect(
-                    self._host,
-                    cafile=self._certificate
-                )
+                await self.client.connect(self._host, cafile=self._cafile)
             except (ConnectException, NoDataException) as exc:
                 log.error(exc)
                 log.info('Waiting 3 seconds to reconnect')
@@ -245,6 +262,10 @@ class MqttBus(Service):
         """
         while True:
             message = await self.client.deliver_message()
+            if message is None:
+                log.info('listening loop ended')
+                break
+
             topic = message.topic
 
             # Ignore own message

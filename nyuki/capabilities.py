@@ -116,8 +116,4 @@ class Exposer(Service):
             log.warning('No such capability: %s', name)
             return
 
-        response = await capa.wrapper(body)
-        if response.headers.get('content-type') == 'application/json':
-            return response.body
-        else:
-            return json.dumps({'result': response.body})
+        return asyncio.ensure_future(capa.wrapper(body), loop=self._loop)
