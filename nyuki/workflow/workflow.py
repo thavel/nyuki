@@ -121,14 +121,13 @@ class WorkflowNyuki(Nyuki):
         tmpl_dict['draft'] = True
 
         # Store task extra info (ie. title)
-        rqst_tasks = from_request.get('tasks', []) if from_request else []
-        tmpl_tasks = tmpl_dict['tasks']
-        for src in rqst_tasks:
-            match = list(filter(lambda t: t['id'] == src['id'], tmpl_tasks))
-            if match:
-                match[0].update({
-                    'title': src.get('title')
-                })
+        if from_request is not None:
+            rqst_tasks = from_request.get('tasks', [])
+            tmpl_tasks = tmpl_dict['tasks']
+            for src in rqst_tasks:
+                match = list(filter(lambda t: t['id'] == src['id'], tmpl_tasks))
+                if match:
+                    match[0].update({'title': src.get('title')})
 
         try:
             await self.storage.templates.insert_draft(tmpl_dict)
