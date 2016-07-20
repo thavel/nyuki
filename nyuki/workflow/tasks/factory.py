@@ -11,33 +11,50 @@ log = logging.getLogger(__name__)
 FACTORY_SCHEMAS = {
     'extract': {
         'type': 'object',
-        'required': ['fieldname', 'pattern'],
+        'required': ['fieldname', 'regex_id'],
         'properties': {
             'fieldname': {'type': 'string', 'minLength': 1},
-            'pattern': {'type': 'object', 'minLength': 1},
-            'pos': {'type': 'integer', 'minimum': 0},
-            'endpos': {'type': 'integer', 'minimum': 0},
-            'flags': {'type': 'integer'}
+            'regex_id': {'type': 'string', 'minLength': 1},
+            # 'pattern': {'type': 'object', 'minLength': 1},
+            # 'pos': {'type': 'integer', 'minimum': 0},
+            # 'endpos': {'type': 'integer', 'minimum': 0},
+            # 'flags': {'type': 'integer'}
         }
     },
     'lookup': {
         'type': 'object',
-        'required': ['fieldname', 'table'],
+        'required': ['fieldname', 'lookup_id'],
         'properties': {
             'fieldname': {'type': 'string', 'minLength': 1},
-            'table': {'type': 'object'},
-            'icase': {'type': 'boolean'}
+            'lookup_id': {'type': 'string', 'minLength': 1},
+            # 'table': {'type': 'object'},
+            # 'icase': {'type': 'boolean'}
         }
     },
-    'sub': {
+    'set': {
         'type': 'object',
-        'required': ['fieldname', 'pattern', 'repl'],
+        'required': ['fieldname', 'value'],
         'properties': {
             'fieldname': {'type': 'string', 'minLength': 1},
-            'pattern': {'type': 'string', 'minLength': 1},
-            'repl': {'type': 'string', 'minLength': 1},
-            'count': {'type': 'integer', 'minimum': 1},
-            'flags': {'type': 'integer'}
+            'value': {'type': 'string', 'minLength': 1},
+        }
+    },
+    # 'sub': {
+    #     'type': 'object',
+    #     'required': ['fieldname', 'pattern', 'repl'],
+    #     'properties': {
+    #         'fieldname': {'type': 'string', 'minLength': 1},
+    #         'pattern': {'type': 'string', 'minLength': 1},
+    #         'repl': {'type': 'string', 'minLength': 1},
+    #         'count': {'type': 'integer', 'minimum': 1},
+    #         'flags': {'type': 'integer'}
+    #     }
+    # },
+    'unset': {
+        'type': 'object',
+        'required': ['fieldname'],
+        'properties': {
+            'fieldname': {'type': 'string', 'minLength': 1}
         }
     }
 }
@@ -55,47 +72,24 @@ class FactoryTask(TaskHolder):
                 'items': {
                     'type': 'object',
                     'anyOf': [
-                        {'$ref': '#/definitions/extract'},
-                        {'$ref': '#/definitions/lookup'},
-                        {'$ref': '#/definitions/sub'},
+                        {'$ref': '#/definitions/{}'.format(factory_type)}
+                        for factory_type in FACTORY_SCHEMAS.keys()
                     ]
                 }
             }
         },
         'definitions': {
-            'extract': {
+            factory_type: {
                 'type': 'object',
                 'required': ['type', 'rules'],
                 'properties': {
-                    'type': {'type': 'string', 'enum': ['extract']},
+                    'type': {'type': 'string', 'enum': [factory_type]},
                     'rules': {
                         'type': 'array',
-                        'items': FACTORY_SCHEMAS['extract']
+                        'items': FACTORY_SCHEMAS[factory_type]
                     }
                 }
-            },
-            'lookup': {
-                'type': 'object',
-                'required': ['type', 'rules'],
-                'properties': {
-                    'type': {'type': 'string', 'enum': ['lookup']},
-                    'rules': {
-                        'type': 'array',
-                        'items': FACTORY_SCHEMAS['lookup']
-                    }
-                }
-            },
-            'sub': {
-                'type': 'object',
-                'required': ['type', 'rules'],
-                'properties': {
-                    'type': {'type': 'string', 'enum': ['sub']},
-                    'rules': {
-                        'type': 'array',
-                        'items': FACTORY_SCHEMAS['sub']
-                    }
-                }
-            }
+            } for factory_type in FACTORY_SCHEMAS.keys()
         }
     }
 

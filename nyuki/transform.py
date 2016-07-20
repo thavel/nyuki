@@ -6,7 +6,7 @@ log = logging.getLogger(__name__)
 
 
 # Inspired from https://github.com/faif/python-patterns/blob/master/registry.py
-class _RegisteredRules(type):
+class _RegisteredRule(type):
     """
     This metaclass is designed to register automatically public rule classes
     that inherit from `_Rules()`.
@@ -152,7 +152,7 @@ class Ruler(object):
                 ]
             }
         """
-        rule_cls = _RegisteredRules.get()[config['type']]
+        rule_cls = _RegisteredRule.get()[config['type']]
         rules = []
         for params in config['rules']:
             kp = dict(config.get('global_params', {}))
@@ -168,7 +168,7 @@ class Ruler(object):
             rule.apply(data)
 
 
-class _Rule(metaclass=_RegisteredRules):
+class _Rule(metaclass=_RegisteredRule):
 
     """
     A rule extracts an entry from a dict , performs an operation on the dict

@@ -541,7 +541,13 @@ class WorkflowNyuki(Nyuki):
             """
             return Response(self.topics)
 
-    @resource('/workflow/regexes', version='v1')
+    @resource('/workflow/factory/rules', version='v1')
+    class FactoryRules:
+
+        async def get(self, request):
+            return Response(list(FACTORY_SCHEMAS.keys()))
+
+    @resource('/workflow/factory/regexes', version='v1')
     class Regexes:
 
         async def get(self, request):
@@ -552,7 +558,7 @@ class WorkflowNyuki(Nyuki):
 
         async def put(self, request):
             """
-            Insert a new rule
+            Insert a new regex
             """
             request = await request.json()
 
@@ -560,25 +566,11 @@ class WorkflowNyuki(Nyuki):
                 data = {
                     'id': str(uuid4()),
                     'name': request['name'],
-                    'type': request['type'],
-                    'rule': request['rule']
+                    'pattern': request['pattern']
                 }
             except KeyError as exc:
                 return Response(status=400, body={
                     'error': 'missing parameter {}'.format(exc)
-                })
-
-            if data['type'] not in ['sub', 'extract']:
-                return Response(status=400, body={
-                    'error': 'unknown regex type'
-                })
-
-            try:
-                jsonschema.validate(data['rule'], FACTORY_SCHEMAS[data['type']])
-            except jsonschema.ValidationError as exc:
-                log.debug(exc)
-                return Response(status=400, body={
-                    'error': 'bad regex configuration'
                 })
 
             await self.storage.regexes.insert(data)
@@ -592,58 +584,49 @@ class WorkflowNyuki(Nyuki):
             await self.storage.regexes.delete()
             return Response(rules)
 
-    @resource('/workflow/regexes/{rule_id}', version='v1')
+    @resource('/workflow/factory/regexes/{regex_id}', version='v1')
     class Regex:
 
-        async def get(self, request, rule_id):
+        async def get(self, request, regex_id):
             """
-            Return the rule for id `rule_id`
+            Return the regex for id `regex_id`
             """
-            rule = await self.storage.regexes.get(rule_id)
-            if not rule:
+            regex = await self.storage.regexes.get(regex_id)
+            if not regex:
                 return Response(status=404)
-            return Response(rule)
+            return Response(regex)
 
-        async def patch(self, request, rule_id):
+        async def patch(self, request, regex_id):
             """
-            Modify an existing regex rule
+            Modify an existing regex
             """
-            rule = await self.storage.regexes.get(rule_id)
-            if not rule:
+            regex = await self.storage.regexes.get(regex_id)
+            if not regex:
                 return Response(status=404)
 
             request = await request.json()
 
             data = {
-                'id': rule_id,
-                'name': request.get('name', rule['name']),
-                'type': rule['type'],
-                'rule': request.get('rule', rule['rule'])
+                'id': regex_id,
+                'name': request.get('name', regex['name']),
+                'pattern': request.get('pattern', regex['pattern'])
             }
-
-            try:
-                jsonschema.validate(data['rule'], FACTORY_SCHEMAS[data['type']])
-            except jsonschema.ValidationError as exc:
-                log.debug(exc)
-                return Response(status=400, body={
-                    'error': 'bad regex configuration'
-                })
 
             await self.storage.regexes.insert(data)
             return Response(data)
 
-        async def delete(self, request, rule_id):
+        async def delete(self, request, regex_id):
             """
-            Delete the rule with id `rule_id`
+            Delete the regex with id `regex_id`
             """
-            rule = await self.storage.regexes.get(rule_id)
-            if not rule:
+            regex = await self.storage.regexes.get(regex_id)
+            if not regex:
                 return Response(status=404)
 
-            await self.storage.regexes.delete(rule_id=rule_id)
-            return Response(rule)
+            await self.storage.regexes.delete(regex_id=regex_id)
+            return Response(regex)
 
-    @resource('/workflow/lookups', version='v1')
+    @resource('/workflow/factory/lookups', version='v1')
     class Lookups:
 
         async def get(self, request):
@@ -654,7 +637,7 @@ class WorkflowNyuki(Nyuki):
 
         async def put(self, request):
             """
-            Insert a new rule
+            Insert a new lookup table
             """
             request = await request.json()
 
@@ -662,19 +645,11 @@ class WorkflowNyuki(Nyuki):
                 data = {
                     'id': str(uuid4()),
                     'name': request['name'],
-                    'rule': request['rule']
+                    'table': request['table']
                 }
             except KeyError as exc:
                 return Response(status=400, body={
                     'error': 'missing parameter {}'.format(exc)
-                })
-
-            try:
-                jsonschema.validate(data['rule'], FACTORY_SCHEMAS['lookup'])
-            except jsonschema.ValidationError as exc:
-                log.debug(exc)
-                return Response(status=400, body={
-                    'error': 'bad regex configuration'
                 })
 
             await self.storage.lookups.insert(data)
@@ -684,59 +659,51 @@ class WorkflowNyuki(Nyuki):
             """
             Delete all lookups and return the list
             """
-            rules = await self.storage.lookups.get_all()
+            lookups = await self.storage.lookups.get_all()
             await self.storage.lookups.delete()
-            return Response(rules)
+            return Response(lookups)
 
-    @resource('/workflow/lookups/{rule_id}', version='v1')
+    @resource('/workflow/factory/lookups/{lookup_id}', version='v1')
     class Lookup:
 
-        async def get(self, request, rule_id):
+        async def get(self, request, lookup_id):
             """
-            Return the rule for id `rule_id`
+            Return the lookup table for id `lookup_id`
             """
-            rule = await self.storage.lookups.get(rule_id)
-            if not rule:
+            lookup = await self.storage.lookups.get(lookup_id)
+            if not lookup:
                 return Response(status=404)
-            return Response(rule)
+            return Response(lookup)
 
-        async def patch(self, request, rule_id):
+        async def patch(self, request, lookup_id):
             """
-            Modify an existing lookup rule
+            Modify an existing lookup table
             """
-            rule = await self.storage.lookups.get(rule_id)
-            if not rule:
+            lookup = await self.storage.lookups.get(lookup_id)
+            if not lookup:
                 return Response(status=404)
 
             request = await request.json()
 
             data = {
-                'id': rule_id,
-                'name': request.get('name', rule['name']),
-                'rule': request.get('rule', rule['rule'])
+                'id': lookup_id,
+                'name': request.get('name', lookup['name']),
+                'lookup': request.get('table', lookup['table'])
             }
-
-            try:
-                jsonschema.validate(data['rule'], FACTORY_SCHEMAS['lookup'])
-            except jsonschema.ValidationError as exc:
-                log.debug(exc)
-                return Response(status=400, body={
-                    'error': 'bad regex configuration'
-                })
 
             await self.storage.lookups.insert(data)
             return Response(data)
 
-        async def delete(self, request, rule_id):
+        async def delete(self, request, lookup_id):
             """
-            Delete the rule with id `rule_id`
+            Delete the lookup table with id `lookup_id`
             """
-            rule = await self.storage.lookups.get(rule_id)
-            if not rule:
+            lookup = await self.storage.lookups.get(lookup_id)
+            if not lookup:
                 return Response(status=404)
 
-            await self.storage.lookups.delete(rule_id=rule_id)
-            return Response(rule)
+            await self.storage.lookups.delete(lookup_id=lookup_id)
+            return Response(lookup)
 
     @resource('/test', version='v1')
     class Test:
