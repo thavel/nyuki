@@ -109,15 +109,26 @@ class WorkflowNyuki(Nyuki):
                 # Means a bad workflow is in database, report it
                 reporting.exception(exc)
 
-    async def api_new_draft(self, template):
+    async def update_draft(self, template, from_request=None):
         """
         Helper to insert/update a draft
         """
         tmpl_dict = template.as_dict()
+
         # Auto-increment version, draft only
         last_version = await self.storage.templates.get_last_version(template.uid)
         tmpl_dict['version'] = last_version + 1
         tmpl_dict['draft'] = True
+
+        # Store task extra info (ie. title)
+        rqst_tasks = from_request.get('tasks', []) if from_request else []
+        tmpl_tasks = tmpl_dict['tasks']
+        for src in rqst_tasks:
+            match = list(filter(lambda t: t['id'] == src['id'], tmpl_tasks))
+            if match:
+                match[0].update({
+                    'title': src.get('title')
+                })
 
         try:
             await self.storage.templates.insert_draft(tmpl_dict)
@@ -187,7 +198,7 @@ class WorkflowNyuki(Nyuki):
                 metadata = metadata[0]
 
             try:
-                tmpl_dict = await self.api_new_draft(template)
+                tmpl_dict = await self.update_draft(template, request)
             except ConflictError as exc:
                 return Response(status=409, body={
                     'error': exc
@@ -237,7 +248,7 @@ class WorkflowNyuki(Nyuki):
                 })
 
             try:
-                tmpl_dict = await self.api_new_draft(template)
+                tmpl_dict = await self.update_draft(template, request)
             except ConflictError as exc:
                 return Response(status=409, body={
                     'error': exc
@@ -373,7 +384,7 @@ class WorkflowNyuki(Nyuki):
                 })
 
             try:
-                tmpl_dict = await self.api_new_draft(template)
+                tmpl_dict = await self.update_draft(template, request)
             except ConflictError as exc:
                 return Response(status=409, body={
                     'error': str(exc)
@@ -579,7 +590,7 @@ class WorkflowNyuki(Nyuki):
             """
             rule = await self.storage.regexes.get(rule_id)
             if not rule:
-                return Response(status=F404)
+                return Response(status=404)
 
             await self.storage.regexes.delete(rule_id=rule_id)
             return Response(rule)
