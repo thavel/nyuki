@@ -90,7 +90,7 @@ class Reporter(object):
         else:
             raise TypeError('Nyuki publisher must be XmppBus or MqttBus')
 
-    async def _handle_xmpp_report(self, data):
+    async def _handle_xmpp_report(self, efrom, data):
         """
         Handle XMPP report, ignore if it comes from this reporter
         """
