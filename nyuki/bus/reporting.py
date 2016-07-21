@@ -83,14 +83,14 @@ class Reporter(object):
         if self._service == 'xmpp':
             self._channel = 'monitoring'
             asyncio.ensure_future(self._publisher.subscribe(
-                self._channel, self._handle_xmpp_report
+                self._channel, self._handle_report
             ))
         elif self._service == 'mqtt':
             self._channel = '{}/monitoring'.format(self._name)
         else:
             raise TypeError('Nyuki publisher must be XmppBus or MqttBus')
 
-    async def _handle_xmpp_report(self, efrom, data):
+    async def _handle_report(self, topic, data):
         """
         Handle XMPP report, ignore if it comes from this reporter
         """
@@ -98,22 +98,6 @@ class Reporter(object):
             log.debug('Report received, no handler set')
             return
 
-        try:
-            self.check_report(data)
-        except ValidationError:
-            log.debug('Received invalid report format, ignoring')
-            return
-
-        if data['author'] == self._name:
-            log.debug('Received own report, ignoring')
-            return
-
-        await self._handler()
-
-    async def _handle_mqtt_report(self, topic, data):
-        """
-        Handle MQTT report, ignore if it comes from this reporter
-        """
         try:
             self.check_report(data)
         except ValidationError:
@@ -135,7 +119,7 @@ class Reporter(object):
         if self._service == 'mqtt':
             asyncio.ensure_future(self._publisher.subscribe(
                 self._channel.replace(self._name, '+'),
-                self._handle_mqtt_report
+                self._handle_report
             ))
             self._channel = '{}/monitoring'.format(self._name)
         self._handler = handler

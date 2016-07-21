@@ -296,9 +296,11 @@ class XmppBus(Service):
         """
         XMPP event handler when a Nyuki Event has been received.
         """
-        # ignore events from the nyuki itself
+        # Ignore events from the nyuki itself
+        # Event's resource is checked as well in case of self monitoring:
+        # 'monitoring@mucs.localhost/this_nyuki'
         efrom = event['from'].user
-        if efrom == self._topic:
+        if efrom == self._topic or event['from'].resource == self._topic:
             future = self._publish_futures.get(event['id'])
             if not future:
                 log.warning('Received own publish that was not in memory')
