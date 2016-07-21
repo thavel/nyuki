@@ -10,7 +10,8 @@ class ReportingTest(TestCase):
 
     def setUp(self):
         self.publisher = CoroutineMock()
-        reporting.init('test', self.publisher, 'errors')
+        self.publisher.SERVICE = 'xmpp'
+        reporting.init('test', self.publisher)
 
     async def tearDown(self):
         await exhaust_callbacks(self.loop)

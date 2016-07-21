@@ -1,8 +1,7 @@
 import asyncio
-from datetime import datetime
-from hbmqtt.client import MQTTClient, ConnectException
+from hbmqtt.client import MQTTClient, ConnectException, ClientException
 from hbmqtt.errors import NoDataException
-from hbmqtt.mqtt.constants import QOS_2
+from hbmqtt.mqtt.constants import QOS_1
 import json
 import logging
 import re
@@ -21,9 +20,10 @@ class MqttBus(Service):
     """
     Nyuki topics formatted as:
         - global publications:
-            publications/{nyuki_name}
+            {nyuki_name}/publications
     """
 
+    SERVICE = 'mqtt'
     CONF_SCHEMA = {
         'type': 'object',
         'required': ['bus'],
@@ -60,7 +60,6 @@ class MqttBus(Service):
     }
 
     BASE_PUB = 'publications'
-    BASE_RESP = 'responses'
 
     def __init__(self, nyuki, loop=None):
         self._nyuki = nyuki
@@ -71,7 +70,6 @@ class MqttBus(Service):
         self._pending = {}
         self.name = None
         self._subscriptions = {}
-        self._disconnection_datetime = None
 
         # Coroutines
         self.connect_future = None
@@ -149,7 +147,7 @@ class MqttBus(Service):
         ))
 
     def _publish_topic(self, nyuki):
-        return '{}/{}'.format(self.BASE_PUB, nyuki)
+        return '{}/{}'.format(nyuki, self.BASE_PUB)
 
     async def replay(self, since=None, status=None):
         """
@@ -163,6 +161,7 @@ class MqttBus(Service):
 
         events = await self._persistence.retrieve(since, status)
         for event in events:
+            # Publish events one by one in the right publish time order
             await self.publish(json.loads(
                 event['message']),
                 event['topic'],
@@ -176,7 +175,7 @@ class MqttBus(Service):
         if not asyncio.iscoroutinefunction(callback):
             raise ValueError('event callback must be a coroutine')
         log.debug('MQTT subscription to %s', topic)
-        await self.client.subscribe([(topic, QOS_2)])
+        await self.client.subscribe([(topic, QOS_1)])
         # Transform the mqtt pattern into a regex one
         regex = r'^{}$'.format(
             topic.replace('+', '[^\/]+').replace('#', '.+')
@@ -203,19 +202,11 @@ class MqttBus(Service):
         data = json.dumps(data)
         log.debug('dump: %s', data)
 
-        if not self.client._connected_state.is_set():
-            status = EventStatus.PENDING
-        else:
-            # Implies QOS_0
-            await self.client.publish(topic, data.encode())
-            status = EventStatus.SENT
-
-        if previous_uid:
-            await self._persistence.update(previous_uid, status)
-        elif self._persistence:
+        # Store the event as PENDING if it is new
+        if self._persistence and previous_uid is None:
             await self._persistence.store({
                 'id': uid,
-                'status': status.value,
+                'status': EventStatus.PENDING.value,
                 'topic': topic,
                 'message': data,
             })
@@ -223,6 +214,16 @@ class MqttBus(Service):
                 asyncio.ensure_future(self._nyuki.on_buffer_full(
                     self._persistence.memory_buffer.free_slot
                 ))
+
+        if self.client._connected_state.is_set():
+            # Implies QOS_0
+            await self.client.publish(topic, data.encode())
+            status = EventStatus.SENT
+        else:
+            status = EventStatus.FAILED
+
+        if self._persistence:
+            await self._persistence.update(previous_uid or uid, status)
 
     async def _run(self):
         """
@@ -240,18 +241,15 @@ class MqttBus(Service):
 
             # Replaying events
             log.info('Connection made with MQTT')
-            if self._persistence and self._disconnection_datetime:
+            if self._persistence:
                 asyncio.ensure_future(self.replay(
-                    self._disconnection_datetime,
-                    EventStatus.not_sent()
+                    status=EventStatus.not_sent()
                 ))
 
-            self._disconnection_datetime = None
             # Start listening
             self.listen_future = asyncio.ensure_future(self._listen())
             # Blocks until mqtt is disconnected
             await self.client._handler.wait_disconnect()
-            self._disconnection_datetime = datetime.utcnow()
             # Clean listen_future
             self.listen_future.cancel()
             self.listen_future = None
@@ -261,7 +259,12 @@ class MqttBus(Service):
         Listen to events after a successful connection
         """
         while True:
-            message = await self.client.deliver_message()
+            try:
+                message = await self.client.deliver_message()
+            except ClientException as exc:
+                log.error(exc)
+                break
+
             if message is None:
                 log.info('listening loop ended')
                 break

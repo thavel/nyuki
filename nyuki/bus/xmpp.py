@@ -74,6 +74,7 @@ class XmppBus(Service):
     subscribe to any other topics to process events from other nyukis.
     """
 
+    SERVICE = 'xmpp'
     CONF_SCHEMA = {
         "type": "object",
         "required": ["bus"],
@@ -196,7 +197,7 @@ class XmppBus(Service):
         """
         Initialize reporting module
         """
-        reporting.init(self.client.boundjid.user, self, self._report_channel)
+        reporting.init(self.client.boundjid.user, self)
 
     def _muc_address(self, topic):
         return '{}@{}'.format(topic, self._muc_domain)

@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime
+from functools import partial
 from jsonschema import FormatChecker, validate, ValidationError
 import logging
 import os
@@ -58,33 +59,60 @@ def _check_isoformat(datetime):
 
 class Reporter(object):
 
+    """
+    Mqtt and Xmpp bus are handled differently as the topics mechanism
+    is not the same.
+    """
+
     EXCEPTION_TTL = 3600
 
     def __init__(self):
-        self.name = None
+        self._name = None
         self._loop = None
         self._publisher = None
         self._channel = None
-        self._handlers = list()
+        self._handler = None
         self._last_exceptions = list()
 
-    def init(self, name, publisher, channel, loop=None):
-        if not hasattr(publisher, 'subscribe'):
-            raise TypeError("Nyuki publisher requires the 'subscribe' method")
-        if not hasattr(publisher, 'publish'):
-            raise TypeError("Nyuki publisher requires the 'publish' method")
-
-        self.name = name
+    def init(self, name, publisher, loop=None):
+        self._name = name
         self._loop = loop or asyncio.get_event_loop()
         self._publisher = publisher
-        self._channel = channel
-        asyncio.ensure_future(self._publisher.subscribe(
-            channel, self._handle_report
-        ))
+        self._service = self._publisher.SERVICE
 
-    async def _handle_report(self, data):
+        if self._service == 'xmpp':
+            self._channel = 'monitoring'
+            asyncio.ensure_future(self._publisher.subscribe(
+                self._channel, self._handle_xmpp_report
+            ))
+        elif self._service == 'mqtt':
+            self._channel = '{}/monitoring'.format(self._name)
+        else:
+            raise TypeError('Nyuki publisher must be XmppBus or MqttBus')
+
+    async def _handle_xmpp_report(self, data):
         """
-        Handle report, ignore if it comes from this reporter
+        Handle XMPP report, ignore if it comes from this reporter
+        """
+        if self._handler is None:
+            log.debug('Report received, no handler set')
+            return
+
+        try:
+            self.check_report(data)
+        except ValidationError:
+            log.debug('Received invalid report format, ignoring')
+            return
+
+        if data['author'] == self._name:
+            log.debug('Received own report, ignoring')
+            return
+
+        await self._handler()
+
+    async def _handle_mqtt_report(self, topic, data):
+        """
+        Handle MQTT report, ignore if it comes from this reporter
         """
         try:
             self.check_report(data)
@@ -92,28 +120,25 @@ class Reporter(object):
             log.debug('Received invalid report format, ignoring')
             return
 
-        if data['author'] == self.name:
+        if data['author'] == self._name:
             log.debug('Received own report, ignoring')
             return
 
-        tasks = []
-        for handler in self._handlers:
-            tasks.append(asyncio.ensure_future(handler(data)))
-
-        if not tasks:
-            log.debug('No report handler to execute')
-            return
-
-        await asyncio.wait(tasks)
+        await self._handler(topic, data)
 
     def register_handler(self, handler):
         """
         Register all required handlers for received reports
         """
-        if handler in self._handlers:
-            # Can't register the same callback twice
-            return
-        self._handlers.append(handler)
+        if not asyncio.iscoroutinefunction(handler):
+            raise ValueError('handler must be a coroutine')
+        if self._service == 'mqtt':
+            asyncio.ensure_future(self._publisher.subscribe(
+                self._channel.replace(self._name, '+'),
+                self._handle_mqtt_report
+            ))
+            self._channel = '{}/monitoring'.format(self._name)
+        self._handler = handler
 
     def check_report(self, report):
         """
@@ -142,7 +167,7 @@ class Reporter(object):
                 socket.gethostbyname(socket.gethostname())
             ),
             'type': rtype,
-            'author': self.name,
+            'author': self._name,
             'datetime': datetime.utcnow().isoformat(),
             'data': data
         }
