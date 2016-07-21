@@ -53,7 +53,7 @@ class TestXmppBus(TestCase):
         msg['from'] = JID('someone@localhost')
         msg['body'] = '{"key": "value"}'
         await self.bus._on_event(msg)
-        cb.assert_called_once_with({'key': 'value'})
+        cb.assert_called_once_with('someone', {'key': 'value'})
 
     @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send')
     async def test_003a_publish(self, send_mock):

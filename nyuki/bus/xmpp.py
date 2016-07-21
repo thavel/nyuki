@@ -319,7 +319,7 @@ class XmppBus(Service):
             if not asyncio.iscoroutinefunction(callback):
                 log.warning('event callbacks must be coroutines')
                 callback = asyncio.coroutine(callback)
-            await callback(body)
+            await callback(efrom, body)
         else:
             log.warning('No callback set for event from %s', efrom)
 
