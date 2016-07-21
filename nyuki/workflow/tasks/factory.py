@@ -39,17 +39,18 @@ FACTORY_SCHEMAS = {
             'value': {'type': 'string', 'minLength': 1},
         }
     },
-    # 'sub': {
-    #     'type': 'object',
-    #     'required': ['fieldname', 'pattern', 'repl'],
-    #     'properties': {
-    #         'fieldname': {'type': 'string', 'minLength': 1},
-    #         'pattern': {'type': 'string', 'minLength': 1},
-    #         'repl': {'type': 'string', 'minLength': 1},
-    #         'count': {'type': 'integer', 'minimum': 1},
-    #         'flags': {'type': 'integer'}
-    #     }
-    # },
+    'sub': {
+        'type': 'object',
+        'required': ['fieldname', 'regex_id', 'repl'],
+        'properties': {
+            'fieldname': {'type': 'string', 'minLength': 1},
+            'regex_id': {'type': 'string', 'minLength': 1},
+            'repl': {'type': 'string', 'minLength': 1},
+            # 'pattern': {'type': 'object', 'minLength': 1},
+            # 'count': {'type': 'integer', 'minimum': 1},
+            # 'flags': {'type': 'integer'}
+        }
+    },
     'unset': {
         'type': 'object',
         'required': ['fieldname'],
