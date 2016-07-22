@@ -142,9 +142,7 @@ class MqttBus(Service):
         """
         Initialize reporting module
         """
-        reporting.init(self.name, self, '{}/{}'.format(
-            self._report_channel, self.name
-        ))
+        reporting.init(self.name, self)
 
     def publish_topic(self, nyuki):
         return '{}/{}'.format(nyuki, self.BASE_PUB)
@@ -199,8 +197,8 @@ class MqttBus(Service):
         uid = previous_uid or str(uuid4())
         topic = topic or self._self_topic
         log.info('Publishing an event to %s', topic)
-        data = json.dumps(data)
         log.debug('dump: %s', data)
+        data = json.dumps(data)
 
         # Store the event as PENDING if it is new
         if self._persistence and previous_uid is None:
