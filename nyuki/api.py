@@ -129,7 +129,11 @@ async def mw_capability(app, capa_handler):
 
             # Check content_type from @resource decorator
             if request.headers.get('Content-Type') != ctype:
-                log.debug("content-type '%s' required", ctype)
+                log.debug(
+                    "content-type '%s' required. Received '%s'",
+                    ctype,
+                    request.headers.get('Content-Type')
+                )
                 return Response(
                     {'error': 'Wrong content-type'},
                     status=400
