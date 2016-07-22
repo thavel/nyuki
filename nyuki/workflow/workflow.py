@@ -1,10 +1,11 @@
 import asyncio
 from datetime import datetime
-import functools
 import json
 import logging
-from tukio import Engine, Workflow, WorkflowTemplate, TaskRegistry
-from tukio.workflow import TemplateGraphError
+from tukio import Engine, TaskRegistry, get_broker, EXEC_TOPIC
+from tukio.workflow import (
+    TemplateGraphError, Workflow, WorkflowTemplate, WorkflowExecState
+)
 from uuid import uuid4
 
 from nyuki import Nyuki, resource, Response
@@ -76,9 +77,7 @@ class WorkflowNyuki(Nyuki):
         await self.reload_from_storage()
         for topic in self.topics:
             asyncio.ensure_future(self.bus.subscribe(
-                topic, asyncio.coroutine(functools.partial(
-                    self.workflow_event, efrom=topic
-                ))
+                self.bus.publish_topic(topic), self.workflow_event
             ))
 
     async def reload(self):
@@ -88,7 +87,7 @@ class WorkflowNyuki(Nyuki):
         if self.engine:
             await self.engine.stop()
 
-    async def workflow_event(self, data, efrom=None):
+    async def workflow_event(self, efrom, data):
         await self.engine.data_received(data, efrom)
 
     async def reload_from_storage(self):
@@ -441,6 +440,7 @@ class WorkflowNyuki(Nyuki):
                 "draft": true/false
             }
             """
+            async_channel = request.headers.get('X-Surycat-Async-Channel')
             request = await request.json()
 
             if 'id' not in request:
@@ -459,6 +459,18 @@ class WorkflowNyuki(Nyuki):
                 return Response(status=404, body={
                     'error': 'Could not find a suitable template to run'
                 })
+
+            # Handle async workflow exec updates
+            if async_channel is not None:
+                broker = get_broker()
+                async def exec_handler(event):
+                    asyncio.ensure_future(self.bus.publish(
+                        event.data, topic=async_channel
+                    ))
+                    if event.data['type'] == WorkflowExecState.end.value or\
+                       event.data['type'] == WorkflowExecState.error.value:
+                        broker.unregister(exec_handler, topic=EXEC_TOPIC)
+                broker.register(exec_handler, topic=EXEC_TOPIC)
 
             wf_tmpl = WorkflowTemplate.from_dict(templates[0])
             data = request.get('inputs', {})
@@ -685,4 +697,4 @@ class WorkflowNyuki(Nyuki):
 
         async def post(self, request, topic):
             # Send data to the given topic
-            await self.workflow_event(await request.json(), topic)
+            await self.workflow_event(topic, await request.json())

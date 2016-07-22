@@ -86,7 +86,7 @@ class MqttBus(Service):
 
         self._host = '{}://{}:{}'.format(scheme, host, port)
         self.name = name
-        self._self_topic = self._publish_topic(self.name)
+        self._self_topic = self.publish_topic(self.name)
         self._cafile = cafile
         self._report_channel = report_channel
         self.client = MQTTClient(
@@ -146,7 +146,7 @@ class MqttBus(Service):
             self._report_channel, self.name
         ))
 
-    def _publish_topic(self, nyuki):
+    def publish_topic(self, nyuki):
         return '{}/{}'.format(nyuki, self.BASE_PUB)
 
     async def replay(self, since=None, status=None):
@@ -272,7 +272,7 @@ class MqttBus(Service):
             topic = message.topic
 
             # Ignore own message
-            if topic == self._publish_topic(self.name):
+            if topic == self.publish_topic(self.name):
                 continue
 
             for regex, callback in self._subscriptions.items():
