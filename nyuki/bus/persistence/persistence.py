@@ -162,7 +162,7 @@ class BusPersistence(object):
         }
         adding a 'created_at' key.
         """
-        log.info("New event stored with uid '%s'", event['id'])
+        log.debug("New event stored with uid '%s'", event['id'])
         event['created_at'] = datetime.utcnow()
         self._last_events.put(event)
 
@@ -170,7 +170,7 @@ class BusPersistence(object):
         """
         Update the status of a stored event
         """
-        log.info("Updating status of event '%s' to '%s'", uid, status)
+        log.debug("Updating status of event '%s' to '%s'", uid, status)
         for event in self._last_events.list:
             if event['id'] == uid:
                 event['status'] = status.value

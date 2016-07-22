@@ -198,7 +198,7 @@ class MqttBus(Service):
         """
         uid = previous_uid or str(uuid4())
         topic = topic or self._self_topic
-        log.info('Publishing into %s', topic)
+        log.info('Publishing an event to %s', topic)
         data = json.dumps(data)
         log.debug('dump: %s', data)
 
@@ -219,6 +219,7 @@ class MqttBus(Service):
             # Implies QOS_0
             await self.client.publish(topic, data.encode())
             status = EventStatus.SENT
+            log.info('Event successfully sent to topic %s', topic)
         else:
             status = EventStatus.FAILED
 
