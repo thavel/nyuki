@@ -460,18 +460,6 @@ class WorkflowNyuki(Nyuki):
                     'error': 'Could not find a suitable template to run'
                 })
 
-            # Handle async workflow exec updates
-            if async_channel is not None:
-                broker = get_broker()
-                async def exec_handler(event):
-                    asyncio.ensure_future(self.bus.publish(
-                        event.data, topic=async_channel
-                    ))
-                    if event.data['type'] == WorkflowExecState.end.value or\
-                       event.data['type'] == WorkflowExecState.error.value:
-                        broker.unregister(exec_handler, topic=EXEC_TOPIC)
-                broker.register(exec_handler, topic=EXEC_TOPIC)
-
             wf_tmpl = WorkflowTemplate.from_dict(templates[0])
             data = request.get('inputs', {})
             if draft:
@@ -483,6 +471,27 @@ class WorkflowNyuki(Nyuki):
                 return Response(status=400, body={
                     'error': 'Could not start any workflow from this template'
                 })
+
+            # Handle async workflow exec updates
+            if async_channel is not None:
+                broker = get_broker()
+                async def exec_handler(event):
+                    # Pass if event does not concern this workflow execution
+                    if event.source.workflow_exec_id != wflow.uid:
+                        return
+                    # Publish the event's data
+                    # TODO: Beware of unserializable objects
+                    asyncio.ensure_future(self.bus.publish(
+                        event.data, topic=async_channel
+                    ))
+                    # If the workflow is in a final state, unregister
+                    if event.data['type'] in [
+                        WorkflowExecState.end.value,
+                        WorkflowExecState.error.value
+                    ]:
+                        broker.unregister(exec_handler, topic=EXEC_TOPIC)
+                broker.register(exec_handler, topic=EXEC_TOPIC)
+
             return Response(
                 json.dumps(wflow, default=self.serialize_wflow_exec),
                 content_type='application/json'
