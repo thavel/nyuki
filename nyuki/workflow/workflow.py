@@ -541,13 +541,13 @@ class WorkflowNyuki(Nyuki):
             """
             return Response(self.topics)
 
-    @resource('/workflow/factory/rules', version='v1')
+    @resource('/workflow/rules', version='v1')
     class FactoryRules:
 
         async def get(self, request):
             return Response(list(FACTORY_SCHEMAS.keys()))
 
-    @resource('/workflow/factory/regexes', version='v1')
+    @resource('/workflow/regexes', version='v1')
     class Regexes:
 
         async def get(self, request):
@@ -565,7 +565,7 @@ class WorkflowNyuki(Nyuki):
             try:
                 data = {
                     'id': str(uuid4()),
-                    'name': request['name'],
+                    'title': request['title'],
                     'pattern': request['pattern']
                 }
             except KeyError as exc:
@@ -584,7 +584,7 @@ class WorkflowNyuki(Nyuki):
             await self.storage.regexes.delete()
             return Response(rules)
 
-    @resource('/workflow/factory/regexes/{regex_id}', version='v1')
+    @resource('/workflow/regexes/{regex_id}', version='v1')
     class Regex:
 
         async def get(self, request, regex_id):
@@ -608,7 +608,7 @@ class WorkflowNyuki(Nyuki):
 
             data = {
                 'id': regex_id,
-                'name': request.get('name', regex['name']),
+                'title': request.get('title', regex['title']),
                 'pattern': request.get('pattern', regex['pattern'])
             }
 
@@ -626,7 +626,7 @@ class WorkflowNyuki(Nyuki):
             await self.storage.regexes.delete(regex_id=regex_id)
             return Response(regex)
 
-    @resource('/workflow/factory/lookups', version='v1')
+    @resource('/workflow/lookups', version='v1')
     class Lookups:
 
         async def get(self, request):
@@ -644,7 +644,7 @@ class WorkflowNyuki(Nyuki):
             try:
                 data = {
                     'id': str(uuid4()),
-                    'name': request['name'],
+                    'title': request['title'],
                     'table': request['table']
                 }
             except KeyError as exc:
@@ -663,7 +663,7 @@ class WorkflowNyuki(Nyuki):
             await self.storage.lookups.delete()
             return Response(lookups)
 
-    @resource('/workflow/factory/lookups/{lookup_id}', version='v1')
+    @resource('/workflow/lookups/{lookup_id}', version='v1')
     class Lookup:
 
         async def get(self, request, lookup_id):
@@ -687,7 +687,7 @@ class WorkflowNyuki(Nyuki):
 
             data = {
                 'id': lookup_id,
-                'name': request.get('name', lookup['name']),
+                'title': request.get('title', lookup['title']),
                 'lookup': request.get('table', lookup['table'])
             }
 
