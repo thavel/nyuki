@@ -623,7 +623,7 @@ class WorkflowNyuki(Nyuki):
             if not regex:
                 return Response(status=404)
 
-            await self.storage.regexes.delete(regex_id=regex_id)
+            await self.storage.regexes.delete(regex_id)
             return Response(regex)
 
     @resource('/workflow/lookups', version='v1')
@@ -688,7 +688,7 @@ class WorkflowNyuki(Nyuki):
             data = {
                 'id': lookup_id,
                 'title': request.get('title', lookup['title']),
-                'lookup': request.get('table', lookup['table'])
+                'table': request.get('table', lookup['table'])
             }
 
             await self.storage.lookups.insert(data)
@@ -702,7 +702,7 @@ class WorkflowNyuki(Nyuki):
             if not lookup:
                 return Response(status=404)
 
-            await self.storage.lookups.delete(lookup_id=lookup_id)
+            await self.storage.lookups.delete(lookup_id)
             return Response(lookup)
 
     @resource('/test', version='v1')
