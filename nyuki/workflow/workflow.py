@@ -418,6 +418,25 @@ class WorkflowNyuki(Nyuki):
             return obj.report()
         raise TypeError('obj not serializable: {}'.format(obj))
 
+    def register_async_handler(self, async_channel, wflow):
+        broker = get_broker()
+        async def exec_handler(event):
+            # Pass if event does not concern this workflow execution
+            if event.source.workflow_exec_id != wflow.uid:
+                return
+            # Publish the event's data
+            # TODO: Beware of unserializable objects
+            asyncio.ensure_future(self.bus.publish(
+                event.data, topic=async_channel
+            ))
+            # If the workflow is in a final state, unregister
+            if event.data['type'] in [
+                WorkflowExecState.end.value,
+                WorkflowExecState.error.value
+            ]:
+                broker.unregister(exec_handler, topic=EXEC_TOPIC)
+        broker.register(exec_handler, topic=EXEC_TOPIC)
+
     @resource('/workflow/instances', version='v1')
     class Workflows:
 
@@ -474,23 +493,7 @@ class WorkflowNyuki(Nyuki):
 
             # Handle async workflow exec updates
             if async_channel is not None:
-                broker = get_broker()
-                async def exec_handler(event):
-                    # Pass if event does not concern this workflow execution
-                    if event.source.workflow_exec_id != wflow.uid:
-                        return
-                    # Publish the event's data
-                    # TODO: Beware of unserializable objects
-                    asyncio.ensure_future(self.bus.publish(
-                        event.data, topic=async_channel
-                    ))
-                    # If the workflow is in a final state, unregister
-                    if event.data['type'] in [
-                        WorkflowExecState.end.value,
-                        WorkflowExecState.error.value
-                    ]:
-                        broker.unregister(exec_handler, topic=EXEC_TOPIC)
-                broker.register(exec_handler, topic=EXEC_TOPIC)
+                self.register_async_handler(async_channel, wflow)
 
             return Response(
                 json.dumps(wflow, default=self.serialize_wflow_exec),
