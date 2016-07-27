@@ -12,7 +12,7 @@ A lightweight Python library designed to implement agents (aka nyukis). It provi
 * Communication between nyukis (over HTTP and XMPP)
 * Helpers for asyncio-based programming
 
-This library has been written with a focus on reliability and developer-friendliness. Its design promotes single-threaded and asynchronous coding style through the extensive use of the [Python asyncio](https://docs.python.org/3/library/asyncio.html) event loop. A single loop is used to manage HTTP and XMPP-based communications as well as executing internal logic. Nyukis are suited for Agent-Oriented Programming and very useful to build distributed systems and scalable services.
+This library has been written with a focus on reliability and developer-friendliness. Its design promotes single-threaded and asynchronous coding style through the extensive use of the [Python asyncio](https://docs.python.org/3/library/asyncio.html) event loop. A single loop is used to manage HTTP, XMPP-based and MQTT-based communications as well as executing internal logic. Nyukis are suited for Agent-Oriented Programming and very useful to build distributed systems and scalable services.
 
 ## What is a nyuki?
 A nyuki (a bee in Swahili) is an entity designed for real-time data processing (stream processing). Tying together several nyukis allows nearly unlimited use cases: from home automation (e.g. warm up my home when you're less than 5 miles away) to smart industries (lower down pressure and notify staff upon reaching a temperature threshold). This is up to the developer to write his own user story! Following that philosophy, nyukis are the nuts and bolts that helped design [Surycat](http://www.surycat.com).
@@ -22,21 +22,29 @@ Here is a list of core concepts tied to a nyuki:
 * A nyuki runs as a standalone process
 * A nyuki manages its own storage area (if it has data to store)
 * A nyuki provides its own HTTP RESTful API
-* A nyuki is connected to a bus for 1-to-many communication with other nyukis (currently using XMPP MUC)
+* A nyuki is connected to a bus for 1-to-many communication with other nyukis (currently using XMPP MUC or MQTT)
 
 ## Requirements
 All you need is a Python interpreter. At the moment, only **Python 3.5** is supported.
 
 ## Getting started
-Don't bother with installing and configuring your own XMPP server at once! Run this preconfigured Docker image instead:
+Don't bother with installing and configuring your own bus server at once! You can run on of these preconfigured Docker images instead:
 
+### for MQTT
+MQTT is the default bus configured.
+```bash
+docker pull surycat/mosquitto
+docker run -d surycat/mosquitto
+```
+
+### for XMPP
+See **configuration** part for use.
 ```bash
 docker pull surycat/prosody
 docker run -d surycat/prosody
 ```
 
 Install the nyuki library:
-
 ```bash
 pip install nyuki
 ```
@@ -148,6 +156,7 @@ curl -H "Content-Type: application/json" http://localhost:8081/eaten
 
 **Note**: find more code snippets in the folder *examples*.
 
+
 ## Configuration file
 
 Instead of passing a list of arguments to the command-line you can put the whole nyuki configuration into a JSON file:
@@ -179,9 +188,93 @@ By the way, settings from the configuration file are overridden by command-line 
 python sample.py -j myjid@myhost -c sample.json
 ```
 
+### Generic configuration
+
+```json
+{
+    "api": {
+        "host": "0.0.0.0",
+        "port": 5558
+    },
+    "bus": {
+        "service": "mqtt",
+        "scheme": "ws",
+        "host": "mosquitto",
+        "name": "nyuki"
+    },
+    "http_host": "nginx",
+    "mongo": {
+        "host": "mongo",
+        "database": "pipeline",
+        "ssl": true,
+        "ssl_certfile": "/mongo/mongo.pem"
+    },
+    "source_ruler": {
+       "rulers": [...]
+    },
+    "topics": ["smtp", "infobip", "twilio"],
+    "version": 0
+
+```
+
+| Field | Description |
+|-------|-------------|
+| `api` | The nyuki api host and port |
+| `bus` | The nyuki bus configuration see **Bus configuration** |
+| `http_host` | The nyuki api host and port |
+| `mongo` | The nyuki mongo backend configuration see **mongo configuration** |
+| `topics` | The topics the nyuki will subscribe to publications under these topics can be used by the nyuki, including in the workflows embedded.|
+| `source_ruler` | The nyuki input string processing configuration, see **String processing conf** |
+| `version` | The current configuration version. Versionning is used to be able to migrate config files cf [pijon](https://github.com/optiflows/pijon) |
+
+
 Mandatory parameters are the Jabber ID (`jid`) and the password. Others are optional in both the command-line and the configuration file.
 
-## Bus persistence
+### Bus configuration
+
+#### MQTT
+```json
+{
+    "bus": {
+        "service": "mqtt",
+        "scheme": "ws",
+        "host": "mosquitto",
+        "name": "nyuki"
+    },
+    ...
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `service` | the bus service used (mqtt or xmpp) |
+| `scheme` | the scheme protocol used within mqtt options are 'ws': websocket, 'wss': websocket SSL, 'mqtt': MQTT, 'mqtts': MQTT SSL |
+| `host` | the mqtt server host |
+| `name` | the mqtt nyuki name |
+
+
+#### XMPP
+```json
+{
+    "bus": {
+        "certificate": "my_certif.crt",
+        "host": "prosody",
+        "jid": "nyuki@localhost",
+        "password": "secure_password"
+    },
+    ...
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `certificate` | An optional xmpp certificate file name to ensure the xmpp host validity during connection|
+| `host` | The xmpp server host |
+| `jid` | the xmpp jid for this nyuki, must be unique |
+| `password` | the password associated with the jid |
+
+
+#### Persistence
 
 Bus events persistence can be enabled to ensure the delivery of every publication on the bus. These fields of the configuration file are available:
 ```json
@@ -190,15 +283,239 @@ Bus events persistence can be enabled to ensure the delivery of every publicatio
     "bus": {
         ...
         "persistence": {
-            "backend": "mongo", (only choice, mandatory)
+            "backend": "mongo",
             "host": "localhost",
-            "ttl": 60, (in minutes)
-            "memory_size": 1000 (in-memory, does not relate to backend)
+            "ttl": 60,
+            "memory_size": 1000
         }
     }
     ...
 }
 ```
+
+| Field | Description |
+|-------|-------------|
+| `backend` | The backend service used. Currently only 'mongo' is supported |
+| `host` | The backend host name |
+| `ttl` | the events ttl in minutes |
+| `memory_size` | the number of events kept in memory (independently of the backend storage) |
+
+
+### mongo configuration
+
+```json
+{
+    "mongo": {
+        "host": "mongo",
+        "database": "pipeline",
+        "ssl": true,
+        "ssl_certfile": "/mongo/mongo.pem"
+    },
+    ...
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `host` | The mongo server host |
+| `database` | The mongo database name |
+| `ssl` | Connect to the db in ssl (default true) |
+| `ssl_certfile` | the mongo ssl certificate file name |
+
+
+
+## Workflow capabilities
+
+Each and every nyuki has some workflow capabilities provided by [tukio](https://github.com/optiflows/tukio)
+
+Meaning one can define templates in a nyuki and process workflows.
+All workflow PAI entries are in the ressource /workflow (see the nyuki swagger: `GET http://host:port/<nyuki_name>/api/v1/swagger`)
+
+### Tasks:
+The following tasks may be used in any Nyuki workflow:
+
+#### Factory
+A task to do some string processing on the workflow data. see existing **String processing** item
+
+```json
+{
+    "name": "factory",
+    "id": "my_factory_task",
+    "config": {"rulers": [
+        {
+            "type": "<rule-type-name>",
+            "rules": [
+                {"fieldname": "<name>"},
+                ...
+            ]
+        }
+    ]}
+}
+```
+
+#### sleep
+A task that await a configurable time (in seconds)
+
+```json
+{
+    "name": "sleep",
+    "id": "my_sleeping_task",
+    "config": {"time": 5}
+}
+```
+
+#### Join
+A dummy tasks that awaits from it's parents.
+
+```json
+{
+    "name": "join",
+    "id": "my_join_task",
+    "config": {"wait_for": ["<task_id>"], "timeout": 60}
+}
+```
+
+
+## String processing
+Nyukis have string processing capabilities that can be used in workflow tasks (workflow task configuration) or on each bus input (`source_ruler` configuration)
+
+### Extract
+
+```json
+{
+    "rules": [
+        {
+            "fieldname": "key",
+            "regexp": "[\d+]"
+        }
+    ],
+    "type": "extract"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `fieldname` | The key where we want the extraction done and written |
+| `regexp` | The regular expression |
+
+
+### Sub
+
+```json
+{
+    "rules": [
+        {
+            "fieldname": "key",
+            "regexp": "[\d+]",
+            "repl": "",
+            "count": 1
+        }
+    ],
+    "type": "extract"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `fieldname` | The key where we want the substitution done and written |
+| `regexp` | The regular expression |
+| `repl` | The replacement string |
+| `count` | The number of matches to replace|
+
+
+### Set
+
+```json
+{
+    "rules": [
+        {
+            "fieldname": "key",
+            "value": "new_value"
+        }
+    ],
+    "type": "set"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `fieldname` | The key to set |
+| `value` | The new value of the key |
+
+
+### Unset
+
+```json
+{
+    "rules": [
+        {
+            "fieldname": "key"
+        }
+    ],
+    "type": "unset"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `fieldname` | the key to unset |
+
+
+### Lookup
+
+```json
+{
+    "rules": [
+        {
+            "fieldname": "key",
+            ""
+        }
+    ],
+    "type": "unset"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `fieldname` | the key to unset |
+
+
+### Lower
+
+```json
+{
+    "rules": [
+        {
+            "fieldname": "key",
+        }
+    ],
+    "type": "lower"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `fieldname` | the key to lower |
+
+
+### Upper
+
+```json
+{
+    "rules": [
+        {
+            "fieldname": "key",
+        }
+    ],
+    "type": "upper"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `fieldname` | the key transform in capital |
+
+
 
 ## Contributing
 
