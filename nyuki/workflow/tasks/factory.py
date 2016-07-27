@@ -11,10 +11,22 @@ log = logging.getLogger(__name__)
 
 
 FACTORY_SCHEMAS = {
+    'condition-block': {
+        'type': 'object',
+        'required': ['type', 'conditions'],
+        'properties': {
+            'type': {'type': 'string', 'enum': ['condition-block']},
+            'conditions': {
+                'type': 'array',
+                'items': {'type': 'object'}
+            }
+        }
+    },
     'extract': {
         'type': 'object',
-        'required': ['fieldname', 'regex_id'],
+        'required': ['type', 'fieldname', 'regex_id'],
         'properties': {
+            'type': {'type': 'string', 'enum': ['extract']},
             'fieldname': {'type': 'string', 'minLength': 1},
             'regex_id': {'type': 'string', 'minLength': 1},
             'pos': {'type': 'integer', 'minimum': 0},
@@ -24,8 +36,9 @@ FACTORY_SCHEMAS = {
     },
     'lookup': {
         'type': 'object',
-        'required': ['fieldname', 'lookup_id'],
+        'required': ['type', 'fieldname', 'lookup_id'],
         'properties': {
+            'type': {'type': 'string', 'enum': ['lookup']},
             'fieldname': {'type': 'string', 'minLength': 1},
             'lookup_id': {'type': 'string', 'minLength': 1},
             'icase': {'type': 'boolean'}
@@ -33,16 +46,18 @@ FACTORY_SCHEMAS = {
     },
     'set': {
         'type': 'object',
-        'required': ['fieldname', 'value'],
+        'required': ['type', 'fieldname', 'value'],
         'properties': {
+            'type': {'type': 'string', 'enum': ['set']},
             'fieldname': {'type': 'string', 'minLength': 1},
             'value': {'type': 'string', 'minLength': 1},
         }
     },
     'sub': {
         'type': 'object',
-        'required': ['fieldname', 'regex_id', 'repl'],
+        'required': ['type', 'fieldname', 'regex_id', 'repl'],
         'properties': {
+            'type': {'type': 'string', 'enum': ['sub']},
             'fieldname': {'type': 'string', 'minLength': 1},
             'regex_id': {'type': 'string', 'minLength': 1},
             'repl': {'type': 'string', 'minLength': 1},
@@ -52,8 +67,9 @@ FACTORY_SCHEMAS = {
     },
     'unset': {
         'type': 'object',
-        'required': ['fieldname'],
+        'required': ['type', 'fieldname'],
         'properties': {
+            'type': {'type': 'string', 'enum': ['unset']},
             'fieldname': {'type': 'string', 'minLength': 1}
         }
     }
@@ -63,11 +79,12 @@ FACTORY_SCHEMAS = {
 @register('factory', 'execute')
 class FactoryTask(TaskHolder):
 
+    BASE_API_URL = 'http://localhost:5558/v1/workflow'
     SCHEMA = {
         'type': 'object',
-        'required': ['rulers'],
+        'required': ['rules'],
         'properties': {
-            'rulers': {
+            'rules': {
                 'type': 'array',
                 'items': {
                     'type': 'object',
@@ -79,54 +96,42 @@ class FactoryTask(TaskHolder):
             }
         },
         'definitions': {
-            factory_type: {
-                'type': 'object',
-                'required': ['type', 'rules'],
-                'properties': {
-                    'type': {'type': 'string', 'enum': [factory_type]},
-                    'rules': {
-                        'type': 'array',
-                        'items': FACTORY_SCHEMAS[factory_type]
-                    }
-                }
-            } for factory_type in FACTORY_SCHEMAS.keys()
+            factory_type: FACTORY_SCHEMAS[factory_type]
+            for factory_type in FACTORY_SCHEMAS.keys()
         }
     }
-    BASE_API_URL = 'http://localhost:5558/v1/workflow'
 
-    async def get_regexes(self, session, rules):
+    async def get_regex(self, session, rule):
         """
         Query the nyuki to get the actual regexes from their IDs
         """
-        for rule in rules:
-            url = '{}/regexes/{}'.format(self.BASE_API_URL, rule['regex_id'])
-            async with session.get(url) as resp:
-                if resp.status != 200:
-                    raise RuntimeError(
-                        'Could not find regex with id {}'.format(
-                            rule['regex_id']
-                        )
+        url = '{}/regexes/{}'.format(self.BASE_API_URL, rule['regex_id'])
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                raise RuntimeError(
+                    'Could not find regex with id {}'.format(
+                        rule['regex_id']
                     )
-                data = await resp.json()
-                rule['pattern'] = data['pattern']
-                del rule['regex_id']
+                )
+            data = await resp.json()
+            rule['pattern'] = data['pattern']
+            del rule['regex_id']
 
-    async def get_lookups(self, session, rules):
+    async def get_lookup(self, session, rule):
         """
         Query the nyuki to get the actual lookup tables from their IDs
         """
-        for rule in rules:
-            url = '{}/lookups/{}'.format(self.BASE_API_URL, rule['lookup_id'])
-            async with session.get(url) as resp:
-                if resp.status != 200:
-                    raise RuntimeError(
-                        'Could not find lookup table with id {}'.format(
-                            rule['lookup_id']
-                        )
+        url = '{}/lookups/{}'.format(self.BASE_API_URL, rule['lookup_id'])
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                raise RuntimeError(
+                    'Could not find lookup table with id {}'.format(
+                        rule['lookup_id']
                     )
-                data = await resp.json()
-                rule['table'] = data['table']
-                del rule['lookup_id']
+                )
+            data = await resp.json()
+            rule['table'] = data['table']
+            del rule['lookup_id']
 
     async def get_factory_rules(self, config):
         """
@@ -134,11 +139,11 @@ class FactoryTask(TaskHolder):
         their database equivalent within the nyuki
         """
         async with ClientSession() as session:
-            for ruler in config['rulers']:
-                if ruler['type'] in ['extract', 'sub']:
-                    await self.get_regexes(session, ruler['rules'])
-                elif ruler['type'] == 'lookup':
-                    await self.get_lookups(session, ruler['rules'])
+            for rule in config['rules']:
+                if rule['type'] in ['extract', 'sub']:
+                    await self.get_regex(session, rule)
+                elif rule['type'] == 'lookup':
+                    await self.get_lookup(session, rule)
 
     async def execute(self, event):
         data = event.data
@@ -146,5 +151,7 @@ class FactoryTask(TaskHolder):
         await self.get_factory_rules(runtime_config)
         log.debug('Full factory config: %s', runtime_config)
         converter = Converter.from_dict(runtime_config)
+        log.debug('Before convertion: %s', data)
         converter.apply(data)
+        log.debug('After convertion: %s', data)
         return data

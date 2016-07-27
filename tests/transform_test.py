@@ -1,7 +1,8 @@
 from unittest import TestCase
 
 from nyuki.transform import (
-    _Rule, Upper, Lower, Lookup, Unset, Set, Sub, Extract, Ruler, Converter
+    _Rule, Upper, Lower, Lookup, Unset, Set, Sub, Extract, Converter,
+    ConditionBlock
 )
 
 
@@ -62,99 +63,52 @@ class TestTransformCases(TestCase):
         rule.apply(self.data)
         self.assertEqual(self.data['to_upper'], 'UPPERCASE')
 
-    def test_008a_ruler(self):
-        rules = [
-            Upper('normal'),
-            Upper('to_upper'),
-        ]
-        ruler = Ruler(Upper, rules)
-        self.assertEqual(ruler.type, 'upper')
-        self.assertEqual(len(ruler.rules), 2)
-        ruler.apply(self.data)
-        self.assertEqual(self.data['normal'], 'MESSAGE')
-        self.assertEqual(self.data['to_upper'], 'UPPERCASE')
-
-    def test_008b_ruler_from_dict(self):
-        rules = {
-            'type': 'lookup',
-            'rules': [
-                {'fieldname': 'normal', 'table': {'message': 'lookup'}},
-                {'fieldname': 'to_upper', 'table': {'uppercase': 'lookup'}},
-            ]
-        }
-        ruler = Ruler.from_dict(rules)
-        self.assertEqual(ruler.type, 'lookup')
-        self.assertEqual(len(ruler.rules), 2)
-        ruler.apply(self.data)
-        self.assertEqual(self.data['normal'], 'lookup')
-        self.assertEqual(self.data['to_upper'], 'lookup')
-
-    def test_008c_ruler_with_global_params(self):
-
-        class MyTestRule(_Rule):
-
-            def _configure(self, test, g_test):
-                self.g_test = g_test
-
-        rules = {
-            'type': 'mytestrule',
-            'rules': [
-                {'test': 'val1', 'fieldname': 'test_field'},
-                {'test': 'val2', 'fieldname': 'test_field'},
-            ],
-            'global_params': {
-                'g_test': True
-            }
-        }
-
-        ruler = Ruler.from_dict(rules)
-        for rule in ruler.rules:
-            self.assertTrue(rule.g_test)
+    def test_008_condition_block(self):
+        rule = ConditionBlock([
+            {'type': 'if', 'condition': "<test> == 'test if'", 'rules': [
+                {'type': 'set', 'fieldname': 'if', 'value': 'ok'}
+            ]},
+            {'type': 'elif', 'condition': "<test> == 'test elif'", 'rules': [
+                {'type': 'set', 'fieldname': 'elif', 'value': 'ok'}
+            ]},
+            {'type': 'else', 'rules': [
+                {'type': 'set', 'fieldname': 'else', 'value': 'ok'}
+            ]}
+        ])
+        data = {'test': 'test if'}
+        rule.apply(data)
+        self.assertIn('if', data)
+        data = {'test': 'test elif'}
+        rule.apply(data)
+        self.assertIn('elif', data)
+        data = {'test': 'test else'}
+        rule.apply(data)
+        self.assertIn('else', data)
 
     def test_009a_converter(self):
-        lookups = [
+        rules = [
             Lookup('normal', table={'message': 'lookup'}),
             Lookup('to_upper', table={'uppercase': 'lookup'}),
-        ]
-        lookupruler = Ruler(Lookup, lookups)
-        uppers = [
             Upper('normal'),
             Upper('to_upper'),
         ]
-        upperruler = Ruler(Upper, uppers)
-        converter = Converter([lookupruler, upperruler])
-        self.assertEqual(len(converter.rulers), 2)
+        converter = Converter(rules)
+        self.assertEqual(len(converter.rules), 4)
         converter.apply(self.data)
         self.assertEqual(self.data['normal'], 'LOOKUP')
         self.assertEqual(self.data['to_upper'], 'LOOKUP')
 
     def test_009b_converter_from_dict(self):
-        rulers = {
-            'rulers': [
-                {
-                    'type': 'lookup',
-                    'rules': [
-                        {
-                            'fieldname': 'normal',
-                            'table': {'message': 'lookup'}
-                        },
-                        {
-                            'fieldname': 'to_upper',
-                            'table': {'uppercase': 'lookup'}
-                        },
-                    ]
-                },
-                {
-                    'type': 'upper',
-                    'rules': [
-                        {'fieldname': 'normal'},
-                        {'fieldname': 'to_upper'},
-                    ]
-                }
+        rules = {
+            'rules': [
+                {'type': 'lookup', 'fieldname': 'normal', 'table': {'message': 'lookup'}},
+                {'type': 'lookup', 'fieldname': 'to_upper', 'table': {'uppercase': 'lookup'}},
+                {'type': 'upper', 'fieldname': 'normal'},
+                {'type': 'upper', 'fieldname': 'to_upper'},
             ]
         }
-        converter = Converter.from_dict(rulers)
-        self.assertEqual(len(converter.rulers), 2)
+        converter = Converter.from_dict(rules)
+        self.assertEqual(len(converter.rules), 4)
         converter.apply(self.data)
         self.assertEqual(self.data['normal'], 'LOOKUP')
         self.assertEqual(self.data['to_upper'], 'LOOKUP')

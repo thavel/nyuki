@@ -26,113 +26,14 @@ class _RegisteredRule(type):
         return mcs._registry
 
 
-class _TypedList(list):
-
-    """
-    Subclass of `list` that makes sure each element of it is an instance of
-    a predefined class.
-    """
-
-    def __init__(self, cls, *iterable):
-        super().__init__()
-        self._cls = cls
-        if iterable:
-            self.extend(*iterable)
-
-    def _check_class(self, item):
-        if self._cls is not None and not isinstance(item, self._cls):
-            clsname = self._cls.__name__
-            raise TypeError('item is not of type {cls}'.format(cls=clsname))
-
-    def append(self, item):
-        """
-        Check the object type of 'item' before appending to the list.
-        """
-        self._check_class(item)
-        super().append(item)
-
-    def extend(self, iterable):
-        """
-        Scan through 'iterable' to check object types before extending the
-        list.
-        """
-        for item in iterable:
-            self._check_class(item)
-        super().extend(iterable)
-
-    def insert(self, index, item):
-        """
-        Check the object type of 'item' before appending to the list.
-        """
-        self._check_class(item)
-        super().insert(index, item)
-
-
 class Converter(object):
 
     """
-    A sequence of `Ruler` objects intended to be applied on a dict.
+    A sequence of `_Rule` objects intended to be applied on a dict.
     """
 
-    def __init__(self, rulers=None):
-        self._rulers = _TypedList(Ruler, rulers or list())
-
-    @property
-    def rulers(self):
-        return self._rulers
-
-    @classmethod
-    def from_dict(cls, config):
-        """
-        Create a `Converter` object from dict 'config'. The dict must look like
-        the following:
-        {"rulers": [
-                {
-                    "type": <rule-type-name>,
-                    "rules": [
-                        {"fieldname": <name>, ...},
-                        {"fieldname": <name>, ...},
-                        ...
-                    ]
-                },
-                {
-                    "type": <rule-type-name>,
-                    "rules": [
-                        {"fieldname": <name>, ...},
-                        {"fieldname": <name>, ...}
-                        ...
-                    ]
-                }
-            ]
-        }
-        """
-        rulers = []
-        for params in config['rulers']:
-            rulers.append(Ruler.from_dict(params))
-        return cls(rulers=rulers)
-
-    def apply(self, data):
-        for ruler in self.rulers:
-            ruler.apply(data)
-
-
-class Ruler(object):
-
-    """
-    Stores a list of rules that can be applied sequentially to a dict.
-    All the rules of the list must be of the same type.
-    """
-
-    def __init__(self, rule_cls, rules=None):
-        if not issubclass(rule_cls, _Rule):
-            raise TypeError('{obj} is not a subclass of _Rule'.format(
-                            obj=rule_cls))
-        self._rule_cls = rule_cls
-        self._rules = _TypedList(rule_cls, rules or list())
-
-    @property
-    def type(self):
-        return self._rule_cls.TYPENAME
+    def __init__(self, rules=None):
+        self._rules = rules or []
 
     @property
     def rules(self):
@@ -141,31 +42,149 @@ class Ruler(object):
     @classmethod
     def from_dict(cls, config):
         """
-        Create a `Ruler` object from dict 'config'. The dict must look like the
-        following:
-            {
-                "type": <rule-type-name>,       # lower-case
-                "rules": [
-                    {"fieldname": <name>, ...}, # + rule-type dependent items
-                    {"fieldname": <name>, ...},
-                    ...
-                ]
-            }
+        Create a `Converter` object from dict 'config'. The dict must look like
+        the following:
+        {
+            "rules": [
+                {"type": <rule-type-name>, "fieldname": <name>, ...},
+                {"type": <rule-type-name>, "fieldname": <name>, ...},
+                {"type": "condition-block", "conditions": [...]},
+                {"type": <rule-type-name>, "fieldname": <name>, ...},
+            ]
+        }
         """
-        rule_cls = _RegisteredRule.get()[config['type']]
         rules = []
-        for params in config['rules']:
-            kp = dict(config.get('global_params', {}))
-            kp.update(params)
-            rules.append(rule_cls(**kp))
-        return cls(rule_cls, rules=rules)
+        for rule in config['rules']:
+            rule_cls = _RegisteredRule.get()[rule['type']]
+            del rule['type']
+            rules.append(rule_cls(**rule))
+        return cls(rules=rules)
+
+    def apply(self, data):
+        for rule in self.rules:
+            rule.apply(data)
+
+
+class ConditionBlock(metaclass=_RegisteredRule):
+
+    TYPENAME = 'condition-block'
+    CONDITION_REGEX = re.compile(
+        r"^(?P<first>('|<).+('|>)) (?P<op>[\!=\>\<\w ]+) (?P<second>('|<).+('|>))$"
+    )
+    OPS = {
+        '==': lambda first, second: first == second,
+        '!=': lambda first, second: first != second,
+        '>': lambda first, second: int(first) > int(second),
+        '>=': lambda first, second: int(first) >= int(second),
+        '<=': lambda first, second: int(first) <= int(second),
+        '<': lambda first, second: int(first) < int(second),
+        'in': lambda first, second: first in second,
+        'not in': lambda first, second: first not in second,
+        'or': lambda first, second: first or second,
+        'and': lambda first, second: first and second,
+    }
+
+    def __init__(self, conditions):
+        self._conditions = conditions
+
+    def _clean_condition(self, condition, data):
+        """
+        Parse the condition and return cleaned 'first', 'second' and 'op'
+        variables to use in the lambda condition methods above.
+        """
+        m = self.CONDITION_REGEX.match(condition)
+        if not m:
+            log.error('condition failure: %s', condition)
+            return
+
+        first = m.group('first')
+        second = m.group('second')
+        op = m.group('op')
+
+        # Check if 'first' is a key from data
+        if first.startswith('<') and first.endswith('>'):
+            first = data[first[1:-1]]
+        # Check if 'first' is a mutiple-word string
+        elif first.startswith("'") and first.endswith("'"):
+            first = first[1:-1]
+
+        if second.startswith('<') and second.endswith('>'):
+            second = data[second[1:-1]]
+        elif second.startswith("'") and second.endswith("'"):
+            second = second[1:-1]
+
+        return first, op, second
+
+    def _if(self, data):
+        """
+        Check an 'if' condition between two vars.
+        """
+        condition = self._conditions[0]
+        first, op, second = self._clean_condition(condition['condition'], data)
+        if self.OPS[op](first, second):
+            Converter.from_dict(condition).apply(data)
+
+    def _if_else(self, data):
+        """
+        Check an 'if else' condition between two vars.
+        """
+        cond_if = self._conditions[0]
+        cond_else = self._conditions[1]
+        first, op, second = self._clean_condition(cond_if['condition'], data)
+        if self.OPS[op](first, second):
+            Converter.from_dict(cond_if).apply(data)
+        else:
+            Converter.from_dict(cond_else).apply(data)
+
+    def _if_elif(self, data):
+        """
+        Check an 'if elif' condition between two vars.
+        """
+        cond_if = self._conditions[0]
+        cond_elif = self._conditions[1]
+        first_if, op_if, second_if = self._clean_condition(
+            cond_if['condition'], data
+        )
+        first_elif, op_elif, second_elif = self._clean_condition(
+            cond_elif['condition'], data
+        )
+        if self.OPS[op_if](first_if, second_if):
+            Converter.from_dict(cond_if).apply(data)
+        elif self.OPS[op_elif](first_elif, second_elif):
+            Converter.from_dict(cond_elif).apply(data)
+
+    def _if_elif_else(self, data):
+        """
+        Check an 'if elif else' condition between two vars.
+        """
+        cond_if = self._conditions[0]
+        cond_elif = self._conditions[1]
+        cond_else = self._conditions[2]
+        first_if, op_if, second_if = self._clean_condition(
+            cond_if['condition'], data
+        )
+        first_elif, op_elif, second_elif = self._clean_condition(
+            cond_elif['condition'], data
+        )
+        if self.OPS[op_if](first_if, second_if):
+            Converter.from_dict(cond_if).apply(data)
+        elif self.OPS[op_elif](first_elif, second_elif):
+            Converter.from_dict(cond_elif).apply(data)
+        else:
+            Converter.from_dict(cond_else).apply(data)
 
     def apply(self, data):
         """
-        Apply each rule sequentially to `data` (in-place update)
+        Apply conditions depending on the length of the condition array,
+        as it must always start with 'if' and end with 'elif', 'else'
+        or nothing.
         """
-        for rule in self.rules:
-            rule.apply(data)
+        if len(self._conditions) == 1:
+            self._if(data)
+        elif len(self._conditions) == 2:
+            getattr(self, '_if_{}'.format(self._conditions[1]['type']))(data)
+        elif len(self._conditions) == 3:
+            self._if_elif_else(data)
 
 
 class _Rule(metaclass=_RegisteredRule):
