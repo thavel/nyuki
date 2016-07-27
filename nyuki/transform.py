@@ -56,7 +56,6 @@ class Converter(object):
         rules = []
         for rule in config['rules']:
             rule_cls = _RegisteredRule.get()[rule['type']]
-            del rule['type']
             rules.append(rule_cls(**rule))
         return cls(rules=rules)
 
@@ -84,7 +83,7 @@ class ConditionBlock(metaclass=_RegisteredRule):
         'and': lambda first, second: first and second,
     }
 
-    def __init__(self, conditions):
+    def __init__(self, conditions, type=None):
         self._conditions = conditions
 
     def _clean_condition(self, condition, data):
@@ -115,76 +114,23 @@ class ConditionBlock(metaclass=_RegisteredRule):
 
         return first, op, second
 
-    def _if(self, data):
-        """
-        Check an 'if' condition between two vars.
-        """
-        condition = self._conditions[0]
-        first, op, second = self._clean_condition(condition['condition'], data)
-        if self.OPS[op](first, second):
-            Converter.from_dict(condition).apply(data)
-
-    def _if_else(self, data):
-        """
-        Check an 'if else' condition between two vars.
-        """
-        cond_if = self._conditions[0]
-        cond_else = self._conditions[1]
-        first, op, second = self._clean_condition(cond_if['condition'], data)
-        if self.OPS[op](first, second):
-            Converter.from_dict(cond_if).apply(data)
-        else:
-            Converter.from_dict(cond_else).apply(data)
-
-    def _if_elif(self, data):
-        """
-        Check an 'if elif' condition between two vars.
-        """
-        cond_if = self._conditions[0]
-        cond_elif = self._conditions[1]
-        first_if, op_if, second_if = self._clean_condition(
-            cond_if['condition'], data
-        )
-        first_elif, op_elif, second_elif = self._clean_condition(
-            cond_elif['condition'], data
-        )
-        if self.OPS[op_if](first_if, second_if):
-            Converter.from_dict(cond_if).apply(data)
-        elif self.OPS[op_elif](first_elif, second_elif):
-            Converter.from_dict(cond_elif).apply(data)
-
-    def _if_elif_else(self, data):
-        """
-        Check an 'if elif else' condition between two vars.
-        """
-        cond_if = self._conditions[0]
-        cond_elif = self._conditions[1]
-        cond_else = self._conditions[2]
-        first_if, op_if, second_if = self._clean_condition(
-            cond_if['condition'], data
-        )
-        first_elif, op_elif, second_elif = self._clean_condition(
-            cond_elif['condition'], data
-        )
-        if self.OPS[op_if](first_if, second_if):
-            Converter.from_dict(cond_if).apply(data)
-        elif self.OPS[op_elif](first_elif, second_elif):
-            Converter.from_dict(cond_elif).apply(data)
-        else:
-            Converter.from_dict(cond_else).apply(data)
-
     def apply(self, data):
         """
         Apply conditions depending on the length of the condition array,
         as it must always start with 'if' and end with 'elif', 'else'
         or nothing.
         """
-        if len(self._conditions) == 1:
-            self._if(data)
-        elif len(self._conditions) == 2:
-            getattr(self, '_if_{}'.format(self._conditions[1]['type']))(data)
-        elif len(self._conditions) == 3:
-            self._if_elif_else(data)
+        for cond in self._conditions:
+            log.critical(cond)
+            # If type 'else', apply it and leave
+            if cond['type'] == 'else':
+                Converter.from_dict(cond).apply(data)
+                return
+            # Else find the condition and apply it
+            first, op, second = self._clean_condition(cond['condition'], data)
+            if self.OPS[op](first, second):
+                Converter.from_dict(cond).apply(data)
+                return
 
 
 class _Rule(metaclass=_RegisteredRule):
@@ -199,7 +145,7 @@ class _Rule(metaclass=_RegisteredRule):
     # (lowercase) if not set in the subclass itself.
     TYPENAME = None
 
-    def __init__(self, fieldname, *args, **kwargs):
+    def __init__(self, fieldname, *args, type=None, **kwargs):
         self.fieldname = fieldname
         self._configure(*args, **kwargs)
 

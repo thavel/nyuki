@@ -71,6 +71,9 @@ class TestTransformCases(TestCase):
             {'type': 'elif', 'condition': "<test> == 'test elif'", 'rules': [
                 {'type': 'set', 'fieldname': 'elif', 'value': 'ok'}
             ]},
+            {'type': 'elif', 'condition': "<test> == 'test elif 2'", 'rules': [
+                {'type': 'set', 'fieldname': 'elif 2', 'value': 'ok'}
+            ]},
             {'type': 'else', 'rules': [
                 {'type': 'set', 'fieldname': 'else', 'value': 'ok'}
             ]}
@@ -81,6 +84,9 @@ class TestTransformCases(TestCase):
         data = {'test': 'test elif'}
         rule.apply(data)
         self.assertIn('elif', data)
+        data = {'test': 'test elif 2'}
+        rule.apply(data)
+        self.assertIn('elif 2', data)
         data = {'test': 'test else'}
         rule.apply(data)
         self.assertIn('else', data)
