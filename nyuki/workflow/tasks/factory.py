@@ -18,7 +18,10 @@ FACTORY_SCHEMAS = {
             'type': {'type': 'string', 'enum': ['condition-block']},
             'conditions': {
                 'type': 'array',
-                'items': {'type': 'object'}
+                'anyOf': [
+                    {'$ref': '#/definitions/condition-if'},
+                    {'$ref': '#/definitions/condition-else'}
+                ]
             }
         }
     },
@@ -84,6 +87,9 @@ class FactoryTask(TaskHolder):
         'type': 'object',
         'required': ['rules'],
         'properties': {
+            'rules': {'$ref': '#/definitions/rules'}
+        },
+        'definitions': {
             'rules': {
                 'type': 'array',
                 'items': {
@@ -93,11 +99,26 @@ class FactoryTask(TaskHolder):
                         for factory_type in FACTORY_SCHEMAS.keys()
                     ]
                 }
-            }
-        },
-        'definitions': {
-            factory_type: FACTORY_SCHEMAS[factory_type]
-            for factory_type in FACTORY_SCHEMAS.keys()
+            },
+            'condition-if': {
+                'type': 'object',
+                'required': ['type', 'condition', 'rules'],
+                'properties': {
+                    'type': {'type': 'string', 'enum': ['if', 'elif']},
+                    'condition': {'type': 'string', 'minLength': 1},
+                    'rules': {'$ref': '#/definitions/rules'}
+                }
+            },
+            'condition-else': {
+                'type': 'object',
+                'required': ['type', 'rules'],
+                'properties': {
+                    'type': {'type': 'string', 'enum': ['else']},
+                    'rules': {'$ref': '#/definitions/rules'}
+                }
+            },
+            **{factory_type: FACTORY_SCHEMAS[factory_type]
+               for factory_type in FACTORY_SCHEMAS.keys()},
         }
     }
 
