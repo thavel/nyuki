@@ -9,7 +9,7 @@
 A lightweight Python library designed to implement agents (aka nyukis). It provides features that shall help developers with managing the following topics:
 
 * Expose service features through a RESTful API
-* Communication between nyukis (over HTTP and XMPP)
+* Communication between nyukis (over HTTP, XMPP or MQTT)
 * Helpers for asyncio-based programming
 
 This library has been written with a focus on reliability and developer-friendliness. Its design promotes single-threaded and asynchronous coding style through the extensive use of the [Python asyncio](https://docs.python.org/3/library/asyncio.html) event loop. A single loop is used to manage HTTP, XMPP-based and MQTT-based communications as well as executing internal logic. Nyukis are suited for Agent-Oriented Programming and very useful to build distributed systems and scalable services.
@@ -28,26 +28,15 @@ Here is a list of core concepts tied to a nyuki:
 All you need is a Python interpreter. At the moment, only **Python 3.5** is supported.
 
 ## Getting started
-Don't bother with installing and configuring your own bus server at once! You can run on of these preconfigured Docker images instead:
-
-### for MQTT
-MQTT is the default bus configured.
-```bash
-docker pull surycat/mosquitto
-docker run -d surycat/mosquitto
-```
-
-### for XMPP
-See **configuration** part for use.
-```bash
-docker pull surycat/prosody
-docker run -d surycat/prosody
-```
 
 Install the nyuki library:
 ```bash
 pip install nyuki
 ```
+
+Using *XMPP* as a bus service require some specific configuration:
+* MUCs
+* Automatic subscription
 
 Nyuki's paradigms are convenient for Docker-based environment. We recommend using one container per nyuki implementation.
 
@@ -69,14 +58,15 @@ class Timon(Nyuki):
 
     message = 'hello world!'
 
-    @resource(endpoint='/message')
+    @resource('/message')
     class Message:
 
-        def get(self, request):
+        async def get(self, request):
             return Response({'message': self.message})
 
-        def post(self, request):
-            self.message = request['message']
+        async def post(self, request):
+            data = await request.json()
+            self.message = data['message']
             log.info("message updated to '%s'", self.message)
             self.bus.publish({'order': 'go pumbaa!'})
             return Response(status=200)
@@ -103,21 +93,18 @@ class Pumbaa(Nyuki):
 
     message = 'hello world!'
 
-    def __init__(self):
-        super().__init__()
-        self.eaten = 0
-
     async def setup(self):
-        await self.bus.subscribe('timon', self.eat_larva)
+        self.eaten = 0
+        asyncio.ensure_future(self.bus.subscribe('timon', self.eat_larva))
 
-    async def eat_larva(self, body):
+    async def eat_larva(self, topic, data):
         log.info('yummy yummy!')
         self.eaten += 1
 
-    @resource(endpoint='/eaten')
+    @resource('/eaten')
     class Eaten:
 
-        def get(self, request):
+        async def get(self, request):
             return Response({'eaten': self.eaten})
 
 
@@ -154,7 +141,7 @@ curl -H "Content-Type: application/json" http://localhost:8081/eaten
 {"eaten": 2}
 ```
 
-**Note**: find more code snippets in the folder *examples*.
+**Note**: find more code snippets in the [examples/](examples) folder.
 
 
 ## Configuration file
@@ -199,32 +186,21 @@ python sample.py -j myjid@myhost -c sample.json
     "bus": {
         "service": "mqtt",
         "scheme": "ws",
-        "host": "mosquitto",
+        "host": "localhost",
         "name": "nyuki"
     },
-    "http_host": "nginx",
-    "mongo": {
-        "host": "mongo",
-        "database": "pipeline",
-        "ssl": true,
-        "ssl_certfile": "/mongo/mongo.pem"
-    },
-    "source_ruler": {
-       "rulers": [...]
-    },
-    "topics": ["smtp", "infobip", "twilio"],
+    "rulers": [
+        {"rules": [...]}
+    ],
     "version": 0
-
+}
 ```
 
 | Field | Description |
 |-------|-------------|
 | `api` | The nyuki api host and port |
 | `bus` | The nyuki bus configuration see **Bus configuration** |
-| `http_host` | The nyuki api host and port |
-| `mongo` | The nyuki mongo backend configuration see **mongo configuration** |
-| `topics` | The topics the nyuki will subscribe to publications under these topics can be used by the nyuki, including in the workflows embedded.|
-| `source_ruler` | The nyuki input string processing configuration, see **String processing conf** |
+| `rulers` | The nyuki input string processing configuration, see **String processing conf** |
 | `version` | The current configuration version. Versionning is used to be able to migrate config files cf [pijon](https://github.com/optiflows/pijon) |
 
 
@@ -241,7 +217,6 @@ Mandatory parameters are the Jabber ID (`jid`) and the password. Others are opti
         "host": "mosquitto",
         "name": "nyuki"
     },
-    ...
 }
 ```
 
@@ -261,8 +236,7 @@ Mandatory parameters are the Jabber ID (`jid`) and the password. Others are opti
         "host": "prosody",
         "jid": "nyuki@localhost",
         "password": "secure_password"
-    },
-    ...
+    }
 }
 ```
 
@@ -277,11 +251,10 @@ Mandatory parameters are the Jabber ID (`jid`) and the password. Others are opti
 #### Persistence
 
 Bus events persistence can be enabled to ensure the delivery of every publication on the bus. These fields of the configuration file are available:
+
 ```json
 {
-    ...
     "bus": {
-        ...
         "persistence": {
             "backend": "mongo",
             "host": "localhost",
@@ -289,7 +262,6 @@ Bus events persistence can be enabled to ensure the delivery of every publicatio
             "memory_size": 1000
         }
     }
-    ...
 }
 ```
 
@@ -300,8 +272,14 @@ Bus events persistence can be enabled to ensure the delivery of every publicatio
 | `ttl` | the events ttl in minutes |
 | `memory_size` | the number of events kept in memory (independently of the backend storage) |
 
+## Workflow capabilities
 
-### mongo configuration
+Each and every nyuki has some workflow capabilities provided by [tukio](https://github.com/optiflows/tukio)
+
+Meaning one can define templates in a nyuki and process workflows.
+All workflow PAI entries are in the ressource /workflow (see the nyuki swagger: `GET http://host:port/<nyuki_name>/api/v1/swagger
+
+### Mongo configuration (using `WorkflowNyuki`)
 
 ```json
 {
@@ -310,8 +288,7 @@ Bus events persistence can be enabled to ensure the delivery of every publicatio
         "database": "pipeline",
         "ssl": true,
         "ssl_certfile": "/mongo/mongo.pem"
-    },
-    ...
+    }
 }
 ```
 
@@ -321,15 +298,6 @@ Bus events persistence can be enabled to ensure the delivery of every publicatio
 | `database` | The mongo database name |
 | `ssl` | Connect to the db in ssl (default true) |
 | `ssl_certfile` | the mongo ssl certificate file name |
-
-
-
-## Workflow capabilities
-
-Each and every nyuki has some workflow capabilities provided by [tukio](https://github.com/optiflows/tukio)
-
-Meaning one can define templates in a nyuki and process workflows.
-All workflow PAI entries are in the ressource /workflow (see the nyuki swagger: `GET http://host:port/<nyuki_name>/api/v1/swagger`)
 
 ### Tasks:
 The following tasks may be used in any Nyuki workflow:
@@ -346,14 +314,13 @@ A task to do some string processing on the workflow data. see existing **String 
             "type": "<rule-type-name>",
             "rules": [
                 {"fieldname": "<name>"},
-                ...
             ]
         }
     ]}
 }
 ```
 
-#### sleep
+#### Sleep
 A task that await a configurable time (in seconds)
 
 ```json
