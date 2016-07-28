@@ -65,6 +65,7 @@ class Reporter(object):
     """
 
     EXCEPTION_TTL = 3600
+    MONIT_TOPIC = '+/monitoring'
 
     def __init__(self):
         self._name = None
@@ -86,7 +87,7 @@ class Reporter(object):
                 self._channel, self._handle_report
             ))
         elif self._service == 'mqtt':
-            self._channel = '{}/monitoring'.format(self._name)
+            self._channel = self.MONIT_TOPIC.replace('+', self._name)
         else:
             raise TypeError('Nyuki publisher must be XmppBus or MqttBus')
 
@@ -118,10 +119,8 @@ class Reporter(object):
             raise ValueError('handler must be a coroutine')
         if self._service == 'mqtt':
             asyncio.ensure_future(self._publisher.subscribe(
-                self._channel.replace(self._name, '+'),
-                self._handle_report
+                self.MONIT_TOPIC, self._handle_report
             ))
-            self._channel = '{}/monitoring'.format(self._name)
         self._handler = handler
 
     def check_report(self, report):
