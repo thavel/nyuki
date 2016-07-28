@@ -5,6 +5,7 @@ from tukio.task import register
 from tukio.task.holder import TaskHolder
 
 from nyuki.transform import Converter
+from nyuki.workflow.tasks.utils import runtime
 
 
 log = logging.getLogger(__name__)
@@ -82,7 +83,6 @@ FACTORY_SCHEMAS = {
 @register('factory', 'execute')
 class FactoryTask(TaskHolder):
 
-    BASE_API_URL = 'http://localhost:5558/v1/workflow'
     SCHEMA = {
         'type': 'object',
         'required': ['rules'],
@@ -122,11 +122,17 @@ class FactoryTask(TaskHolder):
         }
     }
 
+    def __init__(self, config):
+        super().__init__(config)
+        self.api_url = 'http://localhost:{}/v1/workflow'.format(
+            runtime.config['api']['port']
+        )
+
     async def get_regex(self, session, rule):
         """
         Query the nyuki to get the actual regexes from their IDs
         """
-        url = '{}/regexes/{}'.format(self.BASE_API_URL, rule['regex_id'])
+        url = '{}/regexes/{}'.format(self.api_url, rule['regex_id'])
         async with session.get(url) as resp:
             if resp.status != 200:
                 raise RuntimeError(
@@ -142,7 +148,7 @@ class FactoryTask(TaskHolder):
         """
         Query the nyuki to get the actual lookup tables from their IDs
         """
-        url = '{}/lookups/{}'.format(self.BASE_API_URL, rule['lookup_id'])
+        url = '{}/lookups/{}'.format(self.api_url, rule['lookup_id'])
         async with session.get(url) as resp:
             if resp.status != 200:
                 raise RuntimeError(

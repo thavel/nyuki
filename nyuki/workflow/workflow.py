@@ -1,7 +1,6 @@
 import asyncio
 from datetime import datetime
 import json
-import jsonschema
 import logging
 from tukio import Engine, TaskRegistry, get_broker, EXEC_TOPIC
 from tukio.workflow import (
@@ -14,6 +13,7 @@ from nyuki.bus import reporting
 
 from .storage import MongoStorage, DuplicateTemplateError
 from .tasks import *
+from .tasks.utils import runtime
 from .validation import validate, TemplateError
 
 
@@ -65,6 +65,9 @@ class WorkflowNyuki(Nyuki):
         self.AVAILABLE_TASKS = {}
         for name, value in TaskRegistry.all().items():
             self.AVAILABLE_TASKS[name] = getattr(value[0], 'SCHEMA', {})
+
+        runtime.bus = self.bus
+        runtime.config = self.config
 
     @property
     def mongo_config(self):
