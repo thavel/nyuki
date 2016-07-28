@@ -121,7 +121,6 @@ class ConditionBlock(metaclass=_RegisteredRule):
         or nothing.
         """
         for cond in self._conditions:
-            log.critical(cond)
             # If type 'else', apply it and leave
             if cond['type'] == 'else':
                 Converter.from_dict(cond).apply(data)

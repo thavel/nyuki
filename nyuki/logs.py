@@ -27,6 +27,9 @@ DEFAULT_LOGGING = {
             "handlers": ["loop_stderr"],
             "level": "WARNING"
         },
+        "hbmqtt": {
+            "level": "WARNING"
+        },
         "slixmpp": {
             "level": "WARNING"
         }
