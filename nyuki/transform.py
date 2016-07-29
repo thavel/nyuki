@@ -1,3 +1,4 @@
+from collections import defaultdict
 import logging
 import re
 
@@ -75,17 +76,13 @@ class ConditionBlock(metaclass=_RegisteredRule):
 
     def _clean_condition(self, condition, data):
         """
-        Parse the condition and return cleaned 'first', 'second' and 'op'
-        variables to use in the lambda condition methods above.
+        Format the condition string:
+        nb: strings should be {some_string!r} (includes '')
         """
-        cleaned = condition
-        data_fields = re.findall(r'<\w+>', condition)
-        for field in data_fields:
-            data_var = data.get(field[1:-1])
-            if isinstance(data_var, str):
-                data_var = "'{}'".format(data_var)
-            cleaned = cleaned.replace(field, str(data_var))
-        return cleaned
+        # Unknown fields will be converted to None
+        format_fields = defaultdict(lambda: None)
+        format_fields.update(data)
+        return condition.format(**format_fields)
 
     def apply(self, data):
         """
@@ -101,6 +98,7 @@ class ConditionBlock(metaclass=_RegisteredRule):
             # Else find the condition and apply it
             cleaned = self._clean_condition(cond['condition'], data)
             log.debug('arithmetics: trying %s', cond['condition'])
+            log.critical(cleaned)
             if arithmetic_eval(cleaned):
                 log.debug(
                     'arithmetics: validated condition "%s" as "%s"',

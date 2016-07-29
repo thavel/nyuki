@@ -65,13 +65,13 @@ class TestTransformCases(TestCase):
 
     def test_008_condition_block(self):
         rule = ConditionBlock([
-            {'type': 'if', 'condition': "<test> == 'test if'", 'rules': [
+            {'type': 'if', 'condition': "{test!r} == 'test if'", 'rules': [
                 {'type': 'set', 'fieldname': 'if', 'value': 'ok'}
             ]},
-            {'type': 'elif', 'condition': "<test> == 'test elif'", 'rules': [
+            {'type': 'elif', 'condition': "{test!r} == 'test elif'", 'rules': [
                 {'type': 'set', 'fieldname': 'elif', 'value': 'ok'}
             ]},
-            {'type': 'elif', 'condition': "<test> == 'test elif 2'", 'rules': [
+            {'type': 'elif', 'condition': "{test!r} == 123456", 'rules': [
                 {'type': 'set', 'fieldname': 'elif 2', 'value': 'ok'}
             ]},
             {'type': 'else', 'rules': [
@@ -84,7 +84,7 @@ class TestTransformCases(TestCase):
         data = {'test': 'test elif'}
         rule.apply(data)
         self.assertIn('elif', data)
-        data = {'test': 'test elif 2'}
+        data = {'test': 123456}
         rule.apply(data)
         self.assertIn('elif 2', data)
         data = {'test': 'test else'}
