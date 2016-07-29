@@ -1,6 +1,8 @@
 import logging
 import re
 
+from nyuki.workflow.tasks.utils.arithmetics import arithmetic_eval
+
 
 log = logging.getLogger(__name__)
 
@@ -67,21 +69,6 @@ class Converter(object):
 class ConditionBlock(metaclass=_RegisteredRule):
 
     TYPENAME = 'condition-block'
-    CONDITION_REGEX = re.compile(
-        r"^(?P<first>('|<).+('|>)) (?P<op>[\!=\>\<\w ]+) (?P<second>('|<).+('|>))$"
-    )
-    OPS = {
-        '==': lambda first, second: first == second,
-        '!=': lambda first, second: first != second,
-        '>': lambda first, second: int(first) > int(second),
-        '>=': lambda first, second: int(first) >= int(second),
-        '<=': lambda first, second: int(first) <= int(second),
-        '<': lambda first, second: int(first) < int(second),
-        'in': lambda first, second: first in second,
-        'not in': lambda first, second: first not in second,
-        'or': lambda first, second: first or second,
-        'and': lambda first, second: first and second,
-    }
 
     def __init__(self, conditions, type=None):
         self._conditions = conditions
@@ -91,28 +78,14 @@ class ConditionBlock(metaclass=_RegisteredRule):
         Parse the condition and return cleaned 'first', 'second' and 'op'
         variables to use in the lambda condition methods above.
         """
-        m = self.CONDITION_REGEX.match(condition)
-        if not m:
-            log.error('condition failure: %s', condition)
-            return
-
-        first = m.group('first')
-        second = m.group('second')
-        op = m.group('op')
-
-        # Check if 'first' is a key from data
-        if first.startswith('<') and first.endswith('>'):
-            first = data[first[1:-1]]
-        # Check if 'first' is a mutiple-word string
-        elif first.startswith("'") and first.endswith("'"):
-            first = first[1:-1]
-
-        if second.startswith('<') and second.endswith('>'):
-            second = data[second[1:-1]]
-        elif second.startswith("'") and second.endswith("'"):
-            second = second[1:-1]
-
-        return first, op, second
+        cleaned = condition
+        data_fields = re.findall(r'<\w+>', condition)
+        for field in data_fields:
+            data_var = data.get(field[1:-1])
+            if isinstance(data_var, str):
+                data_var = "'{}'".format(data_var)
+            cleaned = cleaned.replace(field, str(data_var))
+        return cleaned
 
     def apply(self, data):
         """
@@ -126,8 +99,14 @@ class ConditionBlock(metaclass=_RegisteredRule):
                 Converter.from_dict(cond).apply(data)
                 return
             # Else find the condition and apply it
-            first, op, second = self._clean_condition(cond['condition'], data)
-            if self.OPS[op](first, second):
+            cleaned = self._clean_condition(cond['condition'], data)
+            log.debug('arithmetics: trying %s', cond['condition'])
+            if arithmetic_eval(cleaned):
+                log.debug(
+                    'arithmetics: validated condition "%s" as "%s"',
+                    cond['condition'],
+                    cleaned
+                )
                 Converter.from_dict(cond).apply(data)
                 return
 
