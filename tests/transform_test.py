@@ -91,6 +91,17 @@ class TestTransformCases(TestCase):
         rule.apply(data)
         self.assertIn('else', data)
 
+        with self.assertRaises(ValueError):
+            ConditionBlock([])
+        with self.assertRaises(TypeError):
+            ConditionBlock([{'type': 'else'}])
+        with self.assertRaises(TypeError):
+            ConditionBlock([{'type': 'if'}, {'type': 'if'}])
+        with self.assertRaises(TypeError):
+            ConditionBlock([{'type': 'if'}, {'type': 'else'}, {'type': 'if'}])
+        with self.assertRaises(TypeError):
+            ConditionBlock([{'type': 'if'}, {'type': 'if'}, {'type': 'elif'}])
+
     def test_009a_converter(self):
         rules = [
             Lookup('normal', table={'message': 'lookup'}),

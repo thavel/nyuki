@@ -72,6 +72,21 @@ class ConditionBlock(metaclass=_RegisteredRule):
     TYPENAME = 'condition-block'
 
     def __init__(self, conditions, type=None):
+        # Check there is at least one condition
+        if len(conditions) == 0:
+            raise ValueError('Condition block must contain at least one condition')
+        # Check first condition is 'if'
+        if conditions[0]['type'] != 'if':
+            raise TypeError("First condition type must be 'if'")
+        # Check no 'if' or 'else' are in-between
+        if len(conditions) >= 2:
+            if conditions[-1]['type'] == 'if':
+                raise TypeError("Last condition type must not be 'if'")
+            mid_condition_types = [c['type'] for c in conditions[1:-1]]
+            if 'if' in mid_condition_types or 'else' in mid_condition_types:
+                raise TypeError(
+                    "'if' or 'else' must be respectively first and last types"
+                )
         self._conditions = conditions
 
     def _clean_condition(self, condition, data):
@@ -98,7 +113,6 @@ class ConditionBlock(metaclass=_RegisteredRule):
             # Else find the condition and apply it
             cleaned = self._clean_condition(cond['condition'], data)
             log.debug('arithmetics: trying %s', cond['condition'])
-            log.critical(cleaned)
             if arithmetic_eval(cleaned):
                 log.debug(
                     'arithmetics: validated condition "%s" as "%s"',
