@@ -25,8 +25,8 @@ class _RegisteredRule(type):
         return cls
 
     @classmethod
-    def get(mcs):
-        return mcs._registry
+    def get(mcs, rtype):
+        return mcs._registry[rtype]
 
 
 class Converter(object):
@@ -58,8 +58,10 @@ class Converter(object):
         """
         rules = []
         for rule in config['rules']:
-            rule_cls = _RegisteredRule.get()[rule['type']]
-            rules.append(rule_cls(**rule))
+            params = rule.copy()
+            rtype = params.pop('type')
+            rule_cls = _RegisteredRule.get(rtype)
+            rules.append(rule_cls(**params))
         return cls(rules=rules)
 
     def apply(self, data):
@@ -137,7 +139,7 @@ class _Rule(metaclass=_RegisteredRule):
     # (lowercase) if not set in the subclass itself.
     TYPENAME = None
 
-    def __init__(self, fieldname, *args, type=None, **kwargs):
+    def __init__(self, fieldname, *args, **kwargs):
         self.fieldname = fieldname
         self._configure(*args, **kwargs)
 
