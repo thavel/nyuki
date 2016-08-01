@@ -71,22 +71,24 @@ class ConditionBlock(metaclass=_RegisteredRule):
 
     TYPENAME = 'condition-block'
 
-    def __init__(self, conditions, type=None):
+    def __init__(self, conditions):
         # Check there is at least one condition
         if len(conditions) == 0:
-            raise ValueError('Condition block must contain at least one condition')
+            raise ValueError('no condition in condition block')
         # Check first condition is 'if'
         if conditions[0]['type'] != 'if':
-            raise TypeError("First condition type must be 'if'")
-        # Check no 'if' or 'else' are in-between
+            raise TypeError("first condition must be an 'if'")
+        # Check next conditions (if any)
         if len(conditions) >= 2:
-            if conditions[-1]['type'] == 'if':
-                raise TypeError("Last condition type must not be 'if'")
-            mid_condition_types = [c['type'] for c in conditions[1:-1]]
-            if 'if' in mid_condition_types or 'else' in mid_condition_types:
-                raise TypeError(
-                    "'if' or 'else' must be respectively first and last types"
-                )
+            for cond in conditions[1:-1]:
+                # All intermediate conditions must be 'elif'
+                if cond['type'] != 'elif':
+                    raise TypeError("expected 'elif' condition,"
+                                    " got '{}'".format(cond))
+            # The last condition can be either an 'elif' or an 'else'
+            if conditions[-1]['type'] not in ('elif', 'else'):
+                raise TypeError("last condition must be 'elif' or 'else',"
+                                " got '{}'".format(conditions[-1]))
         self._conditions = conditions
 
     def _clean_condition(self, condition, data):
