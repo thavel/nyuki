@@ -77,6 +77,10 @@ class MqttBus(Service):
         self.connect_future = None
         self.listen_future = None
 
+    @property
+    def topics(self):
+        return list(self._subscriptions.keys())
+
     def configure(self, name, scheme='mqtt', host='localhost', port=1883,
                   cafile=None, certfile=None, keyfile=None, persistence={},
                   report_channel='monitoring', service=None):
@@ -152,6 +156,14 @@ class MqttBus(Service):
         """
         return '{}/{}'.format(nyuki, self.BASE_PUB)
 
+    def _regex_topic(self, topic):
+        """
+        Transform the mqtt pattern into a regex one
+        """
+        return r'^{}$'.format(
+            topic.replace('+', '[^\/]+').replace('#', '.+')
+        )
+
     async def replay(self, since=None, status=None):
         """
         Replay events since the given datetime (or all if None)
@@ -179,12 +191,8 @@ class MqttBus(Service):
             raise ValueError('event callback must be a coroutine')
         log.debug('MQTT subscription to %s', topic)
         await self.client.subscribe([(topic, QOS_1)])
-        # Transform the mqtt pattern into a regex one
-        regex = r'^{}$'.format(
-            topic.replace('+', '[^\/]+').replace('#', '.+')
-        )
-        self._subscriptions[re.compile(regex)] = callback
-        log.info('Callback set on regex: %s', regex)
+        self._subscriptions[topic] = callback
+        log.info('Callback set on regex: %s', self._regex_topic(topic))
 
     async def unsubscribe(self, topic):
         """
@@ -279,8 +287,8 @@ class MqttBus(Service):
             if topic == self.publish_topic(self.name):
                 continue
 
-            for regex, callback in self._subscriptions.items():
-                if regex.match(topic):
+            for cb_topic, callback in self._subscriptions.items():
+                if re.match(self._regex_topic(cb_topic), topic):
                     data = json.loads(message.data.decode())
-                    log.debug("Event from topic '%s': %s", message.topic, data)
+                    log.debug("Event from topic '%s': %s", topic, data)
                     asyncio.ensure_future(callback(topic, data))

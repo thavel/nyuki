@@ -330,16 +330,35 @@ class Nyuki(metaclass=CapabilityHandler):
 
             return Response(self._config)
 
-    @resource('/bus/replay', version='v1')
-    class BusReplay:
+    @resource('/bus/publish', version='v1')
+    class BusPublish:
 
         async def post(self, request):
-            body = await request.json()
+            await self.BusPublishTopic.post(self, request, None)
 
+    @resource('/bus/publish/{topic}', version='v1')
+    class BusPublishTopic:
+
+        async def post(self, request, topic):
             try:
                 self._services.get('bus')
             except KeyError:
                 return Response(status=404)
+
+            asyncio.ensure_future(self.bus.publish(
+                await request.json(), topic
+            ))
+
+    @resource('/bus/replay', version='v1')
+    class BusReplay:
+
+        async def post(self, request):
+            try:
+                self._services.get('bus')
+            except KeyError:
+                return Response(status=404)
+
+            body = await request.json()
 
             # Format 'since' parameter from isoformat
             since = body.get('since')
