@@ -6,8 +6,10 @@ from slixmpp.exceptions import IqError, IqTimeout
 from uuid import uuid4
 
 from nyuki.bus import reporting
-from nyuki.bus.persistence import BusPersistence, EventStatus, PersistenceError
 from nyuki.services import Service
+
+from .persistence import BusPersistence, EventStatus, PersistenceError
+from .utils import serialize_bus_event
 
 
 log = logging.getLogger(__name__)
@@ -202,6 +204,12 @@ class XmppBus(Service):
     def _muc_address(self, topic):
         return '{}@{}'.format(topic, self._muc_domain)
 
+    def publish_topic(self, nyuki):
+        """
+        Returns the topic in which the given nyuki will send publications
+        """
+        return nyuki
+
     async def _on_register(self, event):
         """
         XMPP event handler while registering a user (in-band registration).
@@ -366,7 +374,7 @@ class XmppBus(Service):
         msg['id'] = uid = previous_uid or str(uuid4())
         msg['type'] = 'groupchat'
         msg['to'] = self._muc_address(dest or self._topic)
-        msg['body'] = json.dumps(event)
+        msg['body'] = json.dumps(event, default=serialize_bus_event)
 
         self._publish_futures[uid] = asyncio.Future()
         status = EventStatus.PENDING

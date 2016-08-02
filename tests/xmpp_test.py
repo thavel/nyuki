@@ -68,6 +68,13 @@ class TestXmppBus(TestCase):
         with assert_raises(TypeError):
             await self.bus.publish('not a dict')
 
+    @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send')
+    async def test_003c_publish_repr(self, send_mock):
+        self.bus._connected.set()
+        asyncio.ensure_future(self.bus.publish({'object': object()}))
+        await exhaust_callbacks(self.loop)
+        eq_(send_mock.call_count, 1)
+
     async def test_004_on_register_callback(self):
         with patch('slixmpp.stanza.Iq.send', new=CoroutineMock()) as send_mock:
             await self.bus._on_register(None)

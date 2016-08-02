@@ -8,8 +8,10 @@ import re
 from uuid import uuid4
 
 from nyuki.bus import reporting
-from nyuki.bus.persistence import BusPersistence, EventStatus, PersistenceError
 from nyuki.services import Service
+
+from .persistence import BusPersistence, EventStatus, PersistenceError
+from .utils import serialize_bus_event
 
 
 log = logging.getLogger(__name__)
@@ -145,6 +147,9 @@ class MqttBus(Service):
         reporting.init(self.name, self)
 
     def publish_topic(self, nyuki):
+        """
+        Returns the topic in which the given nyuki will send publications
+        """
         return '{}/{}'.format(nyuki, self.BASE_PUB)
 
     async def replay(self, since=None, status=None):
@@ -198,7 +203,7 @@ class MqttBus(Service):
         topic = topic or self._self_topic
         log.info('Publishing an event to %s', topic)
         log.debug('dump: %s', data)
-        data = json.dumps(data)
+        data = json.dumps(data, default=serialize_bus_event)
 
         # Store the event as PENDING if it is new
         if self._persistence and previous_uid is None:
