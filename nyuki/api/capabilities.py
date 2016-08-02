@@ -37,7 +37,7 @@ class ResourceClass:
             if handler is not None:
                 handler.CONTENT_TYPE = self.content_type
                 # Automatically switched to a coroutine inside the router
-                route = resource.add_route(method, partial(handler, self.cls))
+                route = resource.add_route(method, partial(handler, self.cls()))
                 log.debug('Added route: %s', route)
 
     def register(self, nyuki, router):
