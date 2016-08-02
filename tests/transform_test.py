@@ -1,7 +1,7 @@
 from unittest import TestCase
 
-from nyuki.transform import (
-    _Rule, Upper, Lower, Lookup, Unset, Set, Sub, Extract, Converter,
+from nyuki.utils.transform import (
+    Upper, Lower, Lookup, Unset, Set, Sub, Extract, Converter,
     ConditionBlock
 )
 

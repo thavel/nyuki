@@ -4,7 +4,7 @@ import logging
 from tukio.task import register
 from tukio.task.holder import TaskHolder
 
-from nyuki.transform import Converter
+from nyuki.utils import Converter
 from nyuki.workflow.tasks.utils import runtime
 
 

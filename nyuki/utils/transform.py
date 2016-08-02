@@ -2,7 +2,7 @@ from collections import defaultdict
 import logging
 import re
 
-from nyuki.workflow.tasks.utils.arithmetics import arithmetic_eval
+from .evaluate import safe_eval
 
 
 log = logging.getLogger(__name__)
@@ -117,7 +117,7 @@ class ConditionBlock(metaclass=_RegisteredRule):
             # Else find the condition and apply it
             cleaned = self._clean_condition(cond['condition'], data)
             log.debug('arithmetics: trying %s', cond['condition'])
-            if arithmetic_eval(cleaned):
+            if safe_eval(cleaned):
                 log.debug(
                     'arithmetics: validated condition "%s" as "%s"',
                     cond['condition'],
