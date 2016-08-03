@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 
 
 @resource('/config', versions=['v1'])
-class APIConfiguration:
+class ApiConfiguration:
 
     def get(self, request):
         return Response(self.nyuki._config)
@@ -35,7 +35,7 @@ class APIConfiguration:
 
 
 @resource('/swagger', versions=['v1'])
-class APISwagger:
+class ApiSwagger:
 
     async def get(self, request):
         try:

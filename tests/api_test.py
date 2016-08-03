@@ -5,14 +5,14 @@ from nose.tools import (
     assert_is, assert_is_not_none, assert_raises, assert_true, eq_
 )
 
-from nyuki.api import Api, mw_capability, Response
+from nyuki.api.webserver import WebServer, mw_capability, Response
 from tests import make_future
 
 
 class TestApi(TestCase):
 
     def setUp(self):
-        self._api = Api(self.loop)
+        self._api = WebServer(self.loop)
         self._host = 'localhost'
         self._port = 8080
 

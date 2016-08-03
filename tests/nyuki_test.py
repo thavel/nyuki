@@ -6,6 +6,7 @@ from nose.tools import eq_, assert_true, assert_not_equal, assert_raises
 import tempfile
 
 from nyuki import Nyuki
+from nyuki.api.config import ApiConfiguration
 from nyuki.config import DEFAULT_CONF_FILE
 
 
@@ -18,6 +19,9 @@ class TestNyuki(TestCase):
             f.write('{"bus": {"jid": "test@localhost", "password": "test"}}')
         kwargs = {'config': ''}
         self.nyuki = Nyuki(**kwargs)
+
+        self.apiconf = ApiConfiguration()
+        self.apiconf.nyuki = self.nyuki
 
     def tearDown(self):
         os.remove(self.default)
@@ -39,7 +43,7 @@ class TestNyuki(TestCase):
 
     @ignore_loop
     def test_003_get_rest_configuration(self):
-        response = self.nyuki.Configuration.get(self.nyuki, None)
+        response = self.apiconf.get(None)
         eq_(json.loads(bytes.decode(response.body)), self.nyuki._config)
 
     @patch('nyuki.bus.XmppBus.stop')
@@ -52,7 +56,7 @@ class TestNyuki(TestCase):
             }
         req.headers = {'Content-Type': 'application/json'}
         req.json = json
-        await self.nyuki.Configuration.patch(self.nyuki, req)
+        await self.apiconf.patch(req)
         eq_(self.nyuki._config['new'], True)
         eq_(self.nyuki._config['bus']['jid'], 'updated@localhost')
         # finish coroutines

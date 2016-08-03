@@ -46,7 +46,7 @@ class _WorkflowResource:
         broker.register(exec_handler, topic=EXEC_TOPIC)
 
 
-@resource('/workflow/instances', versions=['v1'])
+@resource('/workflow/instances', ['v1'], 'application/json')
 class ApiWorkflows(_WorkflowResource):
 
     async def get(self, request):

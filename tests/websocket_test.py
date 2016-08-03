@@ -1,11 +1,12 @@
 import asyncio
-from asynctest import TestCase, exhaust_callbacks
+from asynctest import TestCase
 import json
 from nose.tools import eq_, assert_raises, assert_in, assert_not_in
 import tempfile
 from websockets import client, exceptions
 
 from nyuki import Nyuki
+from nyuki.api.websocket import ApiWebsocketToken
 from nyuki.websocket import websocket_ready
 
 
@@ -42,7 +43,9 @@ class WebsocketTest(TestCase):
             await self.client.recv()
 
         # Create token using API
-        resp = self.nyuki.WebsocketToken.get(self.nyuki, None)
+        api = ApiWebsocketToken()
+        api.nyuki = self.nyuki
+        resp = api.get(None)
         token = json.loads(resp.body.decode())['token']
         assert_in(token, web.clients)
 

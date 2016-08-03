@@ -1,9 +1,10 @@
+from aiohttp.web_urldispatcher import UrlDispatcher
 from nose.tools import eq_
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from nyuki.api import Response
-from nyuki.capabilities import resource, Capability, Api
+from nyuki import Response, resource
+from nyuki.api.capabilities import Api, ResourceClass
 
 
 class TestResourceDecorator(TestCase):
@@ -12,25 +13,8 @@ class TestResourceDecorator(TestCase):
         @resource(endpoint='/test', versions=['v1'])
         class Test:
             pass
-        self.assertEqual(Test.endpoint, '/test')
-        self.assertEqual(Test.version, 'v1')
-
-
-class TestCapability(TestCase):
-
-    def setUp(self):
-        handler = (lambda x: x)
-        self.capability = Capability(
-            name='test',
-            method='GET',
-            endpoint='/test',
-            version=None,
-            handler=handler,
-            wrapper=staticmethod(handler),
-        )
-
-    def test_001_hash(self):
-        self.assertEqual(self.capability.__hash__(), hash(self.capability.name))
+        self.assertEqual(Test.RESOURCE_CLASS.route, '/test')
+        self.assertEqual(Test.RESOURCE_CLASS.versions, ['v1'])
 
 
 class TestResponse(TestCase):
@@ -50,28 +34,29 @@ class TestResponse(TestCase):
         eq_(response.content_type, 'text/plain')
 
 
-class TestApi(TestCase):
+class TestResourceClass(TestCase):
+
+    class TestResource:
+
+        async def get(self, request):
+            pass
+
+        async def delete(self, request):
+            pass
 
     def setUp(self):
         loop = Mock()
-        self.handler = (lambda x: x)
         self.api = Api(loop)
-        self.capability = Capability(
-            name='test',
-            method='GET',
-            endpoint='/test',
-            versions=['v1'],
-            handler=self.handler,
-            wrapper=self.handler,
+        self.resource_cls = ResourceClass(
+            self.TestResource, '/test', ['v1', 'v2'], 'application/json'
         )
 
-    @patch('aiohttp.web_urldispatcher.UrlDispatcher.add_route')
+    @patch('aiohttp.web_urldispatcher.Resource.add_route')
     def test_001_register(self, add_route):
-        self.api.register(self.capability)
-        self.assertRaises(ValueError, self.api.register, self.capability)
-        add_route.assert_called_with('GET', '/v1/test', self.handler)
-
-    def test_002_find(self):
-        self.assertIsNone(self.api._find('hello'))
-        self.api.register(self.capability)
-        self.assertEqual(self.api._find('test'), self.capability)
+        router = UrlDispatcher()
+        self.resource_cls.register(Mock(), router)
+        # GET /v1/test
+        # DELETE /v1/test
+        # GET /v2/test
+        # DELETE /v2/test
+        self.assertEqual(add_route.call_count, 4)

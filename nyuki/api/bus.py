@@ -8,7 +8,7 @@ from .webserver import Response
 
 
 @resource('/bus/replay', versions=['v1'])
-class APIBusReplay:
+class ApiBusReplay:
 
     async def post(self, request):
         body = await request.json()
@@ -47,7 +47,7 @@ class APIBusReplay:
 
 
 @resource('/bus/topics', versions=['v1'])
-class APIBusTopics:
+class ApiBusTopics:
 
     async def get(self, request):
         return Response(self.nyuki.bus.topics)

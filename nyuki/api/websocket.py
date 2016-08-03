@@ -3,7 +3,7 @@ from .webserver import Response
 
 
 @resource('/websocket', versions=['v1'])
-class APIWebsocketToken:
+class ApiWebsocketToken:
 
     def get(self, request):
         try:

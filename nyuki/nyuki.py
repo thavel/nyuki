@@ -6,10 +6,10 @@ import logging.config
 from pijon import Pijon
 from signal import SIGHUP, SIGINT, SIGTERM
 
-from .api import (
-    APIBusReplay, APIBusTopics, APIConfiguration, APISwagger, APIWebsocketToken
-)
+from .api.bus import ApiBusReplay, ApiBusTopics
 from .api.capabilities import Api
+from .api.config import ApiConfiguration, ApiSwagger
+from .api.websocket import ApiWebsocketToken
 from .bus import XmppBus, MqttBus, reporting
 from .commands import get_command_kwargs
 from .config import get_full_config, write_conf_json, merge_configs
@@ -42,11 +42,11 @@ class Nyuki:
     }
     # API endpoints
     ENDPOINTS = [
-        APIBusReplay,
-        APIBusTopics,
-        APIConfiguration,
-        APISwagger,
-        APIWebsocketToken,
+        ApiBusReplay,
+        ApiBusTopics,
+        ApiConfiguration,
+        ApiSwagger,
+        ApiWebsocketToken,
     ]
 
     def __init__(self, **kwargs):

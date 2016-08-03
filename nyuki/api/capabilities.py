@@ -32,12 +32,13 @@ class ResourceClass:
 
     def _add_route(self, router, route):
         resource = router.add_resource(route)
+        cls_instance = self.cls()
         for method in METH_ALL:
             handler = getattr(self.cls, method.lower(), None)
             if handler is not None:
+                handler = asyncio.coroutine(partial(handler, cls_instance))
                 handler.CONTENT_TYPE = self.content_type
-                # Automatically switched to a coroutine inside the router
-                route = resource.add_route(method, partial(handler, self.cls()))
+                route = resource.add_route(method, handler)
                 log.debug('Added route: %s', route)
 
     def register(self, nyuki, router):
