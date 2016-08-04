@@ -1,8 +1,7 @@
 import logging
 from tukio.workflow import TemplateGraphError, WorkflowTemplate
 
-from nyuki.api.capabilities import resource
-from nyuki.api.webserver import Response
+from nyuki.api import Response, resource
 from nyuki.workflow.storage import DuplicateTemplateError
 from nyuki.workflow.validation import validate, TemplateError
 

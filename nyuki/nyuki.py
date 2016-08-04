@@ -6,8 +6,8 @@ import logging.config
 from pijon import Pijon
 from signal import SIGHUP, SIGINT, SIGTERM
 
+from .api import Api
 from .api.bus import ApiBusReplay, ApiBusTopics
-from .api.capabilities import Api
 from .api.config import ApiConfiguration, ApiSwagger
 from .api.websocket import ApiWebsocketToken
 from .bus import XmppBus, MqttBus, reporting
@@ -41,7 +41,7 @@ class Nyuki:
         "required": ["log"]
     }
     # API endpoints
-    ENDPOINTS = [
+    HTTP_RESOURCES = [
         ApiBusReplay,
         ApiBusTopics,
         ApiConfiguration,

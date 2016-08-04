@@ -3,8 +3,7 @@ import asyncio
 from nyuki.bus.persistence import EventStatus
 from nyuki.utils import from_isoformat
 
-from .capabilities import resource
-from .webserver import Response
+from .api import Response, resource
 
 
 @resource('/bus/replay', versions=['v1'])

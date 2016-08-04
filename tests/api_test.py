@@ -5,7 +5,8 @@ from nose.tools import (
     assert_is, assert_is_not_none, assert_raises, assert_true, eq_
 )
 
-from nyuki.api.webserver import WebServer, mw_capability, Response
+from nyuki.api.api import WebServer, mw_capability, Response
+
 from tests import make_future
 
 

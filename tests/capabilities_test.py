@@ -3,17 +3,16 @@ from nose.tools import eq_
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from nyuki import Response, resource
-from nyuki.api.capabilities import Api, ResourceClass
+from nyuki.api.api import Api, ResourceClass, Response, resource
 
 
 class TestResourceDecorator(TestCase):
 
     def test_001_call(self):
-        @resource(endpoint='/test', versions=['v1'])
+        @resource('/test', versions=['v1'])
         class Test:
             pass
-        self.assertEqual(Test.RESOURCE_CLASS.route, '/test')
+        self.assertEqual(Test.RESOURCE_CLASS.path, '/test')
         self.assertEqual(Test.RESOURCE_CLASS.versions, ['v1'])
 
 

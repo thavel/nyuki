@@ -6,8 +6,7 @@ from tukio.workflow import (
     Workflow, WorkflowTemplate, WorkflowExecState
 )
 
-from nyuki.api.capabilities import resource
-from nyuki.api.webserver import Response
+from nyuki.api import Response, resource
 
 
 class _WorkflowResource:

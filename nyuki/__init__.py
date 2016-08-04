@@ -1,4 +1,3 @@
-from .api.capabilities import resource
-from .api.webserver import Response
+from .api import Response, resource
 from .bus import reporting
 from .nyuki import Nyuki

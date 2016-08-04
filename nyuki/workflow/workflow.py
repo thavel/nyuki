@@ -53,7 +53,7 @@ class WorkflowNyuki(Nyuki):
             }
         }
     }
-    ENDPOINTS = Nyuki.ENDPOINTS + [
+    HTTP_RESOURCES = Nyuki.HTTP_RESOURCES + [
         ApiTasks,
         ApiTemplate,
         ApiTemplates,

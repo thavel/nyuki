@@ -1,5 +1,4 @@
-from .capabilities import resource
-from .webserver import Response
+from .api import Response, resource
 
 
 @resource('/websocket', versions=['v1'])

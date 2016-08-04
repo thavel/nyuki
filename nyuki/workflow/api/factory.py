@@ -1,7 +1,6 @@
 from uuid import uuid4
 
-from nyuki.api.capabilities import resource
-from nyuki.api.webserver import Response
+from nyuki.api import Response, resource
 from nyuki.workflow.tasks import FACTORY_SCHEMAS
 
 

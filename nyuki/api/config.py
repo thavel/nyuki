@@ -3,8 +3,7 @@ import json
 from jsonschema import ValidationError
 import logging
 
-from .capabilities import resource
-from .webserver import Response
+from .api import Response, resource
 
 
 log = logging.getLogger(__name__)
