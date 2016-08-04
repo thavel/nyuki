@@ -1,7 +1,14 @@
+from aiohttp.web_reqrep import FileField
+import csv
+from io import StringIO
+import logging
 from uuid import uuid4
 
-from nyuki.api import Response, resource
+from nyuki.api import Response, resource, content_type
 from nyuki.workflow.tasks import FACTORY_SCHEMAS
+
+
+log = logging.getLogger(__name__)
 
 
 @resource('/workflow/rules', versions=['v1'])
@@ -101,6 +108,58 @@ class ApiFactoryLookups:
         """
         return Response(await self.nyuki.storage.lookups.get_all())
 
+    # @content_type('multipart/form-data')
+    async def post(self, request):
+        """
+        Get a CSV file and parse it into a new lookup table.
+        """
+        data = await request.post()
+        if 'csv' not in data or not isinstance(data['csv'], FileField):
+            return Response(status=400, body={
+                'error': "'csv' field must be a CSV file"
+            })
+
+        # From bytes to string (aiohttp handles everything in bytes)
+        csv_field = data['csv']
+        iocsv = StringIO(csv_field.file.read().decode())
+
+        # Find headers and dialect using a Sniffer
+        sniffer = csv.Sniffer()
+        sample = iocsv.read(1024)
+        iocsv.seek(0)
+
+        try:
+            dialect = sniffer.sniff(sample)
+        except csv.Error as exc:
+            # Could not determine delimiter
+            log.error(exc)
+            return Response(status=400, body={
+                'error': str(exc)
+            })
+
+        log.info("CSV file validated with delimiter: '%s'", dialect.delimiter)
+        reader = csv.reader(iocsv, dialect)
+        # Ignore first line if needed
+        if sniffer.has_header(sample):
+            header = reader.__next__()
+            log.info('CSV header found: %s', header)
+
+        table = {}
+        for row in reader:
+            if len(row) != 2:
+                return Response(status=400, body={
+                    'error': 'Lookup CSV row length must be 2'
+                })
+            table[row[0]] = row[1]
+
+        data = {
+            'id': str(uuid4()),
+            'title': csv_field.filename.replace('.csv', ''),
+            'table': table
+        }
+        await self.nyuki.storage.lookups.insert(data)
+        return Response(data)
+
     async def put(self, request):
         """
         Insert a new lookup table
@@ -171,3 +230,33 @@ class ApiFactoryLookup:
 
         await self.nyuki.storage.lookups.delete(lookup_id)
         return Response(lookup)
+
+
+@resource('/workflow/lookups/{lookup_id}/csv', versions=['v1'])
+class ApiFactoryLookupCSV:
+
+    async def get(self, request, lookup_id):
+        """
+        Return the lookup table for id `lookup_id`
+        """
+        lookup = await self.nyuki.storage.lookups.get(lookup_id)
+        if not lookup:
+            return Response(status=404)
+
+        # Generate filename (without spaces)
+        filename = '{}.csv'.format(lookup['title'].replace(' ', '_'))
+        # Write CSV
+        iocsv = StringIO()
+        writer = csv.writer(iocsv, delimiter=',')
+        for key, value in lookup['table'].items():
+            writer.writerow([key, value])
+        iocsv.seek(0)
+
+        headers = {
+            'Content-Type': 'text/csv',
+            'Content-Disposition': 'attachment; filename={}'.format(filename)
+        }
+        return Response(
+            iocsv.read(),
+            headers=headers
+        )

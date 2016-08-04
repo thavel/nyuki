@@ -15,6 +15,27 @@ access_log = logging.getLogger('.'.join([__name__, 'access']))
 access_log.info = access_log.debug
 
 
+def resource(path, versions=None, content_type='application/json'):
+    """
+    Nyuki resource decorator to register a route.
+    A resource has multiple HTTP methods (get, post, etc).
+    """
+    def decorated(cls):
+        cls.RESOURCE_CLASS = ResourceClass(cls, path, versions, content_type)
+        return cls
+    return decorated
+
+
+def content_type(content_type):
+    """
+    Decorator to set a specific content_type to one method (get, post...)
+    """
+    def decorated(func):
+        func.CONTENT_TYPE = content_type
+        return func
+    return decorated
+
+
 class Response(web.Response):
 
     """
@@ -41,7 +62,7 @@ class Response(web.Response):
         return super().__init__(body=body, **kwargs)
 
     def _get_content_type(self, kwargs):
-        return kwargs.get('content_type') or kwargs.get('headers', {}).get('content_type')
+        return kwargs.get('content_type') or kwargs.get('headers', {}).get('Content-Type')
 
 
 class WebServer:
@@ -103,22 +124,21 @@ async def mw_capability(app, capa_handler):
     Transform the request data to be passed through a capability and
     convert the result into a web response.
     """
+    POST_METHODS = web.Request.POST_METHODS - {'DELETE'}
+
     async def middleware(request):
         # Ensure a content-type check is necessary
-        if getattr(capa_handler, 'CONTENT_TYPE', None) and await request.text():
+        # aiohttp includes DELETE in post methods, we don't want that
+        if request.method in POST_METHODS and getattr(capa_handler, 'CONTENT_TYPE', None):
             ctype = capa_handler.CONTENT_TYPE
-
-            # Check content_type from @resource decorator
-            if request.headers.get('Content-Type') != ctype:
+            # Check content_type from @resource or @content_type decorators
+            request_types = request.headers.get('Content-Type', '').split(';')
+            if ctype not in request_types:
                 log.debug(
                     "content-type '%s' required. Received '%s'",
-                    ctype,
-                    request.headers.get('Content-Type')
+                    ctype, request.headers.get('Content-Type')
                 )
-                return Response(
-                    {'error': 'Wrong content-type'},
-                    status=400
-                )
+                return Response({'error': 'Wrong content-type'}, status=400)
 
             # Check application/json is really a JSON body
             if ctype == 'application/json':
@@ -131,6 +151,16 @@ async def mw_capability(app, capa_handler):
                         status=400
                     )
 
+            # Check multipart/form-data is really a post form
+            if ctype == 'multipart/form-data':
+                try:
+                    await request.post()
+                except ValueError as exc:
+                    log.debug(exc)
+                    return Response(status=400, body={
+                        'error': 'multipart/form-data must be a form'
+                    })
+
         try:
             capa_resp = await capa_handler(request, **request.match_info)
         except (web.HTTPNotFound, web.HTTPMethodNotAllowed):
@@ -138,7 +168,7 @@ async def mw_capability(app, capa_handler):
             raise
         except Exception as exc:
             reporting.exception(exc)
-            raise exc
+            raise
 
         if capa_resp and isinstance(capa_resp, Response):
             return capa_resp
@@ -146,17 +176,6 @@ async def mw_capability(app, capa_handler):
         return Response()
 
     return middleware
-
-
-def resource(path, versions=None, content_type=None):
-    """
-    Nyuki resource decorator to register a route.
-    A resource has multiple HTTP methods (get, post, etc).
-    """
-    def decorated(cls):
-        cls.RESOURCE_CLASS = ResourceClass(cls, path, versions, content_type)
-        return cls
-    return decorated
 
 
 class ResourceClass:
@@ -178,9 +197,11 @@ class ResourceClass:
         for method in METH_ALL:
             handler = getattr(self.cls, method.lower(), None)
             if handler is not None:
-                handler = asyncio.coroutine(partial(handler, cls_instance))
-                handler.CONTENT_TYPE = self.content_type
-                route = resource.add_route(method, handler)
+                async_handler = asyncio.coroutine(partial(handler, cls_instance))
+                async_handler.CONTENT_TYPE = getattr(
+                    handler, 'CONTENT_TYPE', self.content_type
+                )
+                route = resource.add_route(method, async_handler)
                 log.debug('Added route: %s', route)
 
     def register(self, nyuki, router):

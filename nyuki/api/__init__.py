@@ -1,1 +1,1 @@
-from .api import Response, resource, Api
+from .api import Response, Api, resource, content_type

@@ -9,7 +9,8 @@ from nyuki import Nyuki
 from nyuki.bus import reporting
 
 from .api.factory import (
-    ApiFactoryRegex, ApiFactoryRegexes, ApiFactoryLookup, ApiFactoryLookups
+    ApiFactoryRegex, ApiFactoryRegexes, ApiFactoryLookup, ApiFactoryLookups,
+    ApiFactoryLookupCSV
 )
 from .api.templates import (
     ApiTasks, ApiTemplates, ApiTemplate, ApiTemplateVersion, ApiTemplateDraft
@@ -64,6 +65,7 @@ class WorkflowNyuki(Nyuki):
         ApiFactoryRegex,
         ApiFactoryRegexes,
         ApiFactoryLookup,
+        ApiFactoryLookupCSV,
         ApiFactoryLookups,
         ApiTest,
         ApiTestTopic,
