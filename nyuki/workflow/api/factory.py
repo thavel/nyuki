@@ -18,6 +18,14 @@ class ApiFactoryRules:
         return Response(list(FACTORY_SCHEMAS.keys()))
 
 
+def new_regex(title, pattern, regex_id=None):
+    return {
+        'id': regex_id or str(uuid4()),
+        'title': title,
+        'pattern': pattern
+    }
+
+
 @resource('/workflow/regexes', versions=['v1'])
 class ApiFactoryRegexes:
 
@@ -34,18 +42,14 @@ class ApiFactoryRegexes:
         request = await request.json()
 
         try:
-            data = {
-                'id': str(uuid4()),
-                'title': request['title'],
-                'pattern': request['pattern']
-            }
+            regex = new_regex(request['title'], request['pattern'])
         except KeyError as exc:
             return Response(status=400, body={
                 'error': 'missing parameter {}'.format(exc)
             })
 
-        await self.nyuki.storage.regexes.insert(data)
-        return Response(data)
+        await self.nyuki.storage.regexes.insert(regex)
+        return Response(regex)
 
     async def delete(self, request):
         """
@@ -77,15 +81,13 @@ class ApiFactoryRegex:
             return Response(status=404)
 
         request = await request.json()
-
-        data = {
-            'id': regex_id,
-            'title': request.get('title', regex['title']),
-            'pattern': request.get('pattern', regex['pattern'])
-        }
-
-        await self.nyuki.storage.regexes.insert(data)
-        return Response(data)
+        regex = new_regex(
+            request.get('title', regex['title']),
+            request.get('pattern', regex['pattern']),
+            regex_id=regex_id
+        )
+        await self.nyuki.storage.regexes.insert(regex)
+        return Response(regex)
 
     async def delete(self, request, regex_id):
         """
@@ -99,6 +101,14 @@ class ApiFactoryRegex:
         return Response(regex)
 
 
+def new_lookup(title, table, lookup_id=None):
+    return {
+        'id': lookup_id or str(uuid4()),
+        'title': title,
+        'table': table
+    }
+
+
 @resource('/workflow/lookups', versions=['v1'])
 class ApiFactoryLookups:
 
@@ -108,7 +118,7 @@ class ApiFactoryLookups:
         """
         return Response(await self.nyuki.storage.lookups.get_all())
 
-    # @content_type('multipart/form-data')
+    @content_type('multipart/form-data')
     async def post(self, request):
         """
         Get a CSV file and parse it into a new lookup table.
@@ -152,13 +162,9 @@ class ApiFactoryLookups:
                 })
             table[row[0]] = row[1]
 
-        data = {
-            'id': str(uuid4()),
-            'title': csv_field.filename.replace('.csv', ''),
-            'table': table
-        }
-        await self.nyuki.storage.lookups.insert(data)
-        return Response(data)
+        lookup = new_lookup(csv_field.filename.replace('.csv', ''), table)
+        await self.nyuki.storage.lookups.insert(lookup)
+        return Response(lookup)
 
     async def put(self, request):
         """
@@ -167,18 +173,14 @@ class ApiFactoryLookups:
         request = await request.json()
 
         try:
-            data = {
-                'id': str(uuid4()),
-                'title': request['title'],
-                'table': request['table']
-            }
+            lookup = new_lookup(request['title'], request['table'])
         except KeyError as exc:
             return Response(status=400, body={
                 'error': 'missing parameter {}'.format(exc)
             })
 
-        await self.nyuki.storage.lookups.insert(data)
-        return Response(data)
+        await self.nyuki.storage.lookups.insert(lookup)
+        return Response(lookup)
 
     async def delete(self, request):
         """
@@ -210,15 +212,13 @@ class ApiFactoryLookup:
             return Response(status=404)
 
         request = await request.json()
-
-        data = {
-            'id': lookup_id,
-            'title': request.get('title', lookup['title']),
-            'table': request.get('table', lookup['table'])
-        }
-
-        await self.nyuki.storage.lookups.insert(data)
-        return Response(data)
+        lookup = new_lookup(
+            request.get('title', lookup['title']),
+            request.get('table', lookup['table']),
+            lookup_id=lookup_id
+        )
+        await self.nyuki.storage.lookups.insert(lookup)
+        return Response(lookup)
 
     async def delete(self, request, lookup_id):
         """
@@ -253,10 +253,10 @@ class ApiFactoryLookupCSV:
         iocsv.seek(0)
 
         headers = {
-            'Content-Type': 'text/csv',
             'Content-Disposition': 'attachment; filename={}'.format(filename)
         }
         return Response(
             iocsv.read(),
+            content_type='text/csv',
             headers=headers
         )
