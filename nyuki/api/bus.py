@@ -53,14 +53,14 @@ class ApiBusTopics:
 
 
 @resource('/bus/publish', versions=['v1'])
-class BusPublish:
+class ApiBusPublish:
 
     async def post(self, request):
-        await self.BusPublishTopic.post(self, request, None)
+        await ApiBusPublishTopic.post(self, request, None)
 
 
 @resource('/bus/publish/{topic}', versions=['v1'])
-class BusPublishTopic:
+class ApiBusPublishTopic:
 
     async def post(self, request, topic):
         try:
