@@ -275,7 +275,7 @@ class _DataProcessingCollection:
             "Inserting data processing rule in collection '%s'",
             self._rules.name
         )
-        log.debug('insert query: %s', query)
+        log.debug('upserting data: %s', data)
         with _report_connection():
             await self._rules.update(query, data, upsert=True)
 
