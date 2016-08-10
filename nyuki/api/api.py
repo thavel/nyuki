@@ -133,15 +133,17 @@ async def mw_capability(app, capa_handler):
             ctype = capa_handler.CONTENT_TYPE
             # Check content_type from @resource or @content_type decorators
             request_types = request.headers.get('Content-Type', '').split(';')
-            if ctype not in request_types:
-                log.debug(
-                    "content-type '%s' required. Received '%s'",
-                    ctype, request.headers.get('Content-Type')
-                )
-                return Response({'error': 'Wrong content-type'}, status=400)
+            required_types = ctype.split(';')
+            for required in required_types:
+                if required not in request_types:
+                    log.debug(
+                        "content-type '%s' required. Received '%s'",
+                        required, request_types
+                    )
+                    return Response({'error': 'Wrong or Missing content-type'}, status=400)
 
             # Check application/json is really a JSON body
-            if ctype == 'application/json':
+            if 'application/json' in required_types:
                 try:
                     await request.json()
                 except json.decoder.JSONDecodeError:
@@ -152,7 +154,7 @@ async def mw_capability(app, capa_handler):
                     )
 
             # Check multipart/form-data is really a post form
-            if ctype == 'multipart/form-data':
+            if 'multipart/form-data' in required_types:
                 try:
                     await request.post()
                 except ValueError as exc:
