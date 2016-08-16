@@ -1,8 +1,7 @@
-from collections import defaultdict
 import logging
 import re
 
-from .evaluate import safe_eval
+from .evaluate import ConditionBlock
 
 
 log = logging.getLogger(__name__)
@@ -69,39 +68,9 @@ class Converter(object):
             rule.apply(data)
 
 
-class ConditionBlock(metaclass=_RegisteredRule):
+class FactoryCondition(ConditionBlock, metaclass=_RegisteredRule):
 
     TYPENAME = 'condition-block'
-
-    def __init__(self, conditions):
-        # Check there is at least one condition
-        if len(conditions) == 0:
-            raise ValueError('no condition in condition block')
-        # Check first condition is 'if'
-        if conditions[0]['type'] != 'if':
-            raise TypeError("first condition must be an 'if'")
-        # Check next conditions (if any)
-        if len(conditions) >= 2:
-            for cond in conditions[1:-1]:
-                # All intermediate conditions must be 'elif'
-                if cond['type'] != 'elif':
-                    raise TypeError("expected 'elif' condition,"
-                                    " got '{}'".format(cond))
-            # The last condition can be either an 'elif' or an 'else'
-            if conditions[-1]['type'] not in ('elif', 'else'):
-                raise TypeError("last condition must be 'elif' or 'else',"
-                                " got '{}'".format(conditions[-1]))
-        self._conditions = conditions
-
-    def _clean_condition(self, condition, data):
-        """
-        Format the condition string:
-        nb: strings should be {some_string!r} (includes '')
-        """
-        # Unknown fields will be converted to None
-        format_fields = defaultdict(lambda: None)
-        format_fields.update(data)
-        return condition.format(**format_fields)
 
     def apply(self, data):
         """
@@ -115,14 +84,7 @@ class ConditionBlock(metaclass=_RegisteredRule):
                 Converter.from_dict(cond).apply(data)
                 return
             # Else find the condition and apply it
-            cleaned = self._clean_condition(cond['condition'], data)
-            log.debug('arithmetics: trying %s', cond['condition'])
-            if safe_eval(cleaned):
-                log.debug(
-                    'arithmetics: validated condition "%s" as "%s"',
-                    cond['condition'],
-                    cleaned
-                )
+            if self._evaluate(cond['condition'], data):
                 Converter.from_dict(cond).apply(data)
                 return
 

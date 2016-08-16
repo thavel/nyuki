@@ -1,9 +1,10 @@
 from tukio.task.join import JoinTask
 
 from .factory import FactoryTask, FACTORY_SCHEMAS
+from .python_script import PythonScript
 from .report import ReportTask
 from .sleep import SleepTask
-from .python_script import PythonScript
+from .task_selector import TaskSelector
 
 
 # Add a schema to the join task

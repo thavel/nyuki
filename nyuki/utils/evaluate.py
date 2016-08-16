@@ -1,4 +1,9 @@
 import ast
+from collections import defaultdict
+import logging
+
+
+log = logging.getLogger(__name__)
 
 
 EXPRESSIONS = [
@@ -45,3 +50,55 @@ def safe_eval(expr):
         if not type(node) in AUTHORIZED_TYPES:
             raise TypeError("forbidden type {} found in {}".format(node, expr))
     return bool(eval(expr))
+
+
+class ConditionBlock:
+
+    def __init__(self, conditions):
+        # Check there is at least one condition
+        if len(conditions) == 0:
+            raise ValueError('no condition in condition block')
+        # Check first condition is 'if'
+        if conditions[0]['type'] != 'if':
+            raise TypeError("first condition must be an 'if'")
+        # Check next conditions (if any)
+        if len(conditions) >= 2:
+            for cond in conditions[1:-1]:
+                # All intermediate conditions must be 'elif'
+                if cond['type'] != 'elif':
+                    raise TypeError("expected 'elif' condition,"
+                                    " got '{}'".format(cond))
+            # The last condition can be either an 'elif' or an 'else'
+            if conditions[-1]['type'] not in ('elif', 'else'):
+                raise TypeError("last condition must be 'elif' or 'else',"
+                                " got '{}'".format(conditions[-1]))
+        self._conditions = conditions
+
+    def _clean_condition(self, condition, data):
+        """
+        Format the condition string:
+        nb: strings should be {some_string!r} (includes '')
+        """
+        # Unknown fields will be converted to None
+        format_fields = defaultdict(lambda: None)
+        format_fields.update(data)
+        return condition.format(**format_fields)
+
+    def evaluate(self, condition, data):
+        """
+        Clean variables and evaluate the condition
+        """
+        cleaned = self._clean_condition(condition, data)
+        log.debug('arithmetics: trying %s', condition)
+        res = safe_eval(cleaned)
+        log.debug(
+            'arithmetics: condition "%s" as "%s" evaluated to %s',
+            condition, cleaned, res
+        )
+        return res
+
+    def apply(self, data, *args, **kwargs):
+        """
+        To be overridden to use your own condition logic using self.evaluate
+        """
+        raise NotImplementedError
