@@ -113,8 +113,12 @@ def new_lookup(title, table, lookup_id=None):
         ]
     }
     """
+    exc = ValueError('table must be a list of value/replace pairs')
     if not isinstance(table, list):
-        raise ValueError('table must be a list of key/value pairs')
+        raise exc
+    for pair in table:
+        if 'value' not in pair or 'replace' not in pair:
+            raise exc
     return {
         'id': lookup_id or str(uuid4()),
         'title': title,
@@ -190,6 +194,10 @@ class ApiFactoryLookups:
         except KeyError as exc:
             return Response(status=400, body={
                 'error': 'missing parameter {}'.format(exc)
+            })
+        except ValueError as exc:
+            return Response(status=400, body={
+                'error': "'table' must be a list of value/replace pairs"
             })
 
         await self.nyuki.storage.lookups.insert(lookup)
