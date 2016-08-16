@@ -102,6 +102,19 @@ class ApiFactoryRegex:
 
 
 def new_lookup(title, table, lookup_id=None):
+    """
+    Return a lookup representation as:
+    {
+        'id': '123-456-789',
+        'title': 'lookup title',
+        'table': [
+            {'value': 'this', 'replace': 'that'},
+            {'value': 'old', 'replace': 'new'}
+        ]
+    }
+    """
+    if not isinstance(table, list):
+        raise ValueError('table must be a list of key/value pairs')
     return {
         'id': lookup_id or str(uuid4()),
         'title': title,
@@ -154,13 +167,13 @@ class ApiFactoryLookups:
             header = reader.__next__()
             log.info('CSV header found: %s', header)
 
-        table = {}
+        table = []
         for row in reader:
             if len(row) != 2:
                 return Response(status=400, body={
                     'error': 'Lookup CSV row length must be 2'
                 })
-            table[row[0]] = row[1]
+            table.append({'value': row[0], 'replace': row[1]})
 
         lookup = new_lookup(csv_field.filename.replace('.csv', ''), table)
         await self.nyuki.storage.lookups.insert(lookup)
@@ -245,13 +258,13 @@ class ApiFactoryLookupCSV:
 
         # Generate filename (without spaces)
         filename = '{}.csv'.format(lookup['title'].replace(' ', '_'))
+
         # Write CSV
         iocsv = StringIO()
         writer = csv.writer(iocsv, delimiter=',')
-
         writer.writerow(["value", "replace"])
-        for key, value in lookup['table'].items():
-            writer.writerow([key, value])
+        for pair in lookup['table']:
+            writer.writerow([pair['value'], pair['replace']])
         iocsv.seek(0)
 
         headers = {
