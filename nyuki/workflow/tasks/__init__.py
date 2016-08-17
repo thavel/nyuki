@@ -14,19 +14,22 @@ JoinTask.SCHEMA = {
     'required': ['wait_for'],
     'properties': {
         'wait_for': {
-            'type': 'array',
-            'minItems': 2,
-            'maxItems': 64,
-            'uniqueItems': True,
-            'items': {
-                'type': 'string',
-                'maxLength': 1024
-            }
+            'anyOf': [
+                {
+                    'type': 'array',
+                    'minItems': 2,
+                    'maxItems': 64,
+                    'uniqueItems': True,
+                    'items': {
+                        'type': 'string',
+                        'minLength': 1,
+                        'maxLength': 1024
+                    }
+                },
+                {'type': 'integer', 'minimum': 2}
+            ]
         },
-        'timeout': {
-            'type': 'integer',
-            'minimum': 1
-        }
+        'timeout': {'type': 'integer', 'minimum': 1}
     }
 }
 
