@@ -84,21 +84,29 @@ class ConditionBlock:
         format_fields.update(data)
         return condition.format(**format_fields)
 
-    def evaluate(self, condition, data):
+    def condition_validated(self, condition, data):
         """
-        Clean variables and evaluate the condition
-        """
-        cleaned = self._clean_condition(condition, data)
-        log.debug('arithmetics: trying %s', condition)
-        res = safe_eval(cleaned)
-        log.debug(
-            'arithmetics: condition "%s" as "%s" evaluated to %s',
-            condition, cleaned, res
-        )
-        return res
-
-    def apply(self, data, *args, **kwargs):
-        """
-        To be overridden to use your own condition logic using self.evaluate
+        To be overridden to do your own logic once the condition has
+        been validated (True) by `self._evaluate`.
         """
         raise NotImplementedError
+
+    def apply(self, data):
+        """
+        Iterate through the conditions and stop at first validated condition.
+        """
+        for condition in self._conditions:
+            # If type 'else', set given next tasks and leave
+            if condition['type'] == 'else':
+                self.condition_validated(condition, data)
+                return
+            # Else find the condition and evaluate it
+            cleaned = self._clean_condition(condition['condition'], data)
+            log.debug('arithmetics: trying %s', condition)
+            if safe_eval(cleaned):
+                log.debug(
+                    'arithmetics: validated condition "%s" as "%s"',
+                    condition, cleaned
+                )
+                self.condition_validated(condition, data)
+                return

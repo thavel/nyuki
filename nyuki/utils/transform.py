@@ -72,21 +72,11 @@ class FactoryConditionBlock(ConditionBlock, metaclass=_RegisteredRule):
 
     TYPENAME = 'condition-block'
 
-    def apply(self, data):
+    def condition_validated(self, condition, data):
         """
-        Apply conditions depending on the length of the condition array,
-        as it must always start with 'if' and end with 'elif', 'else'
-        or nothing.
+        Apply rules on data upon validating a condition.
         """
-        for cond in self._conditions:
-            # If type 'else', apply it and leave
-            if cond['type'] == 'else':
-                Converter.from_dict(cond).apply(data)
-                return
-            # Else find the condition and apply it
-            if self.evaluate(cond['condition'], data):
-                Converter.from_dict(cond).apply(data)
-                return
+        Converter.from_dict(condition).apply(data)
 
 
 class _Rule(metaclass=_RegisteredRule):
