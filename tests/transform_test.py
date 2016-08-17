@@ -2,7 +2,7 @@ from unittest import TestCase
 
 from nyuki.utils.transform import (
     Upper, Lower, Lookup, Unset, Set, Sub, Extract, Converter,
-    ConditionBlock
+    FactoryConditionBlock
 )
 
 
@@ -64,7 +64,7 @@ class TestTransformCases(TestCase):
         self.assertEqual(self.data['to_upper'], 'UPPERCASE')
 
     def test_008_condition_block(self):
-        rule = ConditionBlock([
+        rule = FactoryConditionBlock([
             {'type': 'if', 'condition': "{test!r} == 'test if'", 'rules': [
                 {'type': 'set', 'fieldname': 'if', 'value': 'ok'}
             ]},
@@ -92,15 +92,15 @@ class TestTransformCases(TestCase):
         self.assertIn('else', data)
 
         with self.assertRaises(ValueError):
-            ConditionBlock([])
+            FactoryConditionBlock([])
         with self.assertRaises(TypeError):
-            ConditionBlock([{'type': 'else'}])
+            FactoryConditionBlock([{'type': 'else'}])
         with self.assertRaises(TypeError):
-            ConditionBlock([{'type': 'if'}, {'type': 'if'}])
+            FactoryConditionBlock([{'type': 'if'}, {'type': 'if'}])
         with self.assertRaises(TypeError):
-            ConditionBlock([{'type': 'if'}, {'type': 'else'}, {'type': 'if'}])
+            FactoryConditionBlock([{'type': 'if'}, {'type': 'else'}, {'type': 'if'}])
         with self.assertRaises(TypeError):
-            ConditionBlock([{'type': 'if'}, {'type': 'if'}, {'type': 'elif'}])
+            FactoryConditionBlock([{'type': 'if'}, {'type': 'if'}, {'type': 'elif'}])
 
     def test_009a_converter(self):
         rules = [

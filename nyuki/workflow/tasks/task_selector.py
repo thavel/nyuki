@@ -38,10 +38,12 @@ class TaskSelector(TaskHolder):
             'conditions': {
                 'type': 'array',
                 'items': {
-                    'type': 'object',
-                    'schema': {'$ref': '#/definitions/condition-block'}
+                    'oneOf': [
+                        {'$ref': '#/definitions/condition-if'},
+                        {'$ref': '#/definitions/condition-else'}
+                    ]
                 }
-            },
+            }
         },
         'definitions': {
             'condition-if': {
@@ -64,20 +66,6 @@ class TaskSelector(TaskHolder):
                     'tasks': {
                         'type': 'array',
                         'items': {'type': 'string', 'minLength': 1}
-                    }
-                }
-            },
-            'condition-block': {
-                'type': 'object',
-                'required': ['type', 'conditions'],
-                'properties': {
-                    'type': {'type': 'string', 'enum': ['condition-block']},
-                    'conditions': {
-                        'type': 'array',
-                        'anyOf': [
-                            {'$ref': '#/definitions/condition-if'},
-                            {'$ref': '#/definitions/condition-else'}
-                        ]
                     }
                 }
             }

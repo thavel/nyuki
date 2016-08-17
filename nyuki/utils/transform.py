@@ -68,7 +68,7 @@ class Converter(object):
             rule.apply(data)
 
 
-class FactoryCondition(ConditionBlock, metaclass=_RegisteredRule):
+class FactoryConditionBlock(ConditionBlock, metaclass=_RegisteredRule):
 
     TYPENAME = 'condition-block'
 
@@ -84,7 +84,7 @@ class FactoryCondition(ConditionBlock, metaclass=_RegisteredRule):
                 Converter.from_dict(cond).apply(data)
                 return
             # Else find the condition and apply it
-            if self._evaluate(cond['condition'], data):
+            if self.evaluate(cond['condition'], data):
                 Converter.from_dict(cond).apply(data)
                 return
 

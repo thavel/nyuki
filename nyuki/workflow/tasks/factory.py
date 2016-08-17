@@ -19,10 +19,12 @@ FACTORY_SCHEMAS = {
             'type': {'type': 'string', 'enum': ['condition-block']},
             'conditions': {
                 'type': 'array',
-                'anyOf': [
-                    {'$ref': '#/definitions/condition-if'},
-                    {'$ref': '#/definitions/condition-else'}
-                ]
+                'items': {
+                    'oneOf': [
+                        {'$ref': '#/definitions/condition-if'},
+                        {'$ref': '#/definitions/condition-else'}
+                    ]
+                }
             }
         }
     },
