@@ -32,15 +32,18 @@ class TaskSelector(TaskHolder):
 
     SCHEMA = {
         'type': 'object',
-        'required': ['conditions'],
+        'required': ['rules'],
         'properties': {
-            'conditions': {
+            'rules': {
                 'type': 'array',
                 'items': {
-                    'oneOf': [
-                        {'$ref': '#/definitions/condition-if'},
-                        {'$ref': '#/definitions/condition-else'}
-                    ]
+                    'type': 'array',
+                    'items': {
+                        'oneOf': [
+                            {'$ref': '#/definitions/condition-if'},
+                            {'$ref': '#/definitions/condition-else'}
+                        ]
+                    }
                 }
             }
         },
@@ -74,6 +77,6 @@ class TaskSelector(TaskHolder):
     async def execute(self, event):
         data = event.data
         workflow = Workflow.current_workflow()
-        block = TaskConditionBlock(self.config['conditions'], workflow)
-        block.apply(data)
+        for rule in self.config['rules']:
+            TaskConditionBlock(rule['conditions'], workflow).apply(data)
         return data
