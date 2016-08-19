@@ -2,6 +2,7 @@ from aiohttp.web_reqrep import FileField
 import csv
 from io import StringIO
 import logging
+import re
 from uuid import uuid4
 
 from nyuki.api import Response, resource, content_type
@@ -270,8 +271,9 @@ class ApiFactoryLookupCSV:
         if not lookup:
             return Response(status=404)
 
-        # Generate filename (without spaces)
-        filename = '{}.csv'.format(lookup['title'].replace(' ', '_'))
+        # Generate filename (escaping spaces and commas)
+        filename = '{}.csv'.format(lookup['title'])
+        filename = re.sub(r'[ ,]', '_', filename)
 
         # Write CSV
         iocsv = StringIO()
