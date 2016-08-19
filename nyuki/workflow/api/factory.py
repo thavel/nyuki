@@ -148,7 +148,13 @@ class ApiFactoryLookups:
 
         # From bytes to string (aiohttp handles everything in bytes)
         csv_field = data['csv']
-        iocsv = StringIO(csv_field.file.read().decode())
+        csv_string = csv_field.file.read()
+
+        # Try utf-8 or latin-1 encoding
+        try:
+            iocsv = StringIO(csv_string.decode())
+        except UnicodeDecodeError:
+            iocsv = StringIO(csv_string.decode('latin-1'))
 
         # Find headers and dialect using a Sniffer
         sniffer = csv.Sniffer()
@@ -280,6 +286,6 @@ class ApiFactoryLookupCSV:
         }
         return Response(
             iocsv.read(),
-            content_type='text/csv',
+            content_type='text/csv; charset=utf-8',
             headers=headers
         )
