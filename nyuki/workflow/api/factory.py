@@ -277,10 +277,10 @@ class ApiFactoryLookupCSV:
 
         # Write CSV
         iocsv = StringIO()
-        writer = csv.writer(iocsv, delimiter=',')
-        writer.writerow(["value", "replace"])
+        writer = csv.DictWriter(iocsv, ['value', 'replace'], delimiter=',')
+        writer.writeheader()
         for pair in lookup['table']:
-            writer.writerow([pair['value'], pair['replace']])
+            writer.writerow(pair)
         iocsv.seek(0)
 
         headers = {
