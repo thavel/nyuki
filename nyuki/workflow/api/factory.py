@@ -248,6 +248,8 @@ class ApiFactoryLookupCSV:
         # Write CSV
         iocsv = StringIO()
         writer = csv.writer(iocsv, delimiter=',')
+
+        writer.writerow(["value", "replace"])
         for key, value in lookup['table'].items():
             writer.writerow([key, value])
         iocsv.seek(0)
