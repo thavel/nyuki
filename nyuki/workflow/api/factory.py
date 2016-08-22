@@ -127,6 +127,9 @@ def new_lookup(title, table, lookup_id=None):
     }
 
 
+CSV_FIELDNAMES = ['value', 'replace']
+
+
 @resource('/workflow/lookups', versions=['v1'])
 class ApiFactoryLookups:
 
@@ -172,19 +175,12 @@ class ApiFactoryLookups:
             })
 
         log.info("CSV file validated with delimiter: '%s'", dialect.delimiter)
-        reader = csv.reader(iocsv, dialect)
-        # Ignore first line if needed
+        reader = csv.DictReader(iocsv, fieldnames=CSV_FIELDNAMES, dialect=dialect)
+        # Ignore header if there is one
         if sniffer.has_header(sample):
             header = reader.__next__()
             log.info('CSV header found: %s', header)
-
-        table = []
-        for row in reader:
-            if len(row) != 2:
-                return Response(status=400, body={
-                    'error': 'Lookup CSV row length must be 2'
-                })
-            table.append({'value': row[0], 'replace': row[1]})
+        table = [row for row in reader]
 
         lookup = new_lookup(csv_field.filename.replace('.csv', ''), table)
         await self.nyuki.storage.lookups.insert(lookup)
@@ -277,7 +273,7 @@ class ApiFactoryLookupCSV:
 
         # Write CSV
         iocsv = StringIO()
-        writer = csv.DictWriter(iocsv, ['value', 'replace'], delimiter=',')
+        writer = csv.DictWriter(iocsv, CSV_FIELDNAMES, delimiter=',')
         writer.writeheader()
         for pair in lookup['table']:
             writer.writerow(pair)
