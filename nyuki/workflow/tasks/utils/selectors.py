@@ -19,7 +19,7 @@ def generate_schema(properties={}, definitions={}):
         },
         'definitions': {
             **definitions,
-            'rules': {
+            'values': {
                 'type': 'array',
                 'items': {
                     'type': 'string',
@@ -29,10 +29,10 @@ def generate_schema(properties={}, definitions={}):
             },
             'selector': {
                 'type': 'object',
-                'required': ['type', 'rules'],
+                'required': ['type', 'values'],
                 'properties': {
                     'type': {'type': 'string', 'enum': ['selector']},
-                    'rules': {'$ref': '#/definitions/rules'}
+                    'values': {'$ref': '#/definitions/values'}
                 }
             },
             'condition-block': {
@@ -53,19 +53,19 @@ def generate_schema(properties={}, definitions={}):
             },
             'condition-if': {
                 'type': 'object',
-                'required': ['type', 'condition', 'rules'],
+                'required': ['type', 'condition', 'values'],
                 'properties': {
                     'type': {'type': 'string', 'enum': ['if', 'elif']},
                     'condition': {'type': 'string', 'minLength': 1},
-                    'rules': {'$ref': '#/definitions/rules'}
+                    'values': {'$ref': '#/definitions/values'}
                 }
             },
             'condition-else': {
                 'type': 'object',
-                'required': ['type', 'rules'],
+                'required': ['type', 'values'],
                 'properties': {
                     'type': {'type': 'string', 'enum': ['else']},
-                    'rules': {'$ref': '#/definitions/rules'}
+                    'values': {'$ref': '#/definitions/values'}
                 }
             }
         }
