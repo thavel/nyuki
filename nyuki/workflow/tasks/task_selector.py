@@ -4,6 +4,7 @@ from tukio.task import register
 from tukio.task.holder import TaskHolder
 
 from nyuki.utils.evaluate import ConditionBlock
+from nyuki.workflow.tasks.utils import SELECTOR_SCHEMA
 
 
 log = logging.getLogger(__name__)
@@ -24,59 +25,20 @@ class TaskConditionBlock(ConditionBlock):
         """
         Set next workflow tasks upon validating a condition.
         """
-        self._workflow.set_next_tasks(condition['tasks'])
+        self._workflow.set_next_tasks(condition['values'])
 
 
 @register('task_selector', 'execute')
 class TaskSelector(TaskHolder):
 
-    SCHEMA = {
-        'type': 'object',
-        'required': ['rules'],
-        'properties': {
-            'rules': {
-                'type': 'array',
-                'items': {
-                    'type': 'array',
-                    'items': {
-                        'oneOf': [
-                            {'$ref': '#/definitions/condition-if'},
-                            {'$ref': '#/definitions/condition-else'}
-                        ]
-                    }
-                }
-            }
-        },
-        'definitions': {
-            'condition-if': {
-                'type': 'object',
-                'required': ['type', 'condition', 'tasks'],
-                'properties': {
-                    'type': {'type': 'string', 'enum': ['if', 'elif']},
-                    'condition': {'type': 'string', 'minLength': 1},
-                    'tasks': {
-                        'type': 'array',
-                        'items': {'type': 'string', 'minLength': 1}
-                    }
-                }
-            },
-            'condition-else': {
-                'type': 'object',
-                'required': ['type', 'tasks'],
-                'properties': {
-                    'type': {'type': 'string', 'enum': ['else']},
-                    'tasks': {
-                        'type': 'array',
-                        'items': {'type': 'string', 'minLength': 1}
-                    }
-                }
-            }
-        }
-    }
+    SCHEMA = SELECTOR_SCHEMA
 
     async def execute(self, event):
         data = event.data
         workflow = Workflow.current_workflow()
-        for rule in self.config['rules']:
-            TaskConditionBlock(rule['conditions'], workflow).apply(data)
+        for block in self.config['selectors']:
+            if block['type'] == 'selector':
+                workflow.set_next_tasks(block['values'])
+            elif block['type'] == 'condition-block':
+                TaskConditionBlock(block['conditions'], workflow).apply(data)
         return data
