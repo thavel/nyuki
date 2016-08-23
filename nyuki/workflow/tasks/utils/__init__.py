@@ -1,1 +1,1 @@
-from .selectors import SELECTOR_SCHEMA
+from .selectors import generate_schema

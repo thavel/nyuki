@@ -4,7 +4,7 @@ from tukio.task import register
 from tukio.task.holder import TaskHolder
 
 from nyuki.utils.evaluate import ConditionBlock
-from nyuki.workflow.tasks.utils import SELECTOR_SCHEMA
+from nyuki.workflow.tasks.utils import generate_schema
 
 
 log = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ class TaskConditionBlock(ConditionBlock):
 @register('task_selector', 'execute')
 class TaskSelector(TaskHolder):
 
-    SCHEMA = SELECTOR_SCHEMA
+    SCHEMA = generate_schema()
 
     async def execute(self, event):
         data = event.data
