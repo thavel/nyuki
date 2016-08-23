@@ -25,7 +25,7 @@ class TaskConditionBlock(ConditionBlock):
         """
         Set next workflow tasks upon validating a condition.
         """
-        self._workflow.set_next_tasks(condition['values'])
+        self._workflow.set_next_tasks(condition['rules'])
 
 
 @register('task_selector', 'execute')
@@ -36,9 +36,9 @@ class TaskSelector(TaskHolder):
     async def execute(self, event):
         data = event.data
         workflow = Workflow.current_workflow()
-        for block in self.config['selectors']:
+        for block in self.config['rules']:
             if block['type'] == 'selector':
-                workflow.set_next_tasks(block['values'])
+                workflow.set_next_tasks(block['rules'])
             elif block['type'] == 'condition-block':
                 TaskConditionBlock(block['conditions'], workflow).apply(data)
         return data

@@ -4,10 +4,10 @@ def generate_schema(properties={}, definitions={}):
     """
     return {
         'type': 'object',
-        'required': ['selectors'],
+        'required': ['rules'],
         'properties': {
             **properties,
-            'selectors': {
+            'rules': {
                 'type': 'array',
                 'items': {
                     'oneOf': [
@@ -19,7 +19,7 @@ def generate_schema(properties={}, definitions={}):
         },
         'definitions': {
             **definitions,
-            'values': {
+            'rules': {
                 'type': 'array',
                 'items': {
                     'type': 'string',
@@ -29,10 +29,10 @@ def generate_schema(properties={}, definitions={}):
             },
             'selector': {
                 'type': 'object',
-                'required': ['type', 'values'],
+                'required': ['type', 'rules'],
                 'properties': {
                     'type': {'type': 'string', 'enum': ['selector']},
-                    'values': {'$ref': '#/definitions/values'}
+                    'rules': {'$ref': '#/definitions/rules'}
                 }
             },
             'condition-block': {
@@ -53,19 +53,19 @@ def generate_schema(properties={}, definitions={}):
             },
             'condition-if': {
                 'type': 'object',
-                'required': ['type', 'condition', 'values'],
+                'required': ['type', 'condition', 'rules'],
                 'properties': {
                     'type': {'type': 'string', 'enum': ['if', 'elif']},
                     'condition': {'type': 'string', 'minLength': 1},
-                    'values': {'$ref': '#/definitions/values'}
+                    'rules': {'$ref': '#/definitions/rules'}
                 }
             },
             'condition-else': {
                 'type': 'object',
-                'required': ['type', 'values'],
+                'required': ['type', 'rules'],
                 'properties': {
                     'type': {'type': 'string', 'enum': ['else']},
-                    'values': {'$ref': '#/definitions/values'}
+                    'rules': {'$ref': '#/definitions/rules'}
                 }
             }
         }
