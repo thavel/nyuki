@@ -180,7 +180,7 @@ class ApiFactoryLookups:
         if sniffer.has_header(sample):
             header = reader.__next__()
             log.info('CSV header found: %s', header)
-        table = [row for row in reader]
+        table = list(reader)
 
         lookup = new_lookup(csv_field.filename.replace('.csv', ''), table)
         await self.nyuki.storage.lookups.insert(lookup)
