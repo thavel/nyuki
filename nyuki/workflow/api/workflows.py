@@ -54,7 +54,7 @@ class ApiWorkflows(_WorkflowResource):
         """
         return Response(
             json.dumps(
-                [wflow for wflow in self.nyuki.engine.instances.values()],
+                self.nyuki.engine.instances,
                 default=self.serialize_wflow_exec),
             content_type='application/json'
         )
@@ -116,14 +116,14 @@ class ApiWorkflow(_WorkflowResource):
         """
         Return a workflow instance
         """
-        wflow = self.nyuki.engine.instances.get(iid)
-        if not wflow:
-            return Response(status=404)
+        for instance in self.nyuki.engine.instances:
+            if instance.uid == iid:
+                return Response(
+                    json.dumps(instance, default=self.serialize_wflow_exec),
+                    content_type='application/json'
+                )
 
-        return Response(
-            json.dumps(wflow, default=self.serialize_wflow_exec),
-            content_type='application/json'
-        )
+        return Response(status=404)
 
     async def post(self, request, iid):
         """
