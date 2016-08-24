@@ -75,6 +75,10 @@ class TestXmppBus(TestCase):
         await exhaust_callbacks(self.loop)
         eq_(send_mock.call_count, 1)
 
+    async def test_003d_publish_unknown_topic(self):
+        with assert_raises(ValueError):
+            await self.bus.publish({'test': 'message'}, 'unknown')
+
     async def test_004_on_register_callback(self):
         with patch('slixmpp.stanza.Iq.send', new=CoroutineMock()) as send_mock:
             await self.bus._on_register(None)
@@ -185,8 +189,8 @@ class TestMongoPersistence(TestCase):
         with patch.object(self.bus, 'publish') as pub:
             await self.bus.replay()
             pub.assert_has_calls([
-                call({'something': 'something'}, dest='test', previous_uid=event_0_uid),
-                call({'another': 'event'}, dest='test', previous_uid=event_1_uid),
+                call({'something': 'something'}, topic='test', previous_uid=event_0_uid),
+                call({'another': 'event'}, topic='test', previous_uid=event_1_uid),
             ])
 
     def finish_publishments(self, fail=False):

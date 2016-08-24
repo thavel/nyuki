@@ -354,18 +354,21 @@ class XmppBus(Service):
         for event in events:
             await self.publish(
                 json.loads(event['message']),
-                dest=event['topic'],
+                topic=event['topic'],
                 previous_uid=event['id']
             )
 
-    async def publish(self, event, dest=None, previous_uid=None):
+    async def publish(self, event, topic=None, previous_uid=None):
         """
         Send an event in the nyuki's own MUC so that other nyukis that joined
         the MUC can process it.
         """
         if self._muc_domain is None:
-            log.warning('No subscription to any muc')
+            log.error('No subscription to any muc')
             return
+
+        if topic is not None and topic not in self.topics:
+            raise ValueError("Not subscribed to topic '{}'".format(topic))
 
         if not isinstance(event, dict):
             raise TypeError('Message must be a dict')
@@ -373,7 +376,7 @@ class XmppBus(Service):
         msg = self.client.Message()
         msg['id'] = uid = previous_uid or str(uuid4())
         msg['type'] = 'groupchat'
-        msg['to'] = self._muc_address(dest or self._topic)
+        msg['to'] = self._muc_address(topic or self._topic)
         msg['body'] = json.dumps(event, default=serialize_bus_event)
 
         self._publish_futures[uid] = asyncio.Future()
@@ -384,7 +387,7 @@ class XmppBus(Service):
             await self._persistence.store({
                 'id': uid,
                 'status': status.value,
-                'topic': dest or self._topic,
+                'topic': topic or self._topic,
                 'message': msg['body'],
             })
             in_memory = self._persistence.memory_buffer
