@@ -1,4 +1,4 @@
-def generate_schema(properties={}, definitions={}):
+def generate_schema(properties={}, **definitions):
     """
     Append custom object properties to the base selector schema.
     """
@@ -6,33 +6,17 @@ def generate_schema(properties={}, definitions={}):
         'type': 'object',
         'required': ['rules'],
         'properties': {
-            **properties,
+            'rules': {'$ref': '#/definitions/rules'},
+            **properties
+        },
+        'definitions': {
             'rules': {
                 'type': 'array',
                 'items': {
-                    'oneOf': [
-                        {'$ref': '#/definitions/condition-block'},
-                        {'$ref': '#/definitions/selector'}
+                    'oneOf': [{'$ref': '#/definitions/condition-block'}] + [
+                        {'$ref': '#/definitions/{}'.format(dtype)}
+                        for dtype in definitions.keys()
                     ]
-                }
-            }
-        },
-        'definitions': {
-            **definitions,
-            'values': {
-                'type': 'array',
-                'items': {
-                    'type': 'string',
-                    'minLength': 1,
-                    'uniqueItems': True
-                }
-            },
-            'selector': {
-                'type': 'object',
-                'required': ['type', 'values'],
-                'properties': {
-                    'type': {'type': 'string', 'enum': ['selector']},
-                    'values': {'$ref': '#/definitions/values'}
                 }
             },
             'condition-block': {
@@ -53,20 +37,21 @@ def generate_schema(properties={}, definitions={}):
             },
             'condition-if': {
                 'type': 'object',
-                'required': ['type', 'condition', 'values'],
+                'required': ['type', 'condition', 'rules'],
                 'properties': {
                     'type': {'type': 'string', 'enum': ['if', 'elif']},
                     'condition': {'type': 'string', 'minLength': 1},
-                    'values': {'$ref': '#/definitions/values'}
+                    'rules': {'$ref': '#/definitions/rules'}
                 }
             },
             'condition-else': {
                 'type': 'object',
-                'required': ['type', 'values'],
+                'required': ['type', 'rules'],
                 'properties': {
                     'type': {'type': 'string', 'enum': ['else']},
-                    'values': {'$ref': '#/definitions/values'}
+                    'rules': {'$ref': '#/definitions/rules'}
                 }
-            }
+            },
+            **definitions
         }
     }

@@ -5,29 +5,13 @@ from tukio.task import register
 from tukio.task.holder import TaskHolder
 
 from nyuki.utils import Converter
-from nyuki.workflow.tasks.utils import runtime
+from nyuki.workflow.tasks.utils import runtime, generate_schema
 
 
 log = logging.getLogger(__name__)
 
 
 FACTORY_SCHEMAS = {
-    'condition-block': {
-        'type': 'object',
-        'required': ['type', 'conditions'],
-        'properties': {
-            'type': {'type': 'string', 'enum': ['condition-block']},
-            'conditions': {
-                'type': 'array',
-                'items': {
-                    'oneOf': [
-                        {'$ref': '#/definitions/condition-if'},
-                        {'$ref': '#/definitions/condition-else'}
-                    ]
-                }
-            }
-        }
-    },
     'extract': {
         'type': 'object',
         'required': ['type', 'fieldname', 'regex_id'],
@@ -85,44 +69,7 @@ FACTORY_SCHEMAS = {
 @register('factory', 'execute')
 class FactoryTask(TaskHolder):
 
-    SCHEMA = {
-        'type': 'object',
-        'required': ['rules'],
-        'properties': {
-            'rules': {'$ref': '#/definitions/rules'}
-        },
-        'definitions': {
-            'rules': {
-                'type': 'array',
-                'items': {
-                    'type': 'object',
-                    'anyOf': [
-                        {'$ref': '#/definitions/{}'.format(factory_type)}
-                        for factory_type in FACTORY_SCHEMAS.keys()
-                    ]
-                }
-            },
-            'condition-if': {
-                'type': 'object',
-                'required': ['type', 'condition', 'rules'],
-                'properties': {
-                    'type': {'type': 'string', 'enum': ['if', 'elif']},
-                    'condition': {'type': 'string', 'minLength': 1},
-                    'rules': {'$ref': '#/definitions/rules'}
-                }
-            },
-            'condition-else': {
-                'type': 'object',
-                'required': ['type', 'rules'],
-                'properties': {
-                    'type': {'type': 'string', 'enum': ['else']},
-                    'rules': {'$ref': '#/definitions/rules'}
-                }
-            },
-            **{factory_type: FACTORY_SCHEMAS[factory_type]
-               for factory_type in FACTORY_SCHEMAS.keys()},
-        }
-    }
+    SCHEMA = generate_schema(**FACTORY_SCHEMAS)
 
     def __init__(self, config):
         super().__init__(config)

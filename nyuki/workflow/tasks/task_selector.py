@@ -25,20 +25,33 @@ class TaskConditionBlock(ConditionBlock):
         """
         Set next workflow tasks upon validating a condition.
         """
-        self._workflow.set_next_tasks(condition['values'])
+        self._workflow.set_next_tasks(condition['tasks'])
 
 
 @register('task_selector', 'execute')
 class TaskSelector(TaskHolder):
 
-    SCHEMA = generate_schema()
+    SCHEMA = generate_schema(tasks={
+        'type': 'object',
+        'properties': {
+            'type': {'type': 'string', 'enum': ['task-selector']},
+            'tasks': {
+                'type': 'array',
+                'items': {
+                    'type': 'string',
+                    'minLength': 1,
+                    'uniqueItems': True
+                }
+            }
+        }
+    })
 
     async def execute(self, event):
         data = event.data
         workflow = Workflow.current_workflow()
         for block in self.config['rules']:
-            if block['type'] == 'selector':
-                workflow.set_next_tasks(block['values'])
+            if block['type'] == 'task-selector':
+                workflow.set_next_tasks(block['tasks'])
             elif block['type'] == 'condition-block':
                 TaskConditionBlock(block['conditions'], workflow).apply(data)
         return data
