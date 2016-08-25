@@ -25,7 +25,7 @@ class _WorkflowResource:
             return obj.report()
         raise TypeError('obj not serializable: {}'.format(obj))
 
-    def register_async_handler(self, async_channel, wflow):
+    def register_async_handler(self, async_topic, wflow):
         broker = get_broker()
         async def exec_handler(event):
             # Pass if event does not concern this workflow execution
@@ -34,7 +34,7 @@ class _WorkflowResource:
             # Publish the event's data
             # TODO: Beware of unserializable objects
             asyncio.ensure_future(self.nyuki.bus.publish(
-                event.data, topic=async_channel
+                event.data, topic=async_topic
             ))
             # If the workflow is in a final state, unregister
             if event.data['type'] in [
@@ -67,7 +67,7 @@ class ApiWorkflows(_WorkflowResource):
             "draft": true/false
         }
         """
-        async_channel = request.headers.get('X-Surycat-Async-Channel')
+        async_topic = request.headers.get('X-Surycat-Async-Topic')
         request = await request.json()
 
         if 'id' not in request:
@@ -100,8 +100,8 @@ class ApiWorkflows(_WorkflowResource):
             })
 
         # Handle async workflow exec updates
-        if async_channel is not None:
-            self.register_async_handler(async_channel, wflow)
+        if async_topic is not None:
+            self.register_async_handler(async_topic, wflow)
 
         return Response(
             json.dumps(wflow, default=self.serialize_wflow_exec),
