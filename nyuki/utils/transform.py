@@ -72,11 +72,11 @@ class FactoryConditionBlock(ConditionBlock, metaclass=_RegisteredRule):
 
     TYPENAME = 'condition-block'
 
-    def condition_validated(self, condition, data):
+    def condition_validated(self, rules, data):
         """
         Apply rules on data upon validating a condition.
         """
-        Converter.from_dict(condition).apply(data)
+        Converter.from_dict({'rules': rules}).apply(data)
 
 
 class _Rule(metaclass=_RegisteredRule):

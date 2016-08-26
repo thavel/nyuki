@@ -98,7 +98,7 @@ class ConditionBlock:
         for condition in self._conditions:
             # If type 'else', set given next tasks and leave
             if condition['type'] == 'else':
-                self.condition_validated(condition, data)
+                self.condition_validated(condition['rules'], data)
                 return
             # Else find the condition and evaluate it
             cleaned = self._clean_condition(condition['condition'], data)
@@ -108,5 +108,5 @@ class ConditionBlock:
                     'arithmetics: validated condition "%s" as "%s"',
                     condition, cleaned
                 )
-                self.condition_validated(condition, data)
+                self.condition_validated(condition['rules'], data)
                 return

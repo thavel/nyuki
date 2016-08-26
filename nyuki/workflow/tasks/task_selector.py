@@ -21,12 +21,12 @@ class TaskConditionBlock(ConditionBlock):
         super().__init__(conditions)
         self._workflow = workflow
 
-    def condition_validated(self, condition, data):
+    def condition_validated(self, rules, data):
         """
         Set next workflow tasks upon validating a condition.
         """
-        if condition['rules']:
-            self._workflow.set_next_tasks(condition['rules'][0]['tasks'])
+        if rules:
+            self._workflow.set_next_tasks(rules[0]['tasks'])
 
 
 @register('task_selector', 'execute')
