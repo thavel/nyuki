@@ -81,6 +81,14 @@ class MqttBus(Service):
     def topics(self):
         return list(self._subscriptions.keys())
 
+    @property
+    def public_topics(self):
+        """
+        Only return standard publication topics. ("something/publications")
+        """
+        regex = r'^[^\/]+/{}$'.format(self.BASE_PUB)
+        return [topic for topic in self.topics if re.match(regex, topic)]
+
     def configure(self, name, scheme='mqtt', host='localhost', port=1883,
                   cafile=None, certfile=None, keyfile=None, persistence={},
                   report_channel='monitoring', service=None):

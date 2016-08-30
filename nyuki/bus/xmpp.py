@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 from slixmpp import ClientXMPP
 from slixmpp.exceptions import IqError, IqTimeout
 from uuid import uuid4
@@ -132,6 +133,13 @@ class XmppBus(Service):
         if not self._mucs:
             return []
         return [topic.split('@')[0] for topic in self._mucs.rooms.keys()]
+
+    @property
+    def public_topics(self):
+        """
+        Return all public topics ("topic")
+        """
+        return [topic for topic in self.topics if re.match(r'^[^\/]+$', topic)]
 
     async def start(self, timeout=0):
         self.client.connect()
@@ -448,7 +456,7 @@ class XmppBus(Service):
         await self._connected.wait()
 
         self._mucs.joinMUC(self._muc_address(topic), self._topic)
-        log.info("Subscribed to '{}'".format(topic))
+        log.info("Subscribed to '%s'", topic)
         if self._callbacks.get(topic) is None:
             self._callbacks[topic] = callback
         else:
@@ -463,8 +471,9 @@ class XmppBus(Service):
         await self._connected.wait()
 
         self._mucs.leaveMUC(self._muc_address(topic), self._topic)
-        del self._callbacks[topic]
-        log.info("Unsubscribed from '{}'".format(topic))
+        if topic in self._callbacks:
+            del self._callbacks[topic]
+        log.info("Unsubscribed from '%s'", topic)
 
     def direct_subscribe(self, callback):
         """

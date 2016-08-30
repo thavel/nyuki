@@ -49,14 +49,22 @@ class ApiBusReplay:
 class ApiBusTopics:
 
     async def get(self, request):
-        return Response(self.nyuki.bus.topics)
+        try:
+            self._services.get('bus')
+        except KeyError:
+            return Response(status=404)
+        return Response(self.nyuki.bus.public_topics)
 
 
 @resource('/bus/publish', versions=['v1'])
 class ApiBusPublish:
 
     async def post(self, request):
-        await ApiBusPublishTopic.post(self, request, None)
+        try:
+            self._services.get('bus')
+        except KeyError:
+            return Response(status=404)
+        asyncio.ensure_future(self.nyuki.bus.publish(await request.json()))
 
 
 @resource('/bus/publish/{topic}', versions=['v1'])
@@ -67,7 +75,6 @@ class ApiBusPublishTopic:
             self._services.get('bus')
         except KeyError:
             return Response(status=404)
-
-        asyncio.ensure_future(self.bus.publish(
+        asyncio.ensure_future(self.nyuki.bus.publish(
             await request.json(), topic
         ))
