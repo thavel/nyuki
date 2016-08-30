@@ -263,7 +263,7 @@ class ApiFactoryLookupCSV:
         """
         Return the lookup table for id `lookup_id`
         """
-        encoding = 'latin-1'
+        encoding = 'ISO-8859-1'
         lookup = await self.nyuki.storage.lookups.get(lookup_id)
         if not lookup:
             return Response(status=404)
@@ -273,19 +273,19 @@ class ApiFactoryLookupCSV:
         filename = re.sub(r'[ ,]', '_', filename)
 
         # Write CSV
-        iocsv = StringIO()
-        writer = csv.DictWriter(iocsv, CSV_FIELDNAMES, delimiter=',')
-        writer.writeheader()
-        for pair in lookup['table']:
-            log.debug(pair)
-            writer.writerow({key: value.encode(encoding) for key, value in pair.items()})
+        with StringIO() as iocsv:
+            writer = csv.DictWriter(iocsv, fieldnames=CSV_FIELDNAMES, delimiter=',')
+            writer.writeheader()
+            for pair in lookup['table']:
+                writer.writerow(pair)
             iocsv.seek(0)
 
-        headers = {
-            'Content-Disposition': 'attachment; filename={}'.format(filename)
-        }
-        return Response(
-            iocsv.read(),
-            content_type='text/csv; charset={}'.format(encoding),
-            headers=headers
-        )
+            headers = {
+                'Content-Disposition': 'attachment; filename={}'.format(filename),
+                'Content-Type': 'text/csv; charset=ISO-8859-1'
+            }
+
+            return Response(
+                text=iocsv.read(),
+                headers=headers
+            )
