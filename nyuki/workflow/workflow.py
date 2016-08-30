@@ -1,12 +1,14 @@
 import asyncio
+from datetime import datetime
 import logging
-from tukio import Engine, TaskRegistry
+from tukio import Engine, TaskRegistry, get_broker, EXEC_TOPIC
 from tukio.workflow import (
     TemplateGraphError, Workflow, WorkflowTemplate, WorkflowExecState
 )
 
 from nyuki import Nyuki
 from nyuki.bus import reporting
+from nyuki.websocket import websocket_ready
 
 from .api.factory import (
     ApiFactoryRegex, ApiFactoryRegexes, ApiFactoryLookup, ApiFactoryLookups,
@@ -26,6 +28,17 @@ log = logging.getLogger(__name__)
 
 class BadRequestError(Exception):
     pass
+
+
+def serialize_wflow_exec(obj):
+    """
+    JSON default serializer for workflows and datetime/isoformat.
+    """
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, Workflow):
+        return obj.report()
+    raise TypeError('obj not serializable: {}'.format(obj))
 
 
 class WorkflowNyuki(Nyuki):
@@ -100,6 +113,12 @@ class WorkflowNyuki(Nyuki):
             asyncio.ensure_future(self.bus.subscribe(
                 self.bus.publish_topic(topic), self.workflow_event
             ))
+        # Enable workflow exec follow-up
+        if 'websocket' in self._services.all:
+            log.info('Setting up websocket updates of workflow instances')
+            get_broker().register(self.report_workflow, topic=EXEC_TOPIC)
+            # Set workflow serializer
+            self.websocket.default = serialize_wflow_exec
 
     async def reload(self):
         await self.reload_from_storage()
@@ -107,6 +126,23 @@ class WorkflowNyuki(Nyuki):
     async def teardown(self):
         if self.engine:
             await self.engine.stop()
+
+    @websocket_ready
+    async def websocket_ready(self, token):
+        """
+        Immediately send all instances of workflows to the client.
+        """
+        return self.engine.instances
+
+    async def report_workflow(self, event):
+        """
+        Send all worklfow updates to the clients.
+        """
+        await self.websocket.broadcast({
+            'type': event.data['type'],
+            'data': event.data.get('content', {}),
+            'source': dict(event.source._asdict())
+        })
 
     async def workflow_event(self, efrom, data):
         await self.engine.data_received(data, efrom)

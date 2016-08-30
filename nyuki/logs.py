@@ -32,6 +32,9 @@ DEFAULT_LOGGING = {
         },
         "slixmpp": {
             "level": "WARNING"
+        },
+        "websockets": {
+            "level": "WARNING"
         }
     },
     "disable_existing_loggers": False
