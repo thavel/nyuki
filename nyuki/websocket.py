@@ -77,18 +77,18 @@ class WebHandler(Service):
         self.server = None
         self.keepalive = None
         self.clients = {}
-        self._default_serialize = None
+        self._serializer = None
 
     @property
-    def default(self):
-        return self._default_serialize
+    def serializer(self):
+        return self._serializer
 
-    @default.setter
-    def default(self, default):
+    @serializer.setter
+    def serializer(self, serializer):
         """
         Set to add a serializer to JSON messages.
         """
-        self._default_serialize = default
+        self._serializer = serializer
 
     async def start(self):
         """
@@ -132,7 +132,7 @@ class WebHandler(Service):
         """
         tasks = []
         if not isinstance(message, str):
-            data = json.dumps(message, default=self._default_serialize)
+            data = json.dumps(message, default=self._serializer)
         if isinstance(tokens, str):
             tokens = [tokens]
         if isinstance(tokens, list):
@@ -169,7 +169,7 @@ class WebHandler(Service):
             ready['data'] = await self.READY_CALLBACK(self._nyuki, token) or {}
         log.info('Sending ready packet')
         log.debug('ready dump: %s', ready)
-        await websocket.send(json.dumps(ready, default=self._default_serialize))
+        await websocket.send(json.dumps(ready, default=self._serializer))
 
     def _check_token_usage(self, token):
         """

@@ -118,7 +118,7 @@ class WorkflowNyuki(Nyuki):
             log.info('Setting up websocket updates of workflow instances')
             get_broker().register(self.report_workflow, topic=EXEC_TOPIC)
             # Set workflow serializer
-            self.websocket.default = serialize_wflow_exec
+            self.websocket.serializer = serialize_wflow_exec
 
     async def reload(self):
         await self.reload_from_storage()
