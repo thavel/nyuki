@@ -263,7 +263,6 @@ class ApiFactoryLookupCSV:
         """
         Return the lookup table for id `lookup_id`
         """
-        encoding = 'ISO-8859-1'
         lookup = await self.nyuki.storage.lookups.get(lookup_id)
         if not lookup:
             return Response(status=404)
@@ -274,7 +273,9 @@ class ApiFactoryLookupCSV:
 
         # Write CSV
         with StringIO() as iocsv:
-            writer = csv.DictWriter(iocsv, fieldnames=CSV_FIELDNAMES, delimiter=',')
+            writer = csv.DictWriter(
+                iocsv, fieldnames=CSV_FIELDNAMES, delimiter=','
+            )
             writer.writeheader()
             for pair in lookup['table']:
                 writer.writerow(pair)
