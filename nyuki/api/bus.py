@@ -50,7 +50,7 @@ class ApiBusTopics:
 
     async def get(self, request):
         try:
-            self._services.get('bus')
+            self.nyuki._services.get('bus')
         except KeyError:
             return Response(status=404)
         return Response(self.nyuki.bus.public_topics)
@@ -61,7 +61,7 @@ class ApiBusPublish:
 
     async def post(self, request):
         try:
-            self._services.get('bus')
+            self.nyuki._services.get('bus')
         except KeyError:
             return Response(status=404)
         asyncio.ensure_future(self.nyuki.bus.publish(await request.json()))
@@ -72,7 +72,7 @@ class ApiBusPublishTopic:
 
     async def post(self, request, topic):
         try:
-            self._services.get('bus')
+            self.nyuki._services.get('bus')
         except KeyError:
             return Response(status=404)
         asyncio.ensure_future(self.nyuki.bus.publish(
