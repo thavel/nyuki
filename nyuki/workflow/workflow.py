@@ -90,6 +90,8 @@ class WorkflowNyuki(Nyuki):
         self.migrate_config()
         self.engine = None
         self.storage = None
+        # Stores workflow instances with their template data
+        self.instances = {}
 
         self.AVAILABLE_TASKS = {}
         for name, value in TaskRegistry.all().items():
@@ -114,11 +116,9 @@ class WorkflowNyuki(Nyuki):
                 self.bus.publish_topic(topic), self.workflow_event
             ))
         # Enable workflow exec follow-up
-        if 'websocket' in self._services.all:
-            log.info('Setting up websocket updates of workflow instances')
-            get_broker().register(self.report_workflow, topic=EXEC_TOPIC)
-            # Set workflow serializer
-            self.websocket.serializer = serialize_wflow_exec
+        get_broker().register(self.report_workflow, topic=EXEC_TOPIC)
+        # Set workflow serializer
+        self.websocket.serializer = serialize_wflow_exec
 
     async def reload(self):
         await self.reload_from_storage()
@@ -132,7 +132,7 @@ class WorkflowNyuki(Nyuki):
         """
         Immediately send all instances of workflows to the client.
         """
-        return await self.format_instances()
+        return list(self.instances.values())
 
     async def report_workflow(self, event):
         """
@@ -140,15 +140,16 @@ class WorkflowNyuki(Nyuki):
         TODO: Incoming workflow history feature will revamp this.
         """
         source = event.source._asdict()
-        if event.data['type'] == WorkflowExecState.begin.value:
-            template = await self.storage.templates.get(
-                source['workflow_template_id'], with_metadata=False
-            )
-            source = {
-                **source,
-                'workflow_template_version': template[0]['version'],
-                'workflow_template_draft': template[0]['draft']
-            }
+        instance = self.instances[source['workflow_exec_id']]
+        # Workflow ended, clear it from memory
+        # TODO: Instance storage
+        if event.data['type'] == WorkflowExecState.end.value:
+            del self.instances[source['workflow_exec_id']]
+        source = {
+            **source,
+            'workflow_template_version': instance['version'],
+            'workflow_template_draft': instance['draft']
+        }
         await self.websocket.broadcast({
             'type': event.data['type'],
             'data': event.data.get('content') or {},
@@ -156,7 +157,20 @@ class WorkflowNyuki(Nyuki):
         })
 
     async def workflow_event(self, efrom, data):
-        await self.engine.data_received(data, efrom)
+        """
+        New bus event received, trigger workflows if needed.
+        """
+        instances = await self.engine.data_received(data, efrom)
+        for instance in instances:
+            templates = await self.storage.templates.get(
+                instance.template.uid,
+                draft=False,
+                with_metadata=False
+            )
+            self.instances[instance.uid] = {
+                **instance.report(),
+                **templates[0],
+            }
 
     async def reload_from_storage(self):
         """
@@ -175,22 +189,3 @@ class WorkflowNyuki(Nyuki):
             except Exception as exc:
                 # Means a bad workflow is in database, report it
                 reporting.exception(exc)
-
-    async def format_instances(self, uid=None):
-        """
-        Format instances to include their template data (minus metadata).
-        Set `uid` to retrieve only this specific workflow exec uid.
-        TODO: Incoming workflow history feature will revamp this.
-        """
-        templates = {}
-        instances = []
-        for instance in self.engine.instances:
-            if uid is not None and instance.uid == uid:
-                continue
-            instance = instance.report()
-            if instance['id'] not in templates:
-                tid = instance['id']
-                tmpls = await self.storage.templates.get(tid, with_metadata=False)
-                templates[tid] = tmpls[0]
-            instances.append({**instance, **templates[tid]})
-        return instances

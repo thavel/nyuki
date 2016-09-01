@@ -54,7 +54,7 @@ class ApiWorkflows(_WorkflowResource):
         """
         return Response(
             json.dumps(
-                await self.nyuki.format_instances(),
+                list(self.nyuki.instances.values()),
                 default=self.serialize_wflow_exec
             ),
             content_type='application/json'
@@ -100,6 +100,11 @@ class ApiWorkflows(_WorkflowResource):
                 'error': 'Could not start any workflow from this template'
             })
 
+        # Keep full instance+template in nyuki's memory
+        self.nyuki.instances[wflow.uid] = {
+            **wflow.report(),
+            **templates[0],
+        }
         # Handle async workflow exec updates
         if async_topic is not None:
             self.register_async_handler(async_topic, wflow)
@@ -117,12 +122,14 @@ class ApiWorkflow(_WorkflowResource):
         """
         Return a workflow instance
         """
-        instances = await self.nyuki.format_instances(iid)
-        if not instances:
+        if iid not in self.nyuki.instances:
             return Response(status=404)
 
         return Response(
-            json.dumps(instances[0], default=self.serialize_wflow_exec),
+            json.dumps(
+                self.nyuki.instances[iid],
+                default=self.serialize_wflow_exec
+            ),
             content_type='application/json'
         )
 
