@@ -137,13 +137,22 @@ class WorkflowNyuki(Nyuki):
     async def report_workflow(self, event):
         """
         Send all worklfow updates to the clients.
+        TODO: Incoming workflow history feature will revamp this.
         """
         source = event.source._asdict()
-        is_prod = source['workflow_template_id'] in self.engine.selector._templates
+        if event.data['type'] == WorkflowExecState.begin.value:
+            template = await self.storage.templates.get(
+                source['workflow_template_id'], with_metadata=False
+            )
+            source = {
+                **source,
+                'workflow_template_version': template[0]['version'],
+                'workflow_template_draft': template[0]['draft']
+            }
         await self.websocket.broadcast({
             'type': event.data['type'],
             'data': event.data.get('content') or {},
-            'source': {**source, 'production': is_prod}
+            'source': source
         })
 
     async def workflow_event(self, efrom, data):
@@ -171,6 +180,7 @@ class WorkflowNyuki(Nyuki):
         """
         Format instances to include their template data (minus metadata).
         Set `uid` to retrieve only this specific workflow exec uid.
+        TODO: Incoming workflow history feature will revamp this.
         """
         templates = {}
         instances = []
