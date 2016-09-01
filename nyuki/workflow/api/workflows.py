@@ -54,8 +54,9 @@ class ApiWorkflows(_WorkflowResource):
         """
         return Response(
             json.dumps(
-                self.nyuki.engine.instances,
-                default=self.serialize_wflow_exec),
+                await self.nyuki.format_instances(),
+                default=self.serialize_wflow_exec
+            ),
             content_type='application/json'
         )
 
@@ -116,19 +117,30 @@ class ApiWorkflow(_WorkflowResource):
         """
         Return a workflow instance
         """
-        for instance in self.nyuki.engine.instances:
-            if instance.uid == iid:
-                return Response(
-                    json.dumps(instance, default=self.serialize_wflow_exec),
-                    content_type='application/json'
-                )
+        instances = await self.nyuki.format_instances(iid)
+        if not instances:
+            return Response(status=404)
 
-        return Response(status=404)
+        return Response(
+            json.dumps(instances[0], default=self.serialize_wflow_exec),
+            content_type='application/json'
+        )
 
     async def post(self, request, iid):
         """
         Operate on a workflow instance
         """
+
+    async def delete(self, request, iid):
+        """
+        Cancel a workflow instance.
+        """
+        for instance in self.nyuki.engine.instances:
+            if instance.uid == iid:
+                instance.cancel()
+                return
+
+        return Response(status=404)
 
 
 @resource('/test', versions=['v1'])

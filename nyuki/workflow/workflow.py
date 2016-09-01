@@ -132,7 +132,7 @@ class WorkflowNyuki(Nyuki):
         """
         Immediately send all instances of workflows to the client.
         """
-        return self.engine.instances
+        return await self.format_instances()
 
     async def report_workflow(self, event):
         """
@@ -164,3 +164,21 @@ class WorkflowNyuki(Nyuki):
             except Exception as exc:
                 # Means a bad workflow is in database, report it
                 reporting.exception(exc)
+
+    async def format_instances(self, uid=None):
+        """
+        Format instances to include their template data (minus metadata).
+        Set `uid` to retrieve only this specific workflow exec uid.
+        """
+        templates = {}
+        instances = []
+        for instance in self.engine.instances:
+            if uid is not None and instance.uid == uid:
+                continue
+            instance = instance.report()
+            if instance['id'] not in templates:
+                tid = instance['id']
+                tmpls = await self.storage.templates.get(tid, with_metadata=False)
+                templates[tid] = tmpls[0]
+            instances.append({**instance, **templates[tid]})
+        return instances
