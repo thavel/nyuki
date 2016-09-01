@@ -138,10 +138,12 @@ class WorkflowNyuki(Nyuki):
         """
         Send all worklfow updates to the clients.
         """
+        source = event.source._asdict()
+        is_prod = source['workflow_template_id'] in self.engine.selector._templates
         await self.websocket.broadcast({
             'type': event.data['type'],
-            'data': event.data.get('content', {}),
-            'source': dict(event.source._asdict())
+            'data': event.data.get('content') or {},
+            'source': {**source, 'production': is_prod}
         })
 
     async def workflow_event(self, efrom, data):
