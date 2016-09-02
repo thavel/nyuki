@@ -41,6 +41,27 @@ def serialize_wflow_exec(obj):
     raise TypeError('obj not serializable: {}'.format(obj))
 
 
+class WorkflowInstance:
+
+    """
+    Holds a workflow pair of template/instance.
+    Allow retrieving a workflow exec state at any moment.
+    """
+
+    def __init__(self, template, instance):
+        self.template = template
+        self.instance = instance
+
+    def report(self):
+        """
+        Merge a workflow exec instance report and its template.
+        """
+        return {
+            **self.template,
+            **self.instance.report()
+        }
+
+
 class WorkflowNyuki(Nyuki):
 
     """
@@ -91,7 +112,7 @@ class WorkflowNyuki(Nyuki):
         self.engine = None
         self.storage = None
         # Stores workflow instances with their template data
-        self.instances = {}
+        self.running_workflows = {}
 
         self.AVAILABLE_TASKS = {}
         for name, value in TaskRegistry.all().items():
@@ -132,7 +153,15 @@ class WorkflowNyuki(Nyuki):
         """
         Immediately send all instances of workflows to the client.
         """
-        return list(self.instances.values())
+        return [workflow.report() for workflow in self.running_workflows.values()]
+
+    def new_workflow(self, template, instance):
+        """
+        Keep in memory a workflow template/instance pair.
+        """
+        wflow = WorkflowInstance(template, instance)
+        self.running_workflows[instance.uid] = wflow
+        return wflow
 
     async def report_workflow(self, event):
         """
@@ -140,40 +169,41 @@ class WorkflowNyuki(Nyuki):
         TODO: Incoming workflow history feature will revamp this.
         """
         source = event.source._asdict()
-        instance = self.instances[source['workflow_exec_id']]
+        instance = self.running_workflows[source['workflow_exec_id']]
         # Workflow ended, clear it from memory
         # TODO: Instance storage
         if event.data['type'] == WorkflowExecState.end.value:
-            del self.instances[source['workflow_exec_id']]
-        source = {
-            **source,
-            'workflow_template_version': instance['version'],
-            'workflow_template_draft': instance['draft']
-        }
-        await self.websocket.broadcast({
+            del self.running_workflows[source['workflow_exec_id']]
+
+        payload = {
             'type': event.data['type'],
             'data': event.data.get('content') or {},
             'source': source
-        })
+        }
+
+        if event.data['type'] == WorkflowExecState.begin.value:
+            payload['template'] = instance.template
+
+        await self.websocket.broadcast(payload)
 
     async def workflow_event(self, efrom, data):
         """
         New bus event received, trigger workflows if needed.
         """
+        # templates = {}
         instances = await self.engine.data_received(data, efrom)
-        templates = {}
-        for instance in instances:
-            if instance.template.uid not in templates:
-                template = await self.storage.templates.get(
-                    instance.template.uid,
-                    draft=False,
-                    with_metadata=False
-                )
-                templates[instance.template.uid] = template[0]
-            self.instances[instance.uid] = {
-                **instance.report(),
-                **templates[instance.template.uid],
-            }
+        # for instance in instances:
+        #     if instance.template.uid not in templates:
+        #         template = await self.storage.templates.get(
+        #             instance.template.uid,
+        #             draft=False,
+        #             with_metadata=False
+        #         )
+        #         templates[instance.template.uid] = template[0]
+        #     self.instances[instance.uid] = {
+        #         **templates[instance.template.uid],
+        #         **instance.report(),
+        #     }
 
     async def reload_from_storage(self):
         """
