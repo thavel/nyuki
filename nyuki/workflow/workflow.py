@@ -161,15 +161,18 @@ class WorkflowNyuki(Nyuki):
         New bus event received, trigger workflows if needed.
         """
         instances = await self.engine.data_received(data, efrom)
+        templates = {}
         for instance in instances:
-            templates = await self.storage.templates.get(
-                instance.template.uid,
-                draft=False,
-                with_metadata=False
-            )
+            if instance.template.uid not in templates:
+                template = await self.storage.templates.get(
+                    instance.template.uid,
+                    draft=False,
+                    with_metadata=False
+                )
+                templates[instance.template.uid] = template[0]
             self.instances[instance.uid] = {
                 **instance.report(),
-                **templates[0],
+                **templates[instance.template.uid],
             }
 
     async def reload_from_storage(self):
