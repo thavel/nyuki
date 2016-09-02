@@ -81,7 +81,7 @@ class ApiWorkflows(_WorkflowResource):
         templates = await self.nyuki.storage.templates.get(
             request['id'],
             draft=draft,
-            with_metadata=False
+            with_metadata=True
         )
 
         if not templates:
@@ -102,13 +102,16 @@ class ApiWorkflows(_WorkflowResource):
             })
 
         # Keep full instance+template in nyuki's memory
-        payload = self.nyuki.new_workflow(templates[0], wflow)
+        wfinst = self.nyuki.new_workflow(templates[0], wflow)
         # Handle async workflow exec updates
         if async_topic is not None:
             self.register_async_handler(async_topic, wflow)
 
         return Response(
-            json.dumps(payload.report(), default=self.serialize_wflow_exec),
+            json.dumps(
+                wfinst.report(),
+                default=self.serialize_wflow_exec
+            ),
             content_type='application/json'
         )
 

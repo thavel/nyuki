@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime
 import logging
 from tukio import Engine, TaskRegistry, get_broker, EXEC_TOPIC
+from tukio.event import Event
 from tukio.workflow import (
     TemplateGraphError, Workflow, WorkflowTemplate, WorkflowExecState
 )
@@ -49,16 +50,20 @@ class WorkflowInstance:
     """
 
     def __init__(self, template, instance):
-        self.template = template
-        self.instance = instance
+        self._template = template
+        self._instance = instance
+
+    @property
+    def template(self):
+        return self._template
 
     def report(self):
         """
         Merge a workflow exec instance report and its template.
         """
         return {
-            **self.template,
-            **self.instance.report()
+            **self._template,
+            **self._instance.report()
         }
 
 
@@ -153,7 +158,10 @@ class WorkflowNyuki(Nyuki):
         """
         Immediately send all instances of workflows to the client.
         """
-        return [workflow.report() for workflow in self.running_workflows.values()]
+        return [
+            workflow.report()
+            for workflow in self.running_workflows.values()
+        ]
 
     def new_workflow(self, template, instance):
         """
@@ -169,20 +177,23 @@ class WorkflowNyuki(Nyuki):
         TODO: Incoming workflow history feature will revamp this.
         """
         source = event.source._asdict()
-        instance = self.running_workflows[source['workflow_exec_id']]
+        wflow = self.running_workflows[source['workflow_exec_id']]
         # Workflow ended, clear it from memory
         # TODO: Instance storage
         if event.data['type'] == WorkflowExecState.end.value:
             del self.running_workflows[source['workflow_exec_id']]
 
+        content = event.data.get('content') or {}
+        data = content.data if isinstance(content, Event) else content
         payload = {
             'type': event.data['type'],
-            'data': event.data.get('content') or {},
+            'data': data,
             'source': source
         }
 
+        # Is workflow begin, also send the full template.
         if event.data['type'] == WorkflowExecState.begin.value:
-            payload['template'] = instance.template
+            payload['template'] = wflow.template
 
         await self.websocket.broadcast(payload)
 
@@ -190,20 +201,20 @@ class WorkflowNyuki(Nyuki):
         """
         New bus event received, trigger workflows if needed.
         """
-        # templates = {}
+        templates = {}
+        # Retrieve full workflow templates
+        wf_templates = self.engine.selector.select(efrom)
+        for wftmpl in wf_templates:
+            template = await self.storage.templates.get(
+                wftmpl.uid,
+                draft=False,
+                with_metadata=True
+            )
+            templates[wftmpl.uid] = template[0]
+        # Trigger workflows
         instances = await self.engine.data_received(data, efrom)
-        # for instance in instances:
-        #     if instance.template.uid not in templates:
-        #         template = await self.storage.templates.get(
-        #             instance.template.uid,
-        #             draft=False,
-        #             with_metadata=False
-        #         )
-        #         templates[instance.template.uid] = template[0]
-        #     self.instances[instance.uid] = {
-        #         **templates[instance.template.uid],
-        #         **instance.report(),
-        #     }
+        for instance in instances:
+            self.new_workflow(templates[instance.template.uid], instance)
 
     async def reload_from_storage(self):
         """

@@ -191,7 +191,6 @@ class _TemplateCollection:
         metadata = {
             'id': metadata['id'],
             'title': metadata.get('title', ''),
-            'description': metadata.get('description', ''),
             'tags': metadata.get('tags', [])
         }
 

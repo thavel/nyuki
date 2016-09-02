@@ -111,7 +111,6 @@ class ApiTemplates(_TemplateResource):
             metadata = {
                 'id': template.uid,
                 'title': request['title'],
-                'description': request.get('description', ''),
                 'tags': request.get('tags', [])
             }
 
