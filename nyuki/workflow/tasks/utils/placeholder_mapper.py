@@ -1,4 +1,4 @@
-def get_mapper(data, default):
+def placeholder_mapper(data, default):
 
     class PlaceholderMapper(dict):
         def __missing__(self, key):
