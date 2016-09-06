@@ -2,7 +2,6 @@ import asyncio
 from datetime import datetime
 import logging
 from tukio import Engine, TaskRegistry, get_broker, EXEC_TOPIC
-from tukio.event import Event
 from tukio.workflow import (
     TemplateGraphError, Workflow, WorkflowTemplate, WorkflowExecState
 )
@@ -174,20 +173,17 @@ class WorkflowNyuki(Nyuki):
     async def report_workflow(self, event):
         """
         Send all worklfow updates to the clients.
-        TODO: Incoming workflow history feature will revamp this.
+        TODO: Instance storage should be done here.
         """
         source = event.source._asdict()
         wflow = self.running_workflows[source['workflow_exec_id']]
         # Workflow ended, clear it from memory
-        # TODO: Instance storage
         if event.data['type'] == WorkflowExecState.end.value:
             del self.running_workflows[source['workflow_exec_id']]
 
-        content = event.data.get('content') or {}
-        data = content.data if isinstance(content, Event) else content
         payload = {
             'type': event.data['type'],
-            'data': data,
+            'data': event.data.get('content') or {},
             'source': source
         }
 
