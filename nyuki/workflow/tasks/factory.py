@@ -40,7 +40,7 @@ FACTORY_SCHEMAS = {
         'properties': {
             'type': {'type': 'string', 'enum': ['set']},
             'fieldname': {'type': 'string', 'minLength': 1},
-            'value': {'type': 'string', 'minLength': 1},
+            'value': {'description': 'any value'}
         }
     },
     'sub': {
