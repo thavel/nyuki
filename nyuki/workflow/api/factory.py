@@ -152,6 +152,7 @@ class ApiFactoryLookups:
 
         # From bytes to string (aiohttp handles everything in bytes)
         csv_field = data['csv']
+        lookup_name = data.get('title', csv_field.filename.replace('.csv', ''))
         csv_string = csv_field.file.read()
 
         # Try utf-8 or latin-1 encoding
@@ -182,7 +183,7 @@ class ApiFactoryLookups:
             log.info('CSV header found: %s', header)
         table = list(reader)
 
-        lookup = new_lookup(csv_field.filename.replace('.csv', ''), table)
+        lookup = new_lookup(lookup_name, table)
         await self.nyuki.storage.lookups.insert(lookup)
         return Response(lookup)
 
