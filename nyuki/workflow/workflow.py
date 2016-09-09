@@ -38,7 +38,7 @@ def serialize_wflow_exec(obj):
         return obj.isoformat()
     if isinstance(obj, Workflow):
         return obj.report()
-    raise TypeError('obj not serializable: {}'.format(obj))
+    return 'Internal server data'
 
 
 class WorkflowInstance:
