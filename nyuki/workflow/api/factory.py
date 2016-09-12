@@ -152,7 +152,7 @@ class ApiFactoryLookups:
 
         # From bytes to string (aiohttp handles everything in bytes)
         csv_field = data['csv']
-        lookup_name = data.get('title', csv_field.filename.replace('.csv', ''))
+        lookup_name = data.get('title') or csv_field.filename.replace('.csv', '')
         csv_string = csv_field.file.read()
 
         # Try utf-8 or latin-1 encoding
