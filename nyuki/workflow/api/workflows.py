@@ -1,12 +1,29 @@
 import asyncio
 from datetime import datetime
 import json
+import logging
 from tukio import get_broker, EXEC_TOPIC
+from tukio.utils import FutureState
 from tukio.workflow import (
     Workflow, WorkflowTemplate, WorkflowExecState
 )
 
 from nyuki.api import Response, resource
+from nyuki.utils import from_isoformat
+
+
+log = logging.getLogger(__name__)
+
+
+def serialize_wflow_exec(obj):
+    """
+    JSON default serializer for workflows and datetime/isoformat.
+    """
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, Workflow):
+        return obj.report()
+    return 'Internal server data: {}'.format(type(obj))
 
 
 class _WorkflowResource:
@@ -15,18 +32,9 @@ class _WorkflowResource:
     Share methods between workflow resources
     """
 
-    def serialize_wflow_exec(self, obj):
-        """
-        JSON default serializer for datetime/isoformat
-        """
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        if isinstance(obj, Workflow):
-            return obj.report()
-        raise TypeError('obj not serializable: {}'.format(obj))
-
     def register_async_handler(self, async_topic, wflow):
         broker = get_broker()
+
         async def exec_handler(event):
             # Pass if event does not concern this workflow execution
             if event.source.workflow_exec_id != wflow.uid:
@@ -42,6 +50,7 @@ class _WorkflowResource:
                 WorkflowExecState.error.value
             ]:
                 broker.unregister(exec_handler, topic=EXEC_TOPIC)
+
         broker.register(exec_handler, topic=EXEC_TOPIC)
 
 
@@ -56,7 +65,7 @@ class ApiWorkflows(_WorkflowResource):
             json.dumps(
                 [workflow.report()
                  for workflow in self.nyuki.running_workflows.values()],
-                default=self.serialize_wflow_exec
+                default=serialize_wflow_exec
             ),
             content_type='application/json'
         )
@@ -110,7 +119,7 @@ class ApiWorkflows(_WorkflowResource):
         return Response(
             json.dumps(
                 wfinst.report(),
-                default=self.serialize_wflow_exec
+                default=serialize_wflow_exec
             ),
             content_type='application/json'
         )
@@ -127,17 +136,12 @@ class ApiWorkflow(_WorkflowResource):
             return Response(
                 json.dumps(
                     self.nyuki.running_workflows[iid].report(),
-                    default=self.serialize_wflow_exec
+                    default=serialize_wflow_exec
                 ),
                 content_type='application/json'
             )
         except KeyError:
             return Response(status=404)
-
-    async def post(self, request, iid):
-        """
-        Operate on a workflow instance
-        """
 
     async def delete(self, request, iid):
         """
@@ -151,17 +155,64 @@ class ApiWorkflow(_WorkflowResource):
         return Response(status=404)
 
 
-@resource('/test', versions=['v1'])
-class ApiTest:
+@resource('/workflow/history', versions=['v1'])
+class ApiWorkflowsHistory:
 
-    async def post(self, request):
-        # Send data to all topics
-        await ApiTestTopic.post(self, request, None)
+    async def get(self, request):
+        # Filter on start date
+        since = request.GET.get('since')
+        if since:
+            try:
+                since = from_isoformat(since)
+            except ValueError:
+                return Response(status=400, body={
+                    'error': "Could not parse date '{}'".format(since)
+                })
+        # Filter on state value
+        state = request.GET.get('state')
+        if state:
+            try:
+                state = FutureState(state)
+            except ValueError:
+                return Response(status=400, body={
+                    'error': "Unknown state '{}'".format(state)
+                })
+        # Skip first items
+        offset = request.GET.get('offset')
+        if offset:
+            try:
+                offset = int(offset)
+            except ValueError:
+                return Response(status=400, body={
+                    'error': 'Offset must be an int'
+                })
+        # Limit max result
+        limit = request.GET.get('limit')
+        if limit:
+            try:
+                limit = int(limit)
+            except ValueError:
+                return Response(status=400, body={
+                    'error': 'Limit must be an int'
+                })
+        history = await self.nyuki.storage.instances.get(
+            offset=offset, limit=limit, since=since, state=state
+        )
+        return Response(
+            json.dumps(history, default=serialize_wflow_exec),
+            content_type='application/json'
+        )
 
 
-@resource('/test/{topic}', versions=['v1'])
-class ApiTestTopic:
+@resource('/workflow/history/{uid}', versions=['v1'])
+class ApiWorkflowHistory:
 
-    async def post(self, request, topic):
-        # Send data to the given topic
-        await self.nyuki.workflow_event(topic, await request.json())
+    async def get(self, request, uid):
+        workflow = await self.nyuki.storage.instances.get_one(uid)
+        if not workflow:
+            return Response(status=404)
+        return Response(
+            json.dumps(workflow, default=serialize_wflow_exec),
+            content_type='application/json'
+        )
+

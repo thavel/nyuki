@@ -17,7 +17,11 @@ from .api.factory import (
 from .api.templates import (
     ApiTasks, ApiTemplates, ApiTemplate, ApiTemplateVersion, ApiTemplateDraft
 )
-from .api.workflows import ApiWorkflow, ApiWorkflows, ApiTest, ApiTestTopic
+from .api.workflows import (
+    ApiWorkflow, ApiWorkflows, ApiWorkflowsHistory, ApiWorkflowHistory,
+    serialize_wflow_exec
+)
+
 from .storage import MongoStorage
 from .tasks import *
 from .tasks.utils import runtime
@@ -30,15 +34,20 @@ class BadRequestError(Exception):
     pass
 
 
-def serialize_wflow_exec(obj):
+def sanitize_workflow_exec(obj):
     """
-    JSON default serializer for workflows and datetime/isoformat.
+    Replace any object value by 'internal data' string to store in Mongo.
     """
-    if isinstance(obj, datetime):
-        return obj.isoformat()
-    if isinstance(obj, Workflow):
-        return obj.report()
-    return 'Internal server data'
+    types = [dict, list, tuple, str, int, float, bool, type(None), datetime]
+    if type(obj) not in types:
+        obj = 'Internal server data: {}'.format(type(obj))
+    elif isinstance(obj, dict):
+        for key, value in obj.items():
+            obj[key] = sanitize_workflow_exec(value)
+    elif isinstance(obj, list):
+        for item in obj:
+            item = sanitize_workflow_exec(item)
+    return obj
 
 
 class WorkflowInstance:
@@ -93,20 +102,20 @@ class WorkflowNyuki(Nyuki):
         }
     }
     HTTP_RESOURCES = Nyuki.HTTP_RESOURCES + [
-        ApiTasks,
-        ApiTemplate,
-        ApiTemplates,
-        ApiTemplateDraft,
-        ApiTemplateVersion,
-        ApiWorkflow,
-        ApiWorkflows,
-        ApiFactoryRegex,
-        ApiFactoryRegexes,
-        ApiFactoryLookup,
-        ApiFactoryLookupCSV,
-        ApiFactoryLookups,
-        ApiTest,
-        ApiTestTopic,
+        ApiTasks,  # /v1/workflows/tasks
+        ApiTemplates,  # /v1/workflows/templates
+        ApiTemplate,  # /v1/workflows/templates/{uid}
+        ApiTemplateDraft,  # /v1/workflows/templates/{uid}/draft
+        ApiTemplateVersion,  # /v1/workflows/templates/{uid}/{version}
+        ApiWorkflows,  # /v1/workflows
+        ApiWorkflow,  # /v1/workflows/{uid}
+        ApiWorkflowsHistory,  # /v1/workflows/history
+        ApiWorkflowHistory,  # /v1/workflows/history/{uid}
+        ApiFactoryRegexes,  # /v1/workflows/regexes
+        ApiFactoryRegex,  # /v1/workflows/regexes/{uid}
+        ApiFactoryLookups,  # /v1/workflows/lookups
+        ApiFactoryLookup,  # /v1/workflows/lookups/{uid}
+        ApiFactoryLookupCSV,  # /v1/workflows/lookups/{uid}/csv
     ]
 
     def __init__(self, **kwargs):
@@ -173,13 +182,20 @@ class WorkflowNyuki(Nyuki):
     async def report_workflow(self, event):
         """
         Send all worklfow updates to the clients.
-        TODO: Instance storage should be done here.
         """
         source = event.source._asdict()
-        wflow = self.running_workflows[source['workflow_exec_id']]
+        exec_id = source['workflow_exec_id']
+        wflow = self.running_workflows[exec_id]
         # Workflow ended, clear it from memory
-        if event.data['type'] == WorkflowExecState.end.value:
-            del self.running_workflows[source['workflow_exec_id']]
+        if event.data['type'] in [
+            WorkflowExecState.end.value,
+            WorkflowExecState.error.value
+        ]:
+            # Sanitize objects to store the finished workflow instance
+            asyncio.ensure_future(self.storage.instances.insert(
+                sanitize_workflow_exec(wflow.report())
+            ))
+            del self.running_workflows[exec_id]
 
         payload = {
             'type': event.data['type'],

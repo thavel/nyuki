@@ -1,5 +1,7 @@
 import asyncio
 from contextlib import contextmanager
+from datetime import datetime
+from enum import Enum
 import logging
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import DESCENDING
@@ -227,12 +229,6 @@ class _TemplateCollection:
                 await self._metadata.remove({'id': tid})
 
 
-class _InstanceCollection:
-
-    def __init__(self, instances_collection):
-        self._instances = instances_collection
-
-
 class _DataProcessingCollection:
 
     def __init__(self, data_collection):
@@ -287,6 +283,48 @@ class _DataProcessingCollection:
         log.debug('delete query: %s', query)
         with _report_connection():
             await self._rules.remove(query)
+
+
+class _InstanceCollection:
+
+    def __init__(self, instances_collection):
+        self._instances = instances_collection
+        asyncio.ensure_future(_index(self._instances, 'exec.id', unique=True))
+        asyncio.ensure_future(_index(self._instances, [('exec.start', DESCENDING)]))
+        asyncio.ensure_future(_index(self._instances, [('exec.end', DESCENDING)]))
+        asyncio.ensure_future(_index(self._instances, 'exec.state'))
+
+    async def get_one(self, exec_id):
+        """
+        Return the instance with `exec_id` from workflow history.
+        """
+        return await self._instances.find_one({'exec.id': exec_id}, {'_id': 0})
+
+    async def get(self, offset=None, limit=None, since=None, state=None):
+        """
+        Return all instances from history from `since` with state `state`.
+        """
+        query = {}
+        # Prepare query
+        if isinstance(since, datetime):
+            query['exec.start'] = {'$gte': since}
+        if isinstance(state, Enum):
+            query['exec.state'] = state.value
+        cursor = self._instances.find(query, {'_id': 0})
+        # Set offset and limit
+        if isinstance(offset, int) and offset >= 0:
+            cursor.skip(offset)
+        if isinstance(limit, int) and limit > 0:
+            cursor.limit(limit)
+        cursor.sort('exec.start', DESCENDING)
+        # Execute query
+        return await cursor.to_list(None)
+
+    async def insert(self, workflow_exec):
+        """
+        Insert a finished workflow report into the workflow history.
+        """
+        await self._instances.insert(workflow_exec)
 
 
 class MongoStorage:
