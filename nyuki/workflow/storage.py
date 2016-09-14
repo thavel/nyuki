@@ -5,7 +5,7 @@ from enum import Enum
 import logging
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import DESCENDING
-from pymongo.errors import AutoReconnect, OperationFailure, DuplicateKeyError
+from pymongo.errors import OperationFailure, DuplicateKeyError
 
 from nyuki.bus import reporting
 
@@ -18,20 +18,19 @@ class DuplicateTemplateError(Exception):
 
 
 @contextmanager
-def _report_connection(*args, **kwargs):
+def _report_operation(*args, **kwargs):
     try:
         yield
     except OperationFailure as exc:
         reporting.exception(exc)
-    except AutoReconnect as exc:
-        log.error('No connection to mongo: {}'.format(exc))
+        raise
 
 
 async def _index(collection, *args, **kwargs):
     """
     Helper to ensure_index in __init__
     """
-    with _report_connection():
+    with _report_operation():
         await collection.ensure_index(*args, **kwargs)
 
 
@@ -67,7 +66,7 @@ class _TemplateCollection:
         cursor = self._metadata.find(query, {'_id': 0})
 
         metadatas = []
-        with _report_connection():
+        with _report_operation():
             metadatas = await cursor.to_list(None)
         return metadatas
 
@@ -82,7 +81,7 @@ class _TemplateCollection:
         cursor.sort('version', DESCENDING)
 
         templates = []
-        with _report_connection():
+        with _report_operation():
             templates = await cursor.to_list(None)
 
         # Collect metadata
@@ -122,7 +121,7 @@ class _TemplateCollection:
         cursor.sort('version', DESCENDING)
 
         templates = []
-        with _report_connection():
+        with _report_operation():
             templates = await cursor.to_list(None)
 
         # Collect metadata
@@ -142,7 +141,7 @@ class _TemplateCollection:
         cursor = self._templates.find(query)
         cursor.sort('version', DESCENDING)
 
-        with _report_connection():
+        with _report_operation():
             await cursor.fetch_next
 
         template = cursor.next_object()
@@ -161,7 +160,7 @@ class _TemplateCollection:
         await self.delete(template['id'], template['version'], True)
 
         log.info('Insert template with query: %s', query)
-        with _report_connection():
+        with _report_operation():
             try:
                 # Copy dict, mongo somehow alter the given dict
                 await self._templates.insert(template.copy())
@@ -177,7 +176,7 @@ class _TemplateCollection:
             'draft': True
         }
 
-        with _report_connection():
+        with _report_operation():
             try:
                 log.info('Update draft for query: %s', query)
                 await self._templates.update(query, template, upsert=True)
@@ -196,7 +195,7 @@ class _TemplateCollection:
             'tags': metadata.get('tags', [])
         }
 
-        with _report_connection():
+        with _report_operation():
             log.info('Update metadata for query: %s', query)
             await self._metadata.update(query, metadata, upsert=True)
 
@@ -207,7 +206,7 @@ class _TemplateCollection:
         From draft to production
         """
         query = {'id': tid, 'draft': True}
-        with _report_connection():
+        with _report_operation():
             await self._templates.update(query, {'$set': {'draft': False}})
 
     async def delete(self, tid, version=None, draft=None):
@@ -222,7 +221,7 @@ class _TemplateCollection:
 
         log.info("Removing template(s) with query: %s", query)
 
-        with _report_connection():
+        with _report_operation():
             await self._templates.remove(query)
             left = await self._templates.find({'id': tid}).count()
             if not left:
@@ -241,7 +240,7 @@ class _DataProcessingCollection:
         """
         cursor = self._rules.find(None, {'_id': 0})
         rules = []
-        with _report_connection():
+        with _report_operation():
             rules = await cursor.to_list(None)
         return rules
 
@@ -250,7 +249,7 @@ class _DataProcessingCollection:
         Return the rule for given id or None
         """
         cursor = self._rules.find({'id': rule_id}, {'_id': 0})
-        with _report_connection():
+        with _report_operation():
             await cursor.fetch_next
         return cursor.next_object()
 
@@ -271,7 +270,7 @@ class _DataProcessingCollection:
             self._rules.name
         )
         log.debug('upserting data: %s', data)
-        with _report_connection():
+        with _report_operation():
             await self._rules.update(query, data, upsert=True)
 
     async def delete(self, rule_id=None):
@@ -281,7 +280,7 @@ class _DataProcessingCollection:
         query = {'id': rule_id} if rule_id is not None else None
         log.info("Removing rule(s) from collection '%s'", self._rules.name)
         log.debug('delete query: %s', query)
-        with _report_connection():
+        with _report_operation():
             await self._rules.remove(query)
 
 

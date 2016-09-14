@@ -1,4 +1,5 @@
 import logging
+from pymongo.errors import AutoReconnect
 from tukio.workflow import TemplateGraphError, WorkflowTemplate
 
 from nyuki.api import Response, resource
@@ -77,10 +78,14 @@ class ApiTemplates(_TemplateResource):
         """
         Return available workflows' DAGs
         """
-        return Response(await self.nyuki.storage.templates.get_all(
-            latest=request.GET.get('latest') in ['true', 'True'],
-            draft=request.GET.get('draft') in ['true', 'True'],
-        ))
+        try:
+            templates = await self.nyuki.storage.templates.get_all(
+                latest=request.GET.get('latest') in ['true', 'True'],
+                draft=request.GET.get('draft') in ['true', 'True'],
+            )
+        except AutoReconnect:
+            return Response(status=503)
+        return Response(templates)
 
     async def put(self, request):
         """
@@ -89,7 +94,13 @@ class ApiTemplates(_TemplateResource):
         request = await request.json()
 
         if 'id' in request:
-            if await self.nyuki.storage.templates.get(request['id'], draft=True):
+            try:
+                draft = await self.nyuki.storage.templates.get(
+                    request['id'], draft=True
+                )
+            except AutoReconnect:
+                return Response(status=503)
+            if draft:
                 return Response(status=409, body={
                     'error': 'draft already exists'
                 })
@@ -101,7 +112,10 @@ class ApiTemplates(_TemplateResource):
                 'error': str(exc)
             })
 
-        metadata = await self.nyuki.storage.templates.get_metadata(template.uid)
+        try:
+            metadata = await self.nyuki.storage.templates.get_metadata(template.uid)
+        except AutoReconnect:
+            return Response(status=503)
         if not metadata:
             if 'title' not in request:
                 return Response(status=400, body={
@@ -139,7 +153,10 @@ class ApiTemplate(_TemplateResource):
         """
         Return the latest version of the template
         """
-        tmpl = await self.nyuki.storage.templates.get(tid)
+        try:
+            tmpl = await self.nyuki.storage.templates.get(tid)
+        except AutoReconnect:
+            return Response(status=503)
         if not tmpl:
             return Response(status=404)
 
@@ -149,7 +166,10 @@ class ApiTemplate(_TemplateResource):
         """
         Create a new draft for this template id
         """
-        versions = await self.nyuki.storage.templates.get(tid)
+        try:
+            versions = await self.nyuki.storage.templates.get(tid)
+        except AutoReconnect:
+            return Response(status=503)
         if not versions:
             return Response(status=404)
 
@@ -189,7 +209,10 @@ class ApiTemplate(_TemplateResource):
         """
         Modify the template's metadata
         """
-        tmpl = await self.nyuki.storage.templates.get(tid)
+        try:
+            tmpl = await self.nyuki.storage.templates.get(tid)
+        except AutoReconnect:
+            return Response(status=503)
         if not tmpl:
             return Response(status=404)
 
@@ -207,7 +230,10 @@ class ApiTemplate(_TemplateResource):
         """
         Delete the template
         """
-        tmpl = await self.nyuki.storage.templates.get(tid)
+        try:
+            tmpl = await self.nyuki.storage.templates.get(tid)
+        except AutoReconnect:
+            return Response(status=503)
         if not tmpl:
             return Response(status=404)
 
@@ -228,7 +254,10 @@ class ApiTemplateVersion(_TemplateResource):
         """
         Return the template's given version
         """
-        tmpl = await self.nyuki.storage.templates.get(tid, version, False)
+        try:
+            tmpl = await self.nyuki.storage.templates.get(tid, version, False)
+        except AutoReconnect:
+            return Response(status=503)
         if not tmpl:
             return Response(status=404)
 
@@ -238,7 +267,10 @@ class ApiTemplateVersion(_TemplateResource):
         """
         Delete a template with given version
         """
-        tmpl = await self.nyuki.storage.templates.get(tid)
+        try:
+            tmpl = await self.nyuki.storage.templates.get(tid)
+        except AutoReconnect:
+            return Response(status=503)
         if not tmpl:
             return Response(status=404)
 
@@ -253,7 +285,10 @@ class ApiTemplateDraft(_TemplateResource):
         """
         Return the template's draft, if any
         """
-        tmpl = await self.nyuki.storage.templates.get(tid, draft=True)
+        try:
+            tmpl = await self.nyuki.storage.templates.get(tid, draft=True)
+        except AutoReconnect:
+            return Response(status=503)
         if not tmpl:
             return Response(status=404)
 
@@ -263,7 +298,10 @@ class ApiTemplateDraft(_TemplateResource):
         """
         Publish a draft into production
         """
-        tmpl = await self.nyuki.storage.templates.get(tid, draft=True)
+        try:
+            tmpl = await self.nyuki.storage.templates.get(tid, draft=True)
+        except AutoReconnect:
+            return Response(status=503)
         if not tmpl:
             return Response(status=404)
 
@@ -293,7 +331,10 @@ class ApiTemplateDraft(_TemplateResource):
         """
         Modify the template's draft
         """
-        tmpl = await self.nyuki.storage.templates.get(tid, draft=True)
+        try:
+            tmpl = await self.nyuki.storage.templates.get(tid, draft=True)
+        except AutoReconnect:
+            return Response(status=503)
         if not tmpl:
             return Response(status=404)
 
@@ -327,7 +368,10 @@ class ApiTemplateDraft(_TemplateResource):
         """
         Delete the template's draft
         """
-        tmpl = await self.nyuki.storage.templates.get(tid, draft=True)
+        try:
+            tmpl = await self.nyuki.storage.templates.get(tid, draft=True)
+        except AutoReconnect:
+            return Response(status=503)
         if not tmpl:
             return Response(status=404)
 

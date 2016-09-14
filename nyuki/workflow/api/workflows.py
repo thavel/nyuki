@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime
 import json
 import logging
+from pymongo.errors import AutoReconnect
 from tukio import get_broker, EXEC_TOPIC
 from tukio.utils import FutureState
 from tukio.workflow import (
@@ -87,11 +88,14 @@ class ApiWorkflows(_WorkflowResource):
             })
 
         draft = request.get('draft', False)
-        templates = await self.nyuki.storage.templates.get(
-            request['id'],
-            draft=draft,
-            with_metadata=True
-        )
+        try:
+            templates = await self.nyuki.storage.templates.get(
+                request['id'],
+                draft=draft,
+                with_metadata=True
+            )
+        except AutoReconnect:
+            return Response(status=503)
 
         if not templates:
             return Response(status=404, body={
@@ -195,9 +199,12 @@ class ApiWorkflowsHistory:
                 return Response(status=400, body={
                     'error': 'Limit must be an int'
                 })
-        history = await self.nyuki.storage.instances.get(
-            offset=offset, limit=limit, since=since, state=state
-        )
+        try:
+            history = await self.nyuki.storage.instances.get(
+                offset=offset, limit=limit, since=since, state=state
+            )
+        except AutoReconnect:
+            return Response(status=503)
         return Response(
             json.dumps(history, default=serialize_wflow_exec),
             content_type='application/json'
@@ -208,11 +215,13 @@ class ApiWorkflowsHistory:
 class ApiWorkflowHistory:
 
     async def get(self, request, uid):
-        workflow = await self.nyuki.storage.instances.get_one(uid)
+        try:
+            workflow = await self.nyuki.storage.instances.get_one(uid)
+        except AutoReconnect:
+            return Response(status=503)
         if not workflow:
             return Response(status=404)
         return Response(
             json.dumps(workflow, default=serialize_wflow_exec),
             content_type='application/json'
         )
-

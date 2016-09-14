@@ -2,6 +2,7 @@ from aiohttp.web_reqrep import FileField
 import csv
 from io import StringIO
 import logging
+from pymongo.errors import AutoReconnect
 import re
 from uuid import uuid4
 
@@ -34,7 +35,11 @@ class ApiFactoryRegexes:
         """
         Return the list of all regexes
         """
-        return Response(await self.nyuki.storage.regexes.get_all())
+        try:
+            regexes = await self.nyuki.storage.regexes.get_all()
+        except AutoReconnect:
+            return Response(status=503)
+        return Response(regexes)
 
     async def put(self, request):
         """
@@ -49,14 +54,20 @@ class ApiFactoryRegexes:
                 'error': 'missing parameter {}'.format(exc)
             })
 
-        await self.nyuki.storage.regexes.insert(regex)
+        try:
+            await self.nyuki.storage.regexes.insert(regex)
+        except AutoReconnect:
+            return Response(status=503)
         return Response(regex)
 
     async def delete(self, request):
         """
         Delete all regexes and return the list
         """
-        rules = await self.nyuki.storage.regexes.get_all()
+        try:
+            rules = await self.nyuki.storage.regexes.get_all()
+        except AutoReconnect:
+            return Response(status=503)
         await self.nyuki.storage.regexes.delete()
         return Response(rules)
 
@@ -68,7 +79,10 @@ class ApiFactoryRegex:
         """
         Return the regex for id `regex_id`
         """
-        regex = await self.nyuki.storage.regexes.get(regex_id)
+        try:
+            regex = await self.nyuki.storage.regexes.get(regex_id)
+        except AutoReconnect:
+            return Response(status=503)
         if not regex:
             return Response(status=404)
         return Response(regex)
@@ -77,7 +91,10 @@ class ApiFactoryRegex:
         """
         Modify an existing regex
         """
-        regex = await self.nyuki.storage.regexes.get(regex_id)
+        try:
+            regex = await self.nyuki.storage.regexes.get(regex_id)
+        except AutoReconnect:
+            return Response(status=503)
         if not regex:
             return Response(status=404)
 
@@ -94,7 +111,10 @@ class ApiFactoryRegex:
         """
         Delete the regex with id `regex_id`
         """
-        regex = await self.nyuki.storage.regexes.get(regex_id)
+        try:
+            regex = await self.nyuki.storage.regexes.get(regex_id)
+        except AutoReconnect:
+            return Response(status=503)
         if not regex:
             return Response(status=404)
 
@@ -137,7 +157,11 @@ class ApiFactoryLookups:
         """
         Return the list of all lookups
         """
-        return Response(await self.nyuki.storage.lookups.get_all())
+        try:
+            lookups = await self.nyuki.storage.lookups.get_all()
+        except AutoReconnect:
+            return Response(status=503)
+        return Response(lookups)
 
     @content_type('multipart/form-data')
     async def post(self, request):
@@ -185,7 +209,10 @@ class ApiFactoryLookups:
         table = list(reader)
 
         lookup = new_lookup(lookup_name, table)
-        await self.nyuki.storage.lookups.insert(lookup)
+        try:
+            await self.nyuki.storage.lookups.insert(lookup)
+        except AutoReconnect:
+            return Response(status=503)
         return Response(lookup)
 
     async def put(self, request):
@@ -205,14 +232,20 @@ class ApiFactoryLookups:
                 'error': "'table' must be a list of value/replace pairs"
             })
 
-        await self.nyuki.storage.lookups.insert(lookup)
+        try:
+            await self.nyuki.storage.lookups.insert(lookup)
+        except AutoReconnect:
+            return Response(status=503)
         return Response(lookup)
 
     async def delete(self, request):
         """
         Delete all lookups and return the list
         """
-        lookups = await self.nyuki.storage.lookups.get_all()
+        try:
+            lookups = await self.nyuki.storage.lookups.get_all()
+        except AutoReconnect:
+            return Response(status=503)
         await self.nyuki.storage.lookups.delete()
         return Response(lookups)
 
@@ -224,7 +257,10 @@ class ApiFactoryLookup:
         """
         Return the lookup table for id `lookup_id`
         """
-        lookup = await self.nyuki.storage.lookups.get(lookup_id)
+        try:
+            lookup = await self.nyuki.storage.lookups.get(lookup_id)
+        except AutoReconnect:
+            return Response(status=503)
         if not lookup:
             return Response(status=404)
         return Response(lookup)
@@ -233,7 +269,10 @@ class ApiFactoryLookup:
         """
         Modify an existing lookup table
         """
-        lookup = await self.nyuki.storage.lookups.get(lookup_id)
+        try:
+            lookup = await self.nyuki.storage.lookups.get(lookup_id)
+        except AutoReconnect:
+            return Response(status=503)
         if not lookup:
             return Response(status=404)
 
@@ -250,7 +289,10 @@ class ApiFactoryLookup:
         """
         Delete the lookup table with id `lookup_id`
         """
-        lookup = await self.nyuki.storage.lookups.get(lookup_id)
+        try:
+            lookup = await self.nyuki.storage.lookups.get(lookup_id)
+        except AutoReconnect:
+            return Response(status=503)
         if not lookup:
             return Response(status=404)
 
@@ -265,7 +307,10 @@ class ApiFactoryLookupCSV:
         """
         Return the lookup table for id `lookup_id`
         """
-        lookup = await self.nyuki.storage.lookups.get(lookup_id)
+        try:
+            lookup = await self.nyuki.storage.lookups.get(lookup_id)
+        except AutoReconnect:
+            return Response(status=503)
         if not lookup:
             return Response(status=404)
 

@@ -144,7 +144,7 @@ class WorkflowNyuki(Nyuki):
 
     async def setup(self):
         self.engine = Engine(loop=self.loop)
-        await self.reload_from_storage()
+        asyncio.ensure_future(self.reload_from_storage())
         for topic in self.topics:
             asyncio.ensure_future(self.bus.subscribe(
                 self.bus.publish_topic(topic), self.workflow_event
@@ -155,7 +155,7 @@ class WorkflowNyuki(Nyuki):
         self.websocket.serializer = serialize_wflow_exec
 
     async def reload(self):
-        await self.reload_from_storage()
+        asyncio.ensure_future(self.reload_from_storage())
 
     async def teardown(self):
         if self.engine:
