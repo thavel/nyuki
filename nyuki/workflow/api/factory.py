@@ -172,7 +172,8 @@ class ApiFactoryLookups:
             # Could not determine delimiter
             log.error(exc)
             return Response(status=400, body={
-                'error': str(exc)
+                'error': str(exc),
+                'code': 'CSV_PARSE_ERROR'
             })
 
         log.info("CSV file validated with delimiter: '%s'", dialect.delimiter)
