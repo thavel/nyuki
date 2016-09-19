@@ -273,6 +273,8 @@ class ApiFactoryLookupCSV:
         filename = '{}.csv'.format(lookup['title'])
         filename = re.sub(r'[ ,]', '_', filename)
 
+        encoding = request.GET.get('encoding', 'UTF-8')
+
         # Write CSV
         with StringIO() as iocsv:
             writer = csv.DictWriter(
@@ -285,10 +287,16 @@ class ApiFactoryLookupCSV:
 
             headers = {
                 'Content-Disposition': 'attachment; filename={}'.format(filename),
-                'Content-Type': 'text/csv; charset=ISO-8859-1'
+                'Content-Type': 'text/csv; charset={}'.format(encoding)
             }
 
-            return Response(
-                text=iocsv.read(),
-                headers=headers
-            )
+            try:
+                return Response(
+                    text=iocsv.read(),
+                    headers=headers
+                )
+            except UnicodeEncodeError as exc:
+                return Response(status=406, body={
+                    'error': str(exc),
+                    'code': 'UNICODE_ENCODING_ERROR'
+                })
