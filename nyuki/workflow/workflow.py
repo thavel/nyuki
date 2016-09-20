@@ -69,9 +69,19 @@ class WorkflowInstance:
         """
         Merge a workflow exec instance report and its template.
         """
+        template = self._template.copy()
+        inst = self._instance.report()
+        tasks = {task['id']: task for task in template['tasks']}
+
+        for task in inst['tasks']:
+            # Stored template contains more info than tukio's (title...),
+            # so we add it to the report.
+            tasks[task['id']] = {**tasks[task['id']], **task}
+
         return {
             **self._template,
-            **self._instance.report()
+            'exec': inst['exec'],
+            'tasks': tasks
         }
 
 
