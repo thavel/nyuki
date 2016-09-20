@@ -81,7 +81,7 @@ class WorkflowInstance:
         return {
             **self._template,
             'exec': inst['exec'],
-            'tasks': tasks
+            'tasks': [task for task in tasks.values()]
         }
 
 
