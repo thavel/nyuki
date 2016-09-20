@@ -6,6 +6,7 @@ from .python_script import PythonScript
 from .report import ReportTask
 from .sleep import SleepTask
 from .task_selector import TaskSelector
+from .trigger_workflow import TriggerWorkflowTask
 
 
 # Generic schema to reference a task ID
