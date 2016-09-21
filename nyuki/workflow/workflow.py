@@ -197,7 +197,7 @@ class WorkflowNyuki(Nyuki):
         """
         Send all worklfow updates to the clients.
         """
-        source = event.source._asdict()
+        source = event.source.as_dict()
         exec_id = source['workflow_exec_id']
         wflow = self.running_workflows[exec_id]
         # Workflow ended, clear it from memory
