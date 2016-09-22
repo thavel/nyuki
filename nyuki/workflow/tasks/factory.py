@@ -106,7 +106,10 @@ class FactoryTask(TaskHolder):
                     )
                 )
             data = await resp.json()
-            rule['table'] = data['table']
+            rule['table'] = {
+                field['value']: field['replace']
+                for field in data['table']
+            }
             del rule['lookup_id']
 
     async def get_factory_rules(self, config):
