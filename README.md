@@ -42,111 +42,40 @@ Nyuki's paradigms are convenient for Docker-based environment. We recommend usin
 
 Let's now write two nyukis, namely `timon` and `pumbaa`. Each time `timon` gets a new message, `pumbaa` eats a larva (`timon.py` and `pumbaa.py` available in folder *examples*):
 
-```python
-"""
-This is 'timon'
-"""
-import logging
-from nyuki import Nyuki, resource
-from nyuki.capabilities import Response
-
-
-log = logging.getLogger(__name__)
-
-
-class Timon(Nyuki):
-
-    message = 'hello world!'
-
-    @resource('/message')
-    class Message:
-
-        async def get(self, request):
-            return Response({'message': self.message})
-
-        async def post(self, request):
-            data = await request.json()
-            self.message = data['message']
-            log.info("message updated to '%s'", self.message)
-            self.bus.publish({'order': 'go pumbaa!'})
-            return Response(status=200)
-
-
-if __name__ == '__main__':
-    nyuki = Timon()
-    nyuki.start()
-```
-
-```python
-"""
-This is 'pumbaa'
-"""
-import logging
-from nyuki import Nyuki, resource
-from nyuki.capabilities import Response
-
-
-log = logging.getLogger(__name__)
-
-
-class Pumbaa(Nyuki):
-
-    message = 'hello world!'
-
-    async def setup(self):
-        self.eaten = 0
-        asyncio.ensure_future(self.bus.subscribe('timon', self.eat_larva))
-
-    async def eat_larva(self, topic, data):
-        log.info('yummy yummy!')
-        self.eaten += 1
-
-    @resource('/eaten')
-    class Eaten:
-
-        async def get(self, request):
-            return Response({'eaten': self.eaten})
-
-
-if __name__ == '__main__':
-    nyuki = Pumbaa()
-    nyuki.start()
-```
+Here are [Timon's source](examples/timon.py) and [Puumba's source](examples/puumba.py).
 
 Run your nyukis:
 
 ```bash
-python timon.py -j timon@localhost -p timon -a localhost:8080
-python pumbaa.py -j pumbaa@localhost -p pumbaa -a localhost:8081
+python timon.py -c timon.json
+python pumbaa.py -c puumba.json
 ```
 
 Play with it! Use your favorite HTTP tool (e.g. [Postman](https://chrome.google.com/webstore/detail/postman/fhbjgbiflinjbdggehcddcbncdddomop) or `curl`):
 
 ```bash
-curl -H "Content-Type: application/json" http://localhost:8080/message
+curl http://localhost:8080/v1/message
 {"message": "hello world!"}
 
-curl -H "Content-Type: application/json" http://localhost:8081/eaten
+curl http://localhost:8081/v1/eaten
 {"eaten": 0}
 
-curl -H "Content-Type: application/json" -X POST -d '{"message": "hello timon #1"}' http://localhost:8080/message
-curl -H "Content-Type: application/json" http://localhost:8080/message
+curl -H "Content-Type: application/json" -X PUT -d '{"message": "hello timon #1"}' http://localhost:8080/v1/message
+curl http://localhost:8080/v1/message
 {"message": "hello timon #1"}
 
-curl -H "Content-Type: application/json" http://localhost:8081/eaten
+curl http://localhost:8081/v1/eaten
 {"eaten": 1}
 
-curl -H "Content-Type: application/json" -X POST -d '{"message": "hello timon #2"}' http://localhost:8080/message
-curl -H "Content-Type: application/json" http://localhost:8081/eaten
+curl -H "Content-Type: application/json" -X PUT -d '{"message": "hello timon #2"}' http://localhost:8080/v1/message
+curl -H "Content-Type: application/json" http://localhost:8081/v1/eaten
 {"eaten": 2}
 ```
-
-**Note**: find more code snippets in the [examples/](examples) folder.
 
 
 ## Configuration file
 
-Instead of passing a list of arguments to the command-line you can put the whole nyuki configuration into a JSON file:
+You must put the whole nyuki configuration into a JSON file:
 
 ```json
 {
@@ -156,15 +85,9 @@ Instead of passing a list of arguments to the command-line you can put the whole
   },
   "api": {
     "host": "0.0.0.0",
-    "port": 5558
+    "port": 8081
   }
 }
-```
-
-Starting a nyuki with that config file gets dead simple:
-
-```bash
-python sample.py -c sample.json
 ```
 
 If no configuration file is given, a file named `default.json` will be used, and the same file will be used to create your configuration file is the one you specified does not exist.
@@ -172,7 +95,7 @@ Either way, it is always best to have a valid `default.json` nearby.
 By the way, settings from the configuration file are overridden by command-line arguments. This can be useful to spawn several instances of the same nyuki quickly:
 
 ```bash
-python sample.py -j myjid@myhost -c sample.json
+python sample.py -a 0.0.0.0:5558 -c sample.json
 ```
 
 ### Generic configuration
@@ -181,7 +104,7 @@ python sample.py -j myjid@myhost -c sample.json
 {
     "api": {
         "host": "0.0.0.0",
-        "port": 5558
+        "port": 8081
     },
     "bus": {
         "service": "mqtt",
@@ -189,9 +112,6 @@ python sample.py -j myjid@myhost -c sample.json
         "host": "localhost",
         "name": "nyuki"
     },
-    "rulers": [
-        {"rules": [...]}
-    ],
     "version": 0
 }
 ```
@@ -200,7 +120,6 @@ python sample.py -j myjid@myhost -c sample.json
 |-------|-------------|
 | `api` | The nyuki api host and port |
 | `bus` | The nyuki bus configuration see **Bus configuration** |
-| `rulers` | The nyuki input string processing configuration, see **String processing conf** |
 | `version` | The current configuration version. Versionning is used to be able to migrate config files cf [pijon](https://github.com/optiflows/pijon) |
 
 
