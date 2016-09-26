@@ -40,15 +40,15 @@ Using *XMPP* as a bus service require some specific configuration:
 
 Nyuki's paradigms are convenient for Docker-based environment. We recommend using one container per nyuki implementation.
 
-Let's now write two nyukis, namely `timon` and `pumbaa`. Each time `timon` gets a new message, `pumbaa` eats a larva (`timon.py` and `pumbaa.py` available in folder *examples*):
+Let's now write two nyukis, namely `timon` and `pumba`. Each time `timon` gets a new message, `pumba` eats a larva (`timon.py` and `pumba.py` available in folder *examples*):
 
-Here are [Timon's source](examples/timon.py) and [Puumba's source](examples/puumba.py).
+Here are [Timon's source](examples/timon.py) and [Pumba's source](examples/pumba.py).
 
 Run your nyukis:
 
 ```bash
 python timon.py -c timon.json
-python pumbaa.py -c puumba.json
+python pumba.py -c pumba.json
 ```
 
 Play with it! Use your favorite HTTP tool (e.g. [Postman](https://chrome.google.com/webstore/detail/postman/fhbjgbiflinjbdggehcddcbncdddomop) or `curl`):

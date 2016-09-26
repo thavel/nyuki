@@ -1,5 +1,5 @@
 """
-This is 'pumbaa'
+This is 'pumba'
 """
 import logging
 from nyuki import Nyuki, resource, Response
@@ -15,7 +15,7 @@ class Eaten:
         return Response({'eaten': self.nyuki.eaten})
 
 
-class Pumbaa(Nyuki):
+class Pumba(Nyuki):
 
     HTTP_RESOURCES = Nyuki.HTTP_RESOURCES + [Eaten]
 
@@ -26,11 +26,11 @@ class Pumbaa(Nyuki):
     async def setup(self):
         await self.bus.subscribe('timon', self.eat_larva)
 
-    async def eat_larva(self, body):
+    async def eat_larva(self, efrom, data):
         log.info('yummy yummy!')
         self.eaten += 1
 
 
 if __name__ == '__main__':
-    nyuki = Pumbaa()
+    nyuki = Pumba()
     nyuki.start()

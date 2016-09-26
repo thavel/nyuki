@@ -8,7 +8,7 @@
 		"scheme": "ws",
 		"host": "localhost",
 		"port": 1883,
-		"name": "puumba"
+		"name": "pumba"
 	},
 	"version": 0
 }
