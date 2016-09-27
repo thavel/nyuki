@@ -7,7 +7,7 @@ from pijon import Pijon
 from signal import SIGHUP, SIGINT, SIGTERM
 
 from .api import Api
-from .api.bus import ApiBusReplay, ApiBusTopics, ApiBusPublish, ApiBusPublishTopic
+from .api.bus import ApiBusReplay, ApiBusTopics, ApiBusPublish
 from .api.config import ApiConfiguration, ApiSwagger
 from .api.websocket import ApiWebsocketToken
 from .bus import XmppBus, MqttBus, reporting
@@ -43,7 +43,6 @@ class Nyuki:
     # API endpoints
     HTTP_RESOURCES = [
         ApiBusPublish,
-        ApiBusPublishTopic,
         ApiBusReplay,
         ApiBusTopics,
         ApiConfiguration,

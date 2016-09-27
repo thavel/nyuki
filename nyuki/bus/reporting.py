@@ -83,9 +83,6 @@ class Reporter(object):
 
         if self._service == 'xmpp':
             self._channel = 'monitoring'
-            asyncio.ensure_future(self._publisher.subscribe(
-                self._channel, self._handle_report
-            ))
         elif self._service == 'mqtt':
             self._channel = self.MONIT_TOPIC.replace('+', self._name)
         else:

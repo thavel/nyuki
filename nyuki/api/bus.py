@@ -64,17 +64,7 @@ class ApiBusPublish:
             self.nyuki._services.get('bus')
         except KeyError:
             return Response(status=404)
-        asyncio.ensure_future(self.nyuki.bus.publish(await request.json()))
-
-
-@resource('/bus/publish/{topic}', versions=['v1'])
-class ApiBusPublishTopic:
-
-    async def post(self, request, topic):
-        try:
-            self.nyuki._services.get('bus')
-        except KeyError:
-            return Response(status=404)
+        request = await request.json()
         asyncio.ensure_future(self.nyuki.bus.publish(
-            await request.json(), topic
+            request.get('data', {}), request.get('topic')
         ))

@@ -371,15 +371,17 @@ class XmppBus(Service):
         Send an event in the nyuki's own MUC so that other nyukis that joined
         the MUC can process it.
         """
+        if not isinstance(event, dict):
+            raise TypeError('Message must be a dict')
         if self._muc_domain is None:
             log.error('No subscription to any muc')
             return
-
+        if topic is not None:
+            # XMPP does not handle MUCs containing '/'
+            topic = topic.replace('/', '.')
         if topic is not None and topic not in self.topics:
-            raise ValueError("Not subscribed to topic '{}'".format(topic))
-
-        if not isinstance(event, dict):
-            raise TypeError('Message must be a dict')
+            # Automatically subscribe if required
+            await self.subscribe(topic)
 
         msg = self.client.Message()
         msg['id'] = uid = previous_uid or str(uuid4())
@@ -455,6 +457,8 @@ class XmppBus(Service):
             log.warning("Waiting for a connection to subscribe to '%s'", topic)
         await self._connected.wait()
 
+        # '/' are not supported in MUCs name
+        topic = topic.replace('/', '.')
         self._mucs.joinMUC(self._muc_address(topic), self._topic)
         log.info("Subscribed to '%s'", topic)
         if self._callbacks.get(topic) is None:
