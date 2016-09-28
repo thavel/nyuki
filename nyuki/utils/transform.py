@@ -229,7 +229,7 @@ class Lookup(_Rule):
         unpredictable order.
         """
         try:
-            fieldval = data[self.fieldname]
+            fieldval = str(data[self.fieldname])
             if self.icase:
                 fieldval = fieldval.lower()
             data[self.fieldname] = self.table[fieldval]
