@@ -43,6 +43,16 @@ FACTORY_SCHEMAS = {
             'value': {'description': 'any value'}
         }
     },
+    'copy': {
+        'type': 'object',
+        'required': ['type', 'fieldname', 'copy'],
+        'properties': {
+            'type': {'type': 'string', 'enum': ['copy']},
+            'fieldname': {'type': 'string', 'minLength': 1},
+            'copy': {'type': 'string', 'minLength': 1,
+                     'description': 'the copy filed name'}
+        }
+    },
     'sub': {
         'type': 'object',
         'required': ['type', 'fieldname', 'regex_id', 'repl'],

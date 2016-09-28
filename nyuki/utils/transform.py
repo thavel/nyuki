@@ -193,6 +193,19 @@ class Set(_Rule):
         data[self.fieldname] = self.value
 
 
+class Copy(_Rule):
+
+    """
+    Copy a data into another field.
+    """
+
+    def _configure(self, copy):
+        self.copy = copy
+
+    def apply(self, data):
+        data[self.copy] = data[self.fieldname]
+
+
 class Unset(_Rule):
 
     """
