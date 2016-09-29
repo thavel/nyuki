@@ -203,7 +203,10 @@ class Copy(_Rule):
         self.copy = copy
 
     def apply(self, data):
-        data[self.copy] = data[self.fieldname]
+        try:
+            data[self.copy] = data[self.fieldname]
+        except KeyError:
+            log.debug('Copy : unknown field %s, ignoring', self.fieldname)
 
 
 class Unset(_Rule):
