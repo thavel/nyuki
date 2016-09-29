@@ -3,13 +3,14 @@ from datetime import datetime
 import json
 import logging
 from pymongo.errors import AutoReconnect
+from aiohttp.web_reqrep import FileField
 from tukio import get_broker, EXEC_TOPIC
 from tukio.utils import FutureState
 from tukio.workflow import (
     Workflow, WorkflowTemplate, WorkflowExecState
 )
 
-from nyuki.api import Response, resource
+from nyuki.api import Response, resource, content_type
 from nyuki.utils import from_isoformat
 
 
@@ -225,3 +226,72 @@ class ApiWorkflowHistory:
             json.dumps(workflow, default=serialize_wflow_exec),
             content_type='application/json'
         )
+
+
+@resource('/workflow/triggers', versions=['v1'])
+class ApiWorkflowTriggers:
+
+    async def get(self, request):
+        """
+        Return the list of all trigger forms
+        """
+        try:
+            triggers = await self.nyuki.storage.triggers.get_all()
+        except AutoReconnect:
+            return Response(status=503)
+        return Response(triggers)
+
+    @content_type('multipart/form-data')
+    async def put(self, request):
+        """
+        Upload a trigger form file
+        """
+        data = await request.post()
+        try:
+            form = data['form']
+            tid = data['tid']
+        except KeyError:
+            return Response(status=400, body={
+                'error': "'form' and 'tid' are mandatory parameters"
+            })
+        if not isinstance(form, FileField):
+            return Response(status=400, body={
+                'error': "'form' field must be a file content"
+            })
+
+        content = form.file.read().decode('utf-8')
+        try:
+            trigger = await self.nyuki.storage.triggers.insert(tid, content)
+        except AutoReconnect:
+            return Response(status=503)
+        return Response(trigger)
+
+
+@resource('/workflow/triggers/{tid}', versions=['v1'])
+class ApiWorkflowTrigger:
+
+    async def get(self, request, tid):
+        """
+        Return a single trigger form
+        """
+        try:
+            trigger = await self.nyuki.storage.triggers.get(tid)
+        except AutoReconnect:
+            return Response(status=503)
+        if not trigger:
+            return Response(status=404)
+        return Response(trigger)
+
+    async def delete(self, request, tid):
+        """
+        Delete a trigger form
+        """
+        try:
+            trigger = await self.nyuki.storage.triggers.get(tid)
+        except AutoReconnect:
+            return Response(status=503)
+        if not trigger:
+            return Response(status=404)
+
+        await self.nyuki.storage.triggers.delete(tid)
+        return Response(trigger)

@@ -19,7 +19,7 @@ from .api.templates import (
 )
 from .api.workflows import (
     ApiWorkflow, ApiWorkflows, ApiWorkflowsHistory, ApiWorkflowHistory,
-    serialize_wflow_exec
+    ApiWorkflowTriggers, ApiWorkflowTrigger, serialize_wflow_exec
 )
 
 from .storage import MongoStorage
@@ -126,6 +126,8 @@ class WorkflowNyuki(Nyuki):
         ApiFactoryLookups,  # /v1/workflows/lookups
         ApiFactoryLookup,  # /v1/workflows/lookups/{uid}
         ApiFactoryLookupCSV,  # /v1/workflows/lookups/{uid}/csv
+        ApiWorkflowTriggers,  # /v1/workflows/triggers
+        ApiWorkflowTrigger,  # /v1/workflows/triggers/{tid}
     ]
 
     def __init__(self, **kwargs):

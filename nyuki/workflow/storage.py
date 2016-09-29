@@ -326,6 +326,49 @@ class _InstanceCollection:
         await self._instances.insert(workflow_exec)
 
 
+class _TriggerCollection:
+
+    def __init__(self, data_collection):
+        self._triggers = data_collection
+        asyncio.ensure_future(_index(data_collection, 'tid', unique=True))
+
+    async def get_all(self):
+        """
+        Return a list of all trigger forms
+        """
+        cursor = self._triggers.find(None, {'_id': 0})
+        triggers = []
+        with _report_operation():
+            triggers = await cursor.to_list(None)
+        return triggers
+
+    async def get(self, template_id):
+        """
+        Return the trigger form of a given workflow template id
+        """
+        cursor = self._triggers.find({'tid': template_id}, {'_id': 0})
+        with _report_operation():
+            await cursor.fetch_next
+        return cursor.next_object()
+
+    async def insert(self, tid, form):
+        """
+        Insert a trigger form for the given workflow template
+        """
+        data = {'tid': tid, 'form': form}
+        with _report_operation():
+            await self._triggers.update({'tid': tid}, data, upsert=True)
+        return data
+
+    async def delete(self, template_id=None):
+        """
+        Delete a trigger form
+        """
+        query = {'tid': template_id} if template_id is not None else None
+        with _report_operation():
+            await self._triggers.remove(query)
+
+
 class MongoStorage:
 
     DEFAULT_DATABASE = 'workflow'
@@ -342,3 +385,4 @@ class MongoStorage:
         self.instances = _InstanceCollection(db['instances'])
         self.regexes = _DataProcessingCollection(db['regexes'])
         self.lookups = _DataProcessingCollection(db['lookups'])
+        self.triggers = _TriggerCollection(db['triggers'])
