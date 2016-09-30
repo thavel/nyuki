@@ -81,6 +81,7 @@ class ApiWorkflows(_WorkflowResource):
         }
         """
         async_topic = request.headers.get('X-Surycat-Async-Topic')
+        requester = request.headers.get('Referer')
         request = await request.json()
 
         if 'id' not in request:
@@ -116,7 +117,7 @@ class ApiWorkflows(_WorkflowResource):
             })
 
         # Keep full instance+template in nyuki's memory
-        wfinst = self.nyuki.new_workflow(templates[0], wflow)
+        wfinst = self.nyuki.new_workflow(templates[0], wflow, requester)
         # Handle async workflow exec updates
         if async_topic is not None:
             self.register_async_handler(async_topic, wflow)

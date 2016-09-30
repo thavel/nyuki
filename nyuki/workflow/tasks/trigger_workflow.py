@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from tukio.task import register
 from tukio.task.holder import TaskHolder
-from tukio.workflow import WorkflowExecState
+from tukio.workflow import WorkflowExecState, Workflow
 
 from .utils import runtime
 
@@ -69,7 +69,12 @@ class TriggerWorkflowTask(TaskHolder):
         )
 
         # Handle blocking trigger_workflow using mqtt
-        headers = {'Content-Type': 'application/json'}
+        workflow = Workflow.current_workflow()
+        headers = {
+            'Content-Type': 'application/json',
+            'Referer': '{}/{}'.format(runtime.bus.name, workflow.uid)
+        }
+
         if self.blocking:
             topic = '{}/async/{}'.format(runtime.bus.name, str(uuid4())[:8])
             headers['X-Surycat-Async-Topic'] = topic

@@ -57,13 +57,18 @@ class WorkflowInstance:
     Allow retrieving a workflow exec state at any moment.
     """
 
-    def __init__(self, template, instance):
+    def __init__(self, template, instance, *, requester=None):
         self._template = template
         self._instance = instance
+        self._requester = requester
 
     @property
     def template(self):
         return self._template
+
+    @property
+    def requester(self):
+        return self._requester
 
     def report(self):
         """
@@ -73,6 +78,7 @@ class WorkflowInstance:
         inst = self._instance.report()
         tasks = {task['id']: task for task in template['tasks']}
 
+        inst['exec'].update({'requester': self._requester})
         for task in inst['tasks']:
             # Stored template contains more info than tukio's (title...),
             # so we add it to the report.
@@ -185,11 +191,11 @@ class WorkflowNyuki(Nyuki):
             for workflow in self.running_workflows.values()
         ]
 
-    def new_workflow(self, template, instance):
+    def new_workflow(self, template, instance, requester=None):
         """
         Keep in memory a workflow template/instance pair.
         """
-        wflow = WorkflowInstance(template, instance)
+        wflow = WorkflowInstance(template, instance, requester=requester)
         self.running_workflows[instance.uid] = wflow
         return wflow
 
@@ -200,6 +206,7 @@ class WorkflowNyuki(Nyuki):
         source = event.source.as_dict()
         exec_id = source['workflow_exec_id']
         wflow = self.running_workflows[exec_id]
+        source['workflow_exec_requester'] = wflow.requester
         # Workflow ended, clear it from memory
         if event.data['type'] in [
             WorkflowExecState.end.value,
