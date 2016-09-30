@@ -105,6 +105,9 @@ class ApiTemplates(_TemplateResource):
                     'error': 'draft already exists'
                 })
 
+        if hasattr(self.nyuki, 'default_policy') and 'policy' not in request:
+            request['policy'] = self.nyuki.default_policy
+
         try:
             template = WorkflowTemplate.from_dict(request)
         except TemplateGraphError as exc:
