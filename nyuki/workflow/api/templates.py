@@ -238,6 +238,7 @@ class ApiTemplate(_TemplateResource):
             return Response(status=404)
 
         await self.nyuki.storage.templates.delete(tid)
+        await self.nyuki.storage.triggers.delete(tid)
 
         try:
             await self.nyuki.engine.unload(tid)
