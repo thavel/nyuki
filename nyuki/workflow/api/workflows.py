@@ -261,6 +261,9 @@ class ApiWorkflowTriggers:
 
         content = form.file.read().decode('utf-8')
         try:
+            tmpl = await self.nyuki.storage.templates.get(tid)
+            if not tmpl:
+                return Response(status=404)
             trigger = await self.nyuki.storage.triggers.insert(tid, content)
         except AutoReconnect:
             return Response(status=503)
