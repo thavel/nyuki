@@ -39,7 +39,7 @@ class _WorkflowResource:
 
         async def exec_handler(event):
             # Pass if event does not concern this workflow execution
-            if event.source.workflow_exec_id != wflow.uid:
+            if event.source._workflow_exec_id != wflow.uid:
                 return
             # Publish the event's data
             # TODO: Beware of unserializable objects
