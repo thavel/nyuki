@@ -130,6 +130,8 @@ class WorkflowNyuki(Nyuki):
         ApiWorkflowTrigger,  # /v1/workflows/triggers/{tid}
     ]
 
+    DEFAULT_POLICY = None
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.register_schema(self.CONF_SCHEMA)
