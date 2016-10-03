@@ -50,6 +50,8 @@ class Nyuki:
         ApiWebsocketToken,
     ]
 
+    DEFAULT_WORKFLOW_POLICY = None
+
     def __init__(self, **kwargs):
         # List of configuration schemas
         self._schemas = []
