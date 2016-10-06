@@ -28,6 +28,9 @@ class TriggerWorkflowTask(TaskHolder):
             'await_completion': {'type': 'boolean'},
             'timeout': {'type': 'integer', 'minimum': 1, 'default': 60}
         },
+        'dependencies': {
+            'await_completion': ['timeout']
+        },
         'additionalProperties': False
     }
 
