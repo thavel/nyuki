@@ -1,6 +1,7 @@
+import asyncio
+import logging
 from aiohttp import ClientSession
 from copy import deepcopy
-import logging
 from tukio.task import register
 from tukio.task.holder import TaskHolder
 
@@ -83,9 +84,13 @@ class FactoryTask(TaskHolder):
 
     def __init__(self, config):
         super().__init__(config)
+        self._diff = None
         self.api_url = 'http://localhost:{}/v1/workflow'.format(
             runtime.config['api']['port']
         )
+
+    def report(self):
+        return self._diff
 
     async def get_regex(self, session, rule):
         """
@@ -138,9 +143,13 @@ class FactoryTask(TaskHolder):
         data = event.data
         runtime_config = deepcopy(self.config)
         await self.get_factory_rules(runtime_config)
+
         log.debug('Full factory config: %s', runtime_config)
         converter = Converter.from_dict(runtime_config)
-        log.debug('Before convertion: %s', data)
         diff = converter.apply(data)
-        log.debug('After convertion: %s', data)
+
+        task = asyncio.Task.current_task()
+        task.dispatch_progress(diff)
+        self._diff = diff
+        log.debug('Conversion diff: %s', diff)
         return data
