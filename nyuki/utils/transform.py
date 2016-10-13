@@ -1,10 +1,70 @@
 import logging
 import re
+from copy import deepcopy
 
 from .evaluate import ConditionBlock
 
 
 log = logging.getLogger(__name__)
+
+
+class TraceableDict(dict):
+    """
+    Python dict-based class that tracks any changes.
+    Format:
+        {"action": "add", "key": <key>, "value": <new-value>},
+        {"action": "remove", "key": <key>, "value": <old-value>},
+        {"action": "update", "key": <key>, "old_value": <old-value>,
+                                           "new_value": <new-value>},
+    """
+    def __init__(self, dict2):
+        self._changes = []
+        super().__init__(deepcopy(dict2))
+
+    def __setitem__(self, key, value):
+        if key not in self:
+            self._changes.append({
+                'action': 'add',
+                'key': key,
+                'value': deepcopy(value)
+            })
+        else:
+            self._changes.append({
+                'action': 'update',
+                'key': key,
+                'old_value': deepcopy(self[key]),
+                'new_value': deepcopy(value)
+            })
+        super().__setitem__(key, value)
+
+    def __delitem__(self, key):
+        self._changes.append({
+            'action': 'remove',
+            'key': key,
+            'value': deepcopy(self[key])
+        })
+        super().__delitem__(key)
+
+    def update(self, dict2=None, **kwargs):
+        for key in dict2:
+            if key not in self:
+                self._changes.append({
+                    'action': 'add',
+                    'key': key,
+                    'value': deepcopy(dict2[key])
+                })
+            else:
+                self._changes.append({
+                    'action': 'update',
+                    'key': key,
+                    'old_value': deepcopy(self[key]),
+                    'new_value': deepcopy(dict2[key])
+                })
+        super().update(dict2, **kwargs)
+
+    @property
+    def changes(self):
+        return self._changes
 
 
 # Inspired from https://github.com/faif/python-patterns/blob/master/registry.py
@@ -64,19 +124,31 @@ class Converter(object):
         return cls(rules=rules)
 
     def apply(self, data):
+        rules = []
         for rule in self.rules:
-            rule.apply(data)
+            diff = rule.apply(data)
+            rules.append(diff)
+        return {'rules': rules}
 
 
 class FactoryConditionBlock(ConditionBlock, metaclass=_RegisteredRule):
 
     TYPENAME = 'condition-block'
 
+    def __init__(self, conditions):
+        super().__init__(conditions)
+        self._changes = {'type': self.TYPENAME, 'conditions': []}
+
     def condition_validated(self, rules, data):
         """
         Apply rules on data upon validating a condition.
         """
-        Converter.from_dict({'rules': rules}).apply(data)
+        diff = Converter.from_dict({'rules': rules}).apply(data)
+        self._changes['conditions'] = diff['rules']
+
+    def apply(self, data):
+        super().apply(data)
+        return self._changes
 
 
 class _Rule(metaclass=_RegisteredRule):
@@ -102,11 +174,27 @@ class _Rule(metaclass=_RegisteredRule):
         """
         raise NotImplementedError
 
+    @staticmethod
+    def track_changes(func):
+        """
+        Decorator for `Rule.apply(<data>)` methods that return a JSON-formatted
+        diff of the changes made by the method itself.
+        """
+        def wrapper(self, data):
+            # Handle data through a traceable dict
+            tracker = TraceableDict(data)
+            func(self, tracker)
+            # We want to keep the object reference
+            data.clear()
+            data.update(tracker)
+            return {'type': self.TYPENAME, 'changes': tracker.changes}
+
+        return wrapper
+
     def apply(self, data):
         """
         Execute an operation on one field of the dict `data` and returns an
-        updated dict. If no data could be processed, this method must return
-        the unchanged `data` dict.
+        diff.
         """
         raise NotImplementedError
 
@@ -128,6 +216,7 @@ class _RegexpRule(_Rule):
     def _run_regexp(self, string):
         raise NotImplementedError
 
+    @_Rule.track_changes
     def apply(self, data):
         try:
             string = data[self.fieldname]
@@ -189,6 +278,7 @@ class Set(_Rule):
     def _configure(self, value):
         self.value = value
 
+    @_Rule.track_changes
     def apply(self, data):
         data[self.fieldname] = self.value
 
@@ -202,6 +292,7 @@ class Copy(_Rule):
     def _configure(self, copy):
         self.copy = copy
 
+    @_Rule.track_changes
     def apply(self, data):
         try:
             data[self.copy] = data[self.fieldname]
@@ -218,6 +309,7 @@ class Unset(_Rule):
     def _configure(self):
         pass
 
+    @_Rule.track_changes
     def apply(self, data):
         try:
             del data[self.fieldname]
@@ -238,6 +330,7 @@ class Lookup(_Rule):
         if icase:
             self.table = {k.lower(): v for k, v in table.items()}
 
+    @_Rule.track_changes
     def apply(self, data):
         """
         The 1st entry in the lookup table that matches the string from `data`
@@ -263,6 +356,7 @@ class Lower(_Rule):
     def _configure(self):
         pass
 
+    @_Rule.track_changes
     def apply(self, data):
         fieldval = data[self.fieldname]
         data[self.fieldname] = fieldval.lower()
@@ -277,6 +371,7 @@ class Upper(_Rule):
     def _configure(self):
         pass
 
+    @_Rule.track_changes
     def apply(self, data):
         fieldval = data[self.fieldname]
         data[self.fieldname] = fieldval.upper()

@@ -141,6 +141,6 @@ class FactoryTask(TaskHolder):
         log.debug('Full factory config: %s', runtime_config)
         converter = Converter.from_dict(runtime_config)
         log.debug('Before convertion: %s', data)
-        converter.apply(data)
+        diff = converter.apply(data)
         log.debug('After convertion: %s', data)
         return data
