@@ -34,6 +34,7 @@ class TaskSelector(TaskHolder):
 
     SCHEMA = generate_schema(tasks={
         'type': 'object',
+        'required': ['type', 'tasks'],
         'properties': {
             'type': {'type': 'string', 'enum': ['task-selector']},
             'tasks': {
