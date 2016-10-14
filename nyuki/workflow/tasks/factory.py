@@ -146,10 +146,9 @@ class FactoryTask(TaskHolder):
 
         log.debug('Full factory config: %s', runtime_config)
         converter = Converter.from_dict(runtime_config)
-        diff = converter.apply(data)
+        self._diff = converter.apply(data)
 
         task = asyncio.Task.current_task()
-        task.dispatch_progress(diff)
-        self._diff = diff
-        log.debug('Conversion diff: %s', diff)
+        task.dispatch_progress(self._diff)
+        log.debug('Conversion diff: %s', self._diff)
         return data
