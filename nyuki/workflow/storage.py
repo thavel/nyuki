@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from motor.motor_asyncio import AsyncIOMotorClient
 
@@ -13,7 +12,9 @@ class _DataProcessingCollection:
 
     def __init__(self, data_collection):
         self._rules = data_collection
-        asyncio.ensure_future(self._rules.create_index('id', unique=True))
+
+    async def index(self):
+        await self._rules.create_index('id', unique=True)
 
     async def get_all(self):
         """
@@ -63,7 +64,9 @@ class _TriggerCollection:
 
     def __init__(self, data_collection):
         self._triggers = data_collection
-        asyncio.ensure_future(self._triggers.create_index('tid', unique=True))
+
+    async def index(self):
+        await self._triggers.create_index('tid', unique=True)
 
     async def get_all(self):
         """
@@ -98,18 +101,16 @@ class _TriggerCollection:
 
 class MongoStorage:
 
-    DEFAULT_DATABASE = 'workflow'
-
-    def __init__(self, host, database=None, **kwargs):
-        log.info("Setting up workflow mongo storage with host '%s'", host)
-        client = AsyncIOMotorClient(host, **kwargs)
-        db_name = database or self.DEFAULT_DATABASE
-        db = client[db_name]
-        log.info("Workflow database: '%s'", db_name)
-
-        # Collections
+    def __init__(self, db):
         self.templates = TemplateCollection(db['templates'], db['metadata'])
         self.instances = InstanceCollection(db['instances'])
         self.regexes = _DataProcessingCollection(db['regexes'])
         self.lookups = _DataProcessingCollection(db['lookups'])
         self.triggers = _TriggerCollection(db['triggers'])
+
+    async def init(self):
+        await self.templates.index()
+        await self.instances.index()
+        await self.regexes.index()
+        await self.lookups.index()
+        await self.triggers.index()

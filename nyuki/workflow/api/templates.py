@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from pymongo import DESCENDING
 from pymongo.errors import AutoReconnect, DuplicateKeyError
@@ -31,15 +30,16 @@ class TemplateCollection:
     def __init__(self, templates_collection, metadata_collection):
         self._templates = templates_collection
         self._metadata = metadata_collection
-        # Indexes (ASCENDING by default)
-        asyncio.ensure_future(self._metadata.create_index('id', unique=True))
-        asyncio.ensure_future(self._templates.create_index(
+
+    async def index(self):
+        await self._metadata.create_index('id', unique=True)
+        await self._templates.create_index(
             [('id', DESCENDING), ('version', DESCENDING)],
             unique=True
-        ))
-        asyncio.ensure_future(self._templates.create_index(
+        )
+        await self._templates.create_index(
             [('id', DESCENDING), ('draft', DESCENDING)]
-        ))
+        )
 
     async def get_metadata(self, tid=None):
         """
@@ -215,14 +215,18 @@ class _TemplateResource:
     Share methods between templates resources
     """
 
-    async def update_draft(self, template, from_request=None):
+    @property
+    def manager(self):
+        return self.nyuki.mongo_manager
+
+    async def update_draft(self, storage, template, from_request=None):
         """
         Helper to insert/update a draft
         """
         tmpl_dict = template.as_dict()
 
         # Auto-increment version, draft only
-        last_version = await self.nyuki.storage.templates.get_last_version(
+        last_version = await storage.templates.get_last_version(
             template.uid
         )
         tmpl_dict['version'] = last_version + 1
@@ -238,7 +242,7 @@ class _TemplateResource:
                     match[0].update({'title': src.get('title')})
 
         try:
-            await self.nyuki.storage.templates.insert_draft(tmpl_dict)
+            await storage.templates.insert_draft(tmpl_dict)
         except DuplicateTemplateError as exc:
             raise ConflictError('Template already exists for this version') from exc
 
@@ -263,12 +267,14 @@ class ApiTemplates(_TemplateResource):
         """
         Return available workflows' DAGs
         """
+        org = request.headers.get('X-Surycat-Org')
         try:
-            templates = await self.nyuki.storage.templates.get_all(
-                full=(request.GET.get('full') == '1'),
-                latest=(request.GET.get('latest') == '1'),
-                draft=(request.GET.get('draft') == '1'),
-            )
+            async with self.manager.db_context(org) as storage:
+                templates = await storage.templates.get_all(
+                    full=(request.GET.get('full') == '1'),
+                    latest=(request.GET.get('latest') == '1'),
+                    draft=(request.GET.get('draft') == '1'),
+                )
         except AutoReconnect:
             return Response(status=503)
         return Response(templates)
@@ -277,11 +283,18 @@ class ApiTemplates(_TemplateResource):
         """
         Create a workflow DAG from JSON
         """
+        try:
+            storage = await self.manager.database(
+                request.headers.get('X-Surycat-Org')
+            )
+        except AutoReconnect:
+            return Response(status=503)
+
         request = await request.json()
 
         if 'id' in request:
             try:
-                draft = await self.nyuki.storage.templates.get(
+                draft = await storage.templates.get(
                     request['id'], draft=True
                 )
             except AutoReconnect:
@@ -302,7 +315,7 @@ class ApiTemplates(_TemplateResource):
             })
 
         try:
-            metadata = await self.nyuki.storage.templates.get_metadata(template.uid)
+            metadata = await storage.templates.get_metadata(template.uid)
         except AutoReconnect:
             return Response(status=503)
         if not metadata:
@@ -317,12 +330,12 @@ class ApiTemplates(_TemplateResource):
                 'tags': request.get('tags', [])
             }
 
-            await self.nyuki.storage.templates.insert_metadata(metadata)
+            await storage.templates.insert_metadata(metadata)
         else:
             metadata = metadata[0]
 
         try:
-            tmpl_dict = await self.update_draft(template, request)
+            tmpl_dict = await self.update_draft(storage, template, request)
         except ConflictError as exc:
             return Response(status=409, body={
                 'error': exc

@@ -8,6 +8,7 @@ from tukio.workflow import (
 
 from nyuki import Nyuki
 from nyuki.bus import reporting
+from nyuki.utils.mongo import MongoManager
 from nyuki.websocket import websocket_ready
 
 from .api.factory import (
@@ -263,13 +264,15 @@ class WorkflowNyuki(Nyuki):
         """
         Check mongo, retrieve and load all templates
         """
-        self.storage = MongoStorage(**self.mongo_config)
+        self.mongo_manager = MongoManager(MongoStorage, **self.mongo_config)
 
-        templates = await self.storage.templates.get_all(
-            full=True,
-            latest=True,
-            with_metadata=False
-        )
+        for name in await self.mongo_manager.list_databases():
+            async with self.mongo_manager.db_context(name) as storage:
+                templates = await storage.templates.get_all(
+                    full=True,
+                    latest=True,
+                    with_metadata=False
+                )
 
         for template in templates:
             try:

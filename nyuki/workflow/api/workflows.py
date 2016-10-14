@@ -52,13 +52,15 @@ class InstanceCollection:
 
     def __init__(self, instances_collection):
         self._instances = instances_collection
-        asyncio.ensure_future(self._instances.create_index('exec.id', unique=True))
-        asyncio.ensure_future(self._instances.create_index('exec.state'))
-        asyncio.ensure_future(self._instances.create_index('exec.requester'))
+
+    async def index(self):
+        await self._instances.create_index('exec.id', unique=True)
+        await self._instances.create_index('exec.state')
+        await self._instances.create_index('exec.requester')
         # Search and sorting indexes
-        asyncio.ensure_future(self._instances.create_index('title'))
-        asyncio.ensure_future(self._instances.create_index('exec.start'))
-        asyncio.ensure_future(self._instances.create_index('exec.end'))
+        await self._instances.create_index('title')
+        await self._instances.create_index('exec.start')
+        await self._instances.create_index('exec.end')
 
     async def get_one(self, exec_id):
         """
