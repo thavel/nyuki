@@ -61,7 +61,7 @@ class TaskSelector(TaskHolder):
     async def execute(self, event):
         data = event.data
         workflow = Workflow.current_workflow()
-        self._selected = []
+        self._selected = None
         for block in self.config['rules']:
             if block['type'] == 'task-selector':
                 workflow.set_next_tasks(block['tasks'])
