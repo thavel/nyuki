@@ -20,6 +20,7 @@ class TaskConditionBlock(ConditionBlock):
     def __init__(self, conditions, workflow):
         super().__init__(conditions)
         self._workflow = workflow
+        self._selected = None
 
     def condition_validated(self, rules, data):
         """
@@ -27,10 +28,19 @@ class TaskConditionBlock(ConditionBlock):
         """
         if rules:
             self._workflow.set_next_tasks(rules[0]['tasks'])
+            self._selected = rules[0]['tasks']
+
+    def apply(self, data):
+        super().apply(data)
+        return self._selected
 
 
 @register('task_selector', 'execute')
 class TaskSelector(TaskHolder):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._selected = None
 
     SCHEMA = generate_schema(tasks={
         'type': 'object',
@@ -51,9 +61,18 @@ class TaskSelector(TaskHolder):
     async def execute(self, event):
         data = event.data
         workflow = Workflow.current_workflow()
+        self._selected = []
         for block in self.config['rules']:
             if block['type'] == 'task-selector':
                 workflow.set_next_tasks(block['tasks'])
+                self._selected = block['tasks']
             elif block['type'] == 'condition-block':
-                TaskConditionBlock(block['conditions'], workflow).apply(data)
+                selected = TaskConditionBlock(block['conditions'], workflow).apply(data)
+                if selected is not None:
+                    self._selected = selected
+
+        log.debug('Tasks selected: %s', self._selected)
         return data
+
+    def report(self):
+        return self._selected
