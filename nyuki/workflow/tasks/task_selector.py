@@ -75,4 +75,4 @@ class TaskSelector(TaskHolder):
         return data
 
     def report(self):
-        return self._selected
+        return {'tasks': self._selected}
