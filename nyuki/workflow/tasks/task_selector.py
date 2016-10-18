@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from tukio import Workflow
 from tukio.task import register
 from tukio.task.holder import TaskHolder
@@ -71,6 +72,8 @@ class TaskSelector(TaskHolder):
                 if selected is not None:
                     self._selected = selected
 
+        task = asyncio.Task.current_task()
+        task.dispatch_progress({'tasks': self._selected})
         log.debug('Tasks selected: %s', self._selected)
         return data
 
