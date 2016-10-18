@@ -129,6 +129,10 @@ class _WorkflowResource:
     Share methods between workflow resources
     """
 
+    @property
+    def manager(self):
+        return self.nyuki.mongo_manager
+
     def register_async_handler(self, async_topic, wflow):
         broker = get_broker()
 
@@ -175,6 +179,12 @@ class ApiWorkflows(_WorkflowResource):
             "draft": true/false
         }
         """
+        org = request.headers.get('X-Surycat-Organization')
+        try:
+            storage = await self.manager.database(org)
+        except AutoReconnect:
+            return Response(status=503)
+
         async_topic = request.headers.get('X-Surycat-Async-Topic')
         exec_track = request.headers.get('X-Surycat-Exec-Track')
         requester = request.headers.get('Referer')
@@ -186,15 +196,11 @@ class ApiWorkflows(_WorkflowResource):
             })
 
         draft = request.get('draft', False)
-        try:
-            templates = await self.nyuki.storage.templates.get(
-                request['id'],
-                draft=draft,
-                with_metadata=True
-            )
-        except AutoReconnect:
-            return Response(status=503)
-
+        templates = await storage.templates.get(
+            request['id'],
+            draft=draft,
+            with_metadata=True
+        )
         if not templates:
             return Response(status=404, body={
                 'error': 'Could not find a suitable template to run'
@@ -227,7 +233,7 @@ class ApiWorkflows(_WorkflowResource):
 
         # Keep full instance+template in nyuki's memory
         wfinst = self.nyuki.new_workflow(
-            templates[0], wflow,
+            templates[0], wflow, org,
             track=exec_track,
             requester=requester
         )
@@ -290,6 +296,12 @@ class ApiWorkflowsHistory:
             * `order` order results following the Ordering enum values
             * `search` search templates with specific title
         """
+        org = request.headers.get('X-Surycat-Organization')
+        try:
+            storage = await self.manager.database(org)
+        except AutoReconnect:
+            return Response(status=503)
+
         # Filter on start date
         since = request.GET.get('since')
         if since:
@@ -336,7 +348,7 @@ class ApiWorkflowsHistory:
                 })
 
         try:
-            count, history = await self.nyuki.storage.instances.get(
+            count, history = await storage.instances.get(
                 root=(request.GET.get('root') == '1'),
                 full=(request.GET.get('full') == '1'),
                 search=request.GET.get('search'),
@@ -357,10 +369,13 @@ class ApiWorkflowsHistory:
 class ApiWorkflowHistory:
 
     async def get(self, request, uid):
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            workflow = await self.nyuki.storage.instances.get_one(uid)
+            storage = await self.manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        workflow = await storage.instances.get_one(uid)
         if not workflow:
             return Response(status=404)
         return Response(
@@ -376,10 +391,13 @@ class ApiWorkflowTriggers:
         """
         Return the list of all trigger forms
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            triggers = await self.nyuki.storage.triggers.get_all()
+            storage = await self.manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        triggers = await storage.triggers.get_all()
         return Response(triggers)
 
     @content_type('multipart/form-data')
@@ -387,6 +405,12 @@ class ApiWorkflowTriggers:
         """
         Upload a trigger form file
         """
+        org = request.headers.get('X-Surycat-Organization')
+        try:
+            storage = await self.manager.database(org)
+        except AutoReconnect:
+            return Response(status=503)
+
         data = await request.post()
         try:
             form = data['form']
@@ -401,13 +425,10 @@ class ApiWorkflowTriggers:
             })
 
         content = form.file.read().decode('utf-8')
-        try:
-            tmpl = await self.nyuki.storage.templates.get(tid)
-            if not tmpl:
-                return Response(status=404)
-            trigger = await self.nyuki.storage.triggers.insert(tid, content)
-        except AutoReconnect:
-            return Response(status=503)
+        tmpl = await storage.templates.get(tid)
+        if not tmpl:
+            return Response(status=404)
+        trigger = await storage.triggers.insert(tid, content)
         return Response(trigger)
 
 
@@ -418,10 +439,13 @@ class ApiWorkflowTrigger:
         """
         Return a single trigger form
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            trigger = await self.nyuki.storage.triggers.get(tid)
+            storage = await self.manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        trigger = await storage.triggers.get(tid)
         if not trigger:
             return Response(status=404)
         return Response(trigger)
@@ -430,12 +454,15 @@ class ApiWorkflowTrigger:
         """
         Delete a trigger form
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            trigger = await self.nyuki.storage.triggers.get(tid)
+            storage = await self.manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        trigger = await storage.triggers.get(tid)
         if not trigger:
             return Response(status=404)
 
-        await self.nyuki.storage.triggers.delete(tid)
+        await storage.triggers.delete(tid)
         return Response(trigger)

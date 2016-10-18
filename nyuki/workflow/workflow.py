@@ -1,6 +1,8 @@
 import asyncio
 from datetime import datetime
+from functools import partial
 import logging
+from pymongo.errors import AutoReconnect
 from tukio import Engine, TaskRegistry, get_broker, EXEC_TOPIC
 from tukio.workflow import (
     TemplateGraphError, Workflow, WorkflowTemplate, WorkflowExecState
@@ -55,12 +57,14 @@ class WorkflowInstance:
     """
     Holds a workflow pair of template/instance.
     Allow retrieving a workflow exec state at any moment.
+    TODO: These instances should be shared within nodes using a DB
     """
     ALLOWED_EXEC_KEYS = ['requester', 'track']
 
-    def __init__(self, template, instance, **kwargs):
+    def __init__(self, template, instance, org=None, **kwargs):
         self._template = template
         self._instance = instance
+        self._organization = org
         self._exec = {
             key: kwargs[key]
             for key in kwargs
@@ -74,6 +78,10 @@ class WorkflowInstance:
     @property
     def instance(self):
         return self._instance
+
+    @property
+    def organization(self):
+        return self._organization
 
     @property
     def exec(self):
@@ -201,14 +209,15 @@ class WorkflowNyuki(Nyuki):
             for workflow in self.running_workflows.values()
         ]
 
-    def new_workflow(self, template, instance, **kwargs):
+    def new_workflow(self, template, instance, org=None, **kwargs):
         """
         Keep in memory a workflow template/instance pair.
         """
-        wflow = WorkflowInstance(template, instance, **kwargs)
+        wflow = WorkflowInstance(template, instance, org=org, **kwargs)
         self.running_workflows[instance.uid] = wflow
         return wflow
 
+    # TODO: Live reporting on organization's websocket
     async def report_workflow(self, event):
         """
         Send all worklfow updates to the clients.
@@ -222,10 +231,11 @@ class WorkflowNyuki(Nyuki):
             WorkflowExecState.end.value,
             WorkflowExecState.error.value
         ]:
-            # Sanitize objects to store the finished workflow instance
-            asyncio.ensure_future(self.storage.instances.insert(
-                sanitize_workflow_exec(wflow.report())
-            ))
+            async with self.mongo_manager.db_context(wflow.organization) as storage:
+                # Sanitize objects to store the finished workflow instance
+                asyncio.ensure_future(storage.instances.insert(
+                    sanitize_workflow_exec(wflow.report())
+                ))
             del self.running_workflows[exec_id]
 
         payload = {
@@ -244,35 +254,87 @@ class WorkflowNyuki(Nyuki):
     async def workflow_event(self, efrom, data):
         """
         New bus event received, trigger workflows if needed.
+        TODO: On multiple DBs, this is massive requests done on each event.
+        Check for something lighter.
         """
-        templates = {}
+        try:
+            databases = await self.mongo_manager.list_databases()
+        except AutoReconnect as exc:
+            log.error('Could not trigger workflows from event (%s)', exc)
+            return
+
         # Retrieve full workflow templates
+        templates = {}
         wf_templates = self.engine.selector.select(efrom)
-        for wftmpl in wf_templates:
-            template = await self.storage.templates.get(
-                wftmpl.uid,
-                draft=False,
-                with_metadata=True
-            )
-            templates[wftmpl.uid] = template[0]
+
+        def template_fetched(org, template_uid, future):
+            res = future.result()
+            templates[template_uid] = {
+                'template': res[0],
+                'org': org
+            }
+
+        tasks = []
+        for name in databases:
+            async with self.mongo_manager.db_context(name) as storage:
+                for wftmpl in wf_templates:
+                    task = asyncio.ensure_future(storage.templates.get(
+                        wftmpl.uid, draft=False, with_metadata=True
+                    ))
+                    task.add_done_callback(
+                        partial(template_fetched, name, wftmpl.ui)
+                    )
+                    tasks.append(task)
+
+        if not tasks:
+            return
+        await asyncio.wait(tasks)
+
         # Trigger workflows
         instances = await self.engine.data_received(data, efrom)
         for instance in instances:
-            self.new_workflow(templates[instance.template.uid], instance)
+            self.new_workflow(
+                templates[instance.template.uid]['template'],
+                instance,
+                org=templates[instance.template.uid]['org']
+            )
 
     async def reload_from_storage(self):
         """
         Check mongo, retrieve and load all templates
         """
         self.mongo_manager = MongoManager(MongoStorage, **self.mongo_config)
+        try:
+            databases = await self.mongo_manager.list_databases()
+        except AutoReconnect as exc:
+            log.error('Could not reload workflow templates (%s)', exc)
+            return
 
-        for name in await self.mongo_manager.list_databases():
+        for name in databases:
             async with self.mongo_manager.db_context(name) as storage:
                 templates = await storage.templates.get_all(
                     full=True,
                     latest=True,
                     with_metadata=False
                 )
+
+        # templates = []
+
+        # def template_fetched(future):
+        #     res = future.result()
+        #     templates.extend(res)
+
+        # tasks = []
+        # for name in databases:
+        #     async with self.mongo_manager.db_context(name) as storage:
+        #         task = asyncio.ensure_future(storage.templates.get_all(
+        #             full=True, latest=True, with_metadata=False
+        #         ))
+        #         task.add_done_callback(lambda f: templates.extend(f.result()))
+        #         tasks.append(task)
+
+        # if tasks:
+        #     await asyncio.wait(tasks)
 
         for template in templates:
             try:

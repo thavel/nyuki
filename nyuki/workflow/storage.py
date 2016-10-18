@@ -101,12 +101,15 @@ class _TriggerCollection:
 
 class MongoStorage:
 
-    def __init__(self, db):
-        self.templates = TemplateCollection(db['templates'], db['metadata'])
-        self.instances = InstanceCollection(db['instances'])
-        self.regexes = _DataProcessingCollection(db['regexes'])
-        self.lookups = _DataProcessingCollection(db['lookups'])
-        self.triggers = _TriggerCollection(db['triggers'])
+    def __init__(self, db, prefix):
+        self.templates = TemplateCollection(
+            db['{}-templates'.format(prefix)],
+            db['{}-metadata'.format(prefix)]
+        )
+        self.instances = InstanceCollection(db['{}-instances'.format(prefix)])
+        self.regexes = _DataProcessingCollection(db['{}-regexes'.format(prefix)])
+        self.lookups = _DataProcessingCollection(db['{}-lookups'.format(prefix)])
+        self.triggers = _TriggerCollection(db['{}-triggers'.format(prefix)])
 
     async def init(self):
         await self.templates.index()

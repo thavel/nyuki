@@ -267,38 +267,33 @@ class ApiTemplates(_TemplateResource):
         """
         Return available workflows' DAGs
         """
-        org = request.headers.get('X-Surycat-Org')
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            async with self.manager.db_context(org) as storage:
-                templates = await storage.templates.get_all(
-                    full=(request.GET.get('full') == '1'),
-                    latest=(request.GET.get('latest') == '1'),
-                    draft=(request.GET.get('draft') == '1'),
-                )
+            storage = await self.manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        templates = await storage.templates.get_all(
+            full=(request.GET.get('full') == '1'),
+            latest=(request.GET.get('latest') == '1'),
+            draft=(request.GET.get('draft') == '1'),
+        )
         return Response(templates)
 
     async def put(self, request):
         """
         Create a workflow DAG from JSON
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            storage = await self.manager.database(
-                request.headers.get('X-Surycat-Org')
-            )
+            storage = await self.manager.database(org)
         except AutoReconnect:
             return Response(status=503)
 
         request = await request.json()
 
         if 'id' in request:
-            try:
-                draft = await storage.templates.get(
-                    request['id'], draft=True
-                )
-            except AutoReconnect:
-                return Response(status=503)
+            draft = await storage.templates.get(request['id'], draft=True)
             if draft:
                 return Response(status=409, body={
                     'error': 'draft already exists'
@@ -314,10 +309,7 @@ class ApiTemplates(_TemplateResource):
                 'error': str(exc)
             })
 
-        try:
-            metadata = await storage.templates.get_metadata(template.uid)
-        except AutoReconnect:
-            return Response(status=503)
+        metadata = await storage.templates.get_metadata(template.uid)
         if not metadata:
             if 'title' not in request:
                 return Response(status=400, body={
@@ -355,10 +347,13 @@ class ApiTemplate(_TemplateResource):
         """
         Return the latest version of the template
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            tmpl = await self.nyuki.storage.templates.get(tid)
+            storage = await self.manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        tmpl = await storage.templates.get(tid)
         if not tmpl:
             return Response(status=404)
 
@@ -368,10 +363,13 @@ class ApiTemplate(_TemplateResource):
         """
         Create a new draft for this template id
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            versions = await self.nyuki.storage.templates.get(tid)
+            storage = await self.manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        versions = await storage.templates.get(tid)
         if not versions:
             return Response(status=404)
 
@@ -398,7 +396,7 @@ class ApiTemplate(_TemplateResource):
                 'error': exc
             })
 
-        metadata = await self.nyuki.storage.templates.get_metadata(template.uid)
+        metadata = await storage.templates.get_metadata(template.uid)
         metadata = metadata[0]
 
         return Response({
@@ -411,17 +409,20 @@ class ApiTemplate(_TemplateResource):
         """
         Modify the template's metadata
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            tmpl = await self.nyuki.storage.templates.get(tid)
+            storage = await self.manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        tmpl = await storage.templates.get(tid)
         if not tmpl:
             return Response(status=404)
 
         request = await request.json()
 
         # Add ID, request dict cleaned in storage
-        metadata = await self.nyuki.storage.templates.insert_metadata({
+        metadata = await storage.templates.insert_metadata({
             **request,
             'id': tid
         })
@@ -432,15 +433,18 @@ class ApiTemplate(_TemplateResource):
         """
         Delete the template
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            tmpl = await self.nyuki.storage.templates.get(tid)
+            storage = await self.manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        tmpl = await storage.templates.get(tid)
         if not tmpl:
             return Response(status=404)
 
-        await self.nyuki.storage.templates.delete(tid)
-        await self.nyuki.storage.triggers.delete(tid)
+        await storage.templates.delete(tid)
+        await storage.triggers.delete(tid)
 
         try:
             await self.nyuki.engine.unload(tid)
@@ -457,10 +461,13 @@ class ApiTemplateVersion(_TemplateResource):
         """
         Return the template's given version
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            tmpl = await self.nyuki.storage.templates.get(tid, version, False)
+            storage = await self.manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        tmpl = await storage.templates.get(tid, version, False)
         if not tmpl:
             return Response(status=404)
 
@@ -470,14 +477,17 @@ class ApiTemplateVersion(_TemplateResource):
         """
         Delete a template with given version
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            tmpl = await self.nyuki.storage.templates.get(tid)
+            storage = await self.manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        tmpl = await storage.templates.get(tid)
         if not tmpl:
             return Response(status=404)
 
-        await self.nyuki.storage.templates.delete(tid, version)
+        await storage.templates.delete(tid, version)
         return Response(tmpl[0])
 
 
@@ -488,10 +498,13 @@ class ApiTemplateDraft(_TemplateResource):
         """
         Return the template's draft, if any
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            tmpl = await self.nyuki.storage.templates.get(tid, draft=True)
+            storage = await self.manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        tmpl = await storage.templates.get(tid, draft=True)
         if not tmpl:
             return Response(status=404)
 
@@ -501,10 +514,13 @@ class ApiTemplateDraft(_TemplateResource):
         """
         Publish a draft into production
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            tmpl = await self.nyuki.storage.templates.get(tid, draft=True)
+            storage = await self.manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        tmpl = await storage.templates.get(tid, draft=True)
         if not tmpl:
             return Response(status=404)
 
@@ -527,17 +543,20 @@ class ApiTemplateDraft(_TemplateResource):
 
         await self.nyuki.engine.load(template)
         # Update draft into a new template
-        await self.nyuki.storage.templates.publish_draft(tid)
+        await storage.templates.publish_draft(tid)
         return Response(draft)
 
     async def patch(self, request, tid):
         """
         Modify the template's draft
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            tmpl = await self.nyuki.storage.templates.get(tid, draft=True)
+            storage = await self.manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        tmpl = await storage.templates.get(tid, draft=True)
         if not tmpl:
             return Response(status=404)
 
@@ -558,7 +577,7 @@ class ApiTemplateDraft(_TemplateResource):
                 'error': str(exc)
             })
 
-        metadata = await self.nyuki.storage.templates.get_metadata(template.uid)
+        metadata = await storage.templates.get_metadata(template.uid)
         metadata = metadata[0]
 
         return Response({
@@ -571,12 +590,15 @@ class ApiTemplateDraft(_TemplateResource):
         """
         Delete the template's draft
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            tmpl = await self.nyuki.storage.templates.get(tid, draft=True)
+            storage = await self.manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        tmpl = await storage.templates.get(tid, draft=True)
         if not tmpl:
             return Response(status=404)
 
-        await self.nyuki.storage.templates.delete(tid, draft=True)
+        await storage.templates.delete(tid, draft=True)
         return Response(tmpl[0])

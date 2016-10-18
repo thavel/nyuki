@@ -35,16 +35,25 @@ class ApiFactoryRegexes:
         """
         Return the list of all regexes
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            regexes = await self.nyuki.storage.regexes.get_all()
+            storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        regexes = await storage.regexes.get_all()
         return Response(regexes)
 
     async def put(self, request):
         """
         Insert a new regex
         """
+        org = request.headers.get('X-Surycat-Organization')
+        try:
+            storage = await self.nyuki.mongo_manager.database(org)
+        except AutoReconnect:
+            return Response(status=503)
+
         request = await request.json()
 
         try:
@@ -54,21 +63,21 @@ class ApiFactoryRegexes:
                 'error': 'missing parameter {}'.format(exc)
             })
 
-        try:
-            await self.nyuki.storage.regexes.insert(regex)
-        except AutoReconnect:
-            return Response(status=503)
+        await storage.regexes.insert(regex)
         return Response(regex)
 
     async def delete(self, request):
         """
         Delete all regexes and return the list
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            rules = await self.nyuki.storage.regexes.get_all()
+            storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
             return Response(status=503)
-        await self.nyuki.storage.regexes.delete()
+
+        rules = await storage.regexes.get_all()
+        await storage.regexes.delete()
         return Response(rules)
 
 
@@ -79,10 +88,13 @@ class ApiFactoryRegex:
         """
         Return the regex for id `regex_id`
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            regex = await self.nyuki.storage.regexes.get(regex_id)
+            storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        regex = await storage.regexes.get(regex_id)
         if not regex:
             return Response(status=404)
         return Response(regex)
@@ -91,10 +103,13 @@ class ApiFactoryRegex:
         """
         Modify an existing regex
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            regex = await self.nyuki.storage.regexes.get(regex_id)
+            storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        regex = await storage.regexes.get(regex_id)
         if not regex:
             return Response(status=404)
 
@@ -104,21 +119,24 @@ class ApiFactoryRegex:
             request.get('pattern', regex['pattern']),
             regex_id=regex_id
         )
-        await self.nyuki.storage.regexes.insert(regex)
+        await storage.regexes.insert(regex)
         return Response(regex)
 
     async def delete(self, request, regex_id):
         """
         Delete the regex with id `regex_id`
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            regex = await self.nyuki.storage.regexes.get(regex_id)
+            storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        regex = await storage.regexes.get(regex_id)
         if not regex:
             return Response(status=404)
 
-        await self.nyuki.storage.regexes.delete(regex_id)
+        await storage.regexes.delete(regex_id)
         return Response(regex)
 
 
@@ -157,10 +175,13 @@ class ApiFactoryLookups:
         """
         Return the list of all lookups
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            lookups = await self.nyuki.storage.lookups.get_all()
+            storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        lookups = await storage.lookups.get_all()
         return Response(lookups)
 
     @content_type('multipart/form-data')
@@ -168,6 +189,12 @@ class ApiFactoryLookups:
         """
         Get a CSV file and parse it into a new lookup table.
         """
+        org = request.headers.get('X-Surycat-Organization')
+        try:
+            storage = await self.nyuki.mongo_manager.database(org)
+        except AutoReconnect:
+            return Response(status=503)
+
         data = await request.post()
         if 'csv' not in data or not isinstance(data['csv'], FileField):
             return Response(status=400, body={
@@ -209,16 +236,19 @@ class ApiFactoryLookups:
         table = list(reader)
 
         lookup = new_lookup(lookup_name, table)
-        try:
-            await self.nyuki.storage.lookups.insert(lookup)
-        except AutoReconnect:
-            return Response(status=503)
+        await storage.lookups.insert(lookup)
         return Response(lookup)
 
     async def put(self, request):
         """
         Insert a new lookup table
         """
+        org = request.headers.get('X-Surycat-Organization')
+        try:
+            storage = await self.nyuki.mongo_manager.database(org)
+        except AutoReconnect:
+            return Response(status=503)
+
         request = await request.json()
 
         try:
@@ -232,21 +262,21 @@ class ApiFactoryLookups:
                 'error': "'table' must be a list of value/replace pairs"
             })
 
-        try:
-            await self.nyuki.storage.lookups.insert(lookup)
-        except AutoReconnect:
-            return Response(status=503)
+        await storage.lookups.insert(lookup)
         return Response(lookup)
 
     async def delete(self, request):
         """
         Delete all lookups and return the list
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            lookups = await self.nyuki.storage.lookups.get_all()
+            storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
             return Response(status=503)
-        await self.nyuki.storage.lookups.delete()
+
+        lookups = await storage.lookups.get_all()
+        await storage.lookups.delete()
         return Response(lookups)
 
 
@@ -257,10 +287,13 @@ class ApiFactoryLookup:
         """
         Return the lookup table for id `lookup_id`
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            lookup = await self.nyuki.storage.lookups.get(lookup_id)
+            storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        lookup = await storage.lookups.get(lookup_id)
         if not lookup:
             return Response(status=404)
         return Response(lookup)
@@ -269,10 +302,13 @@ class ApiFactoryLookup:
         """
         Modify an existing lookup table
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            lookup = await self.nyuki.storage.lookups.get(lookup_id)
+            storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        lookup = await storage.lookups.get(lookup_id)
         if not lookup:
             return Response(status=404)
 
@@ -282,21 +318,24 @@ class ApiFactoryLookup:
             request.get('table', lookup['table']),
             lookup_id=lookup_id
         )
-        await self.nyuki.storage.lookups.insert(lookup)
+        await storage.lookups.insert(lookup)
         return Response(lookup)
 
     async def delete(self, request, lookup_id):
         """
         Delete the lookup table with id `lookup_id`
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            lookup = await self.nyuki.storage.lookups.get(lookup_id)
+            storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        lookup = await storage.lookups.get(lookup_id)
         if not lookup:
             return Response(status=404)
 
-        await self.nyuki.storage.lookups.delete(lookup_id)
+        await storage.lookups.delete(lookup_id)
         return Response(lookup)
 
 
@@ -307,10 +346,13 @@ class ApiFactoryLookupCSV:
         """
         Return the lookup table for id `lookup_id`
         """
+        org = request.headers.get('X-Surycat-Organization')
         try:
-            lookup = await self.nyuki.storage.lookups.get(lookup_id)
+            storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
             return Response(status=503)
+
+        lookup = await storage.lookups.get(lookup_id)
         if not lookup:
             return Response(status=404)
 
