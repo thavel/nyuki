@@ -127,6 +127,10 @@ class TriggerWorkflowTask(TaskHolder):
             'X-Surycat-Exec-Track': ','.join(track)
         }
 
+        # 'organization' attribute added by WorkflowNyuki
+        if self.workflow.organization is not None:
+            headers['X-Surycat-Organization'] = self.workflow.organization
+
         # Handle blocking trigger_workflow using mqtt
         if self.blocking:
             topic = '{}/async/{}'.format(runtime.bus.name, str(uuid4())[:8])

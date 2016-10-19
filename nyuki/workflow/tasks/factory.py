@@ -4,6 +4,7 @@ from aiohttp import ClientSession
 from copy import deepcopy
 from tukio.task import register
 from tukio.task.holder import TaskHolder
+from tukio.workflow import Workflow
 
 from nyuki.utils import Converter
 from nyuki.workflow.tasks.utils import runtime, generate_factory_schema
@@ -85,6 +86,7 @@ class FactoryTask(TaskHolder):
     def __init__(self, config):
         super().__init__(config)
         self._diff = None
+        self.headers = {}
         self.api_url = 'http://localhost:{}/v1/workflow'.format(
             runtime.config['api']['port']
         )
@@ -97,7 +99,7 @@ class FactoryTask(TaskHolder):
         Query the nyuki to get the actual regexes from their IDs
         """
         url = '{}/regexes/{}'.format(self.api_url, rule['regex_id'])
-        async with session.get(url) as resp:
+        async with session.get(url, headers=self.headers) as resp:
             if resp.status != 200:
                 raise RuntimeError(
                     'Could not find regex with id {}'.format(
@@ -113,7 +115,7 @@ class FactoryTask(TaskHolder):
         Query the nyuki to get the actual lookup tables from their IDs
         """
         url = '{}/lookups/{}'.format(self.api_url, rule['lookup_id'])
-        async with session.get(url) as resp:
+        async with session.get(url, headers=self.headers) as resp:
             if resp.status != 200:
                 raise RuntimeError(
                     'Could not find lookup table with id {}'.format(
@@ -140,6 +142,11 @@ class FactoryTask(TaskHolder):
                     await self.get_lookup(session, rule)
 
     async def execute(self, event):
+        # 'organization' attribute added by WorkflowNyuki
+        workflow = Workflow.current_workflow()
+        if workflow.organization is not None:
+            self.headers = {'X-Surycat-Organization': workflow.organization}
+
         data = event.data
         runtime_config = deepcopy(self.config)
         await self.get_factory_rules(runtime_config)

@@ -63,6 +63,8 @@ class WorkflowInstance:
 
     def __init__(self, template, instance, org=None, **kwargs):
         self._template = template
+        # Set organization attr on the workflow instance to use in tasks.
+        instance.organization = org
         self._instance = instance
         self._organization = org
         self._exec = {
