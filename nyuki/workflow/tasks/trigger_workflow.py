@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 from uuid import uuid4
+from enum import Enum
 
 from tukio.task import register
 from tukio.task.holder import TaskHolder
@@ -12,6 +13,12 @@ from .utils import runtime
 
 
 log = logging.getLogger(__name__)
+
+
+class Status(Enum):
+    RUNNING = 'running'
+    DONE = 'done'
+    TIMEOUT = 'timeout'
 
 
 @register('trigger_workflow', 'execute')
@@ -50,6 +57,18 @@ class TriggerWorkflowTask(TaskHolder):
             nyuki_api=self.nyuki_api
         )
 
+        self._task = None
+        self._triggered = {
+            'workflow_holder': self.nyuki_api.split('/')[1],
+            'workflow_template_id': self.template,
+            'workflow_exec_id': None,
+            'workflow_draft': self.draft,
+            'status': None
+        }
+
+    def report(self):
+        return self._triggered
+
     async def async_exec(self, topic, data):
         log.debug(
             "Received data for async trigger_workflow in '%s': %s", topic, data
@@ -63,6 +82,7 @@ class TriggerWorkflowTask(TaskHolder):
         Entrypoint execution method.
         """
         data = event.data
+        self._task = asyncio.Task.current_task()
 
         # Send the HTTP request
         log.info('Request %s to process template %s', self.nyuki_api, self.template)
@@ -109,13 +129,26 @@ class TriggerWorkflowTask(TaskHolder):
                     )
                 resp_body = await response.json()
 
+        instance = resp_body['exec']['id']
+        self._triggered['workflow_exec_id'] = instance
         log.debug('Request sent successfully to {}', self.nyuki_api)
+
+        if not self.blocking:
+            self._triggered['status'] = Status.DONE.value
+            self._task.dispatch_progress(self.report())
 
         # Block until task completed
         if self.blocking:
-            instance = resp_body['exec']['id']
+            self._triggered['status'] = Status.RUNNING.value
+            self._task.dispatch_progress(self.report())
             log.info('Waiting for %s@%s to complete', instance, self.nyuki_api)
-            await asyncio.wait_for(self.async_future, self.timeout)
-            log.info('Instance %s@%s is done', instance, self.nyuki_api)
+            try:
+                await asyncio.wait_for(self.async_future, self.timeout)
+                self._triggered['status'] = Status.DONE.value
+                log.info('Instance %s@%s is done', instance, self.nyuki_api)
+            except asyncio.TimeoutError:
+                self._triggered['status'] = Status.TIMEOUT.value
+                log.info('Instance %s@%s has timeouted', instance, self.nyuki_api)
+            self._task.dispatch_progress(self.report())
 
         return data
