@@ -149,6 +149,6 @@ class TriggerWorkflowTask(TaskHolder):
             except asyncio.TimeoutError:
                 self._triggered['status'] = Status.TIMEOUT.value
                 log.info('Instance %s@%s has timeouted', instance, self.nyuki_api)
-            self._task.dispatch_progress(self.report())
+            self._task.dispatch_progress({'status': self._triggered['status']})
 
         return data
