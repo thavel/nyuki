@@ -64,6 +64,7 @@ class MqttBus(Service):
 
     def __init__(self, nyuki, loop=None):
         self._nyuki = nyuki
+        self._nyuki.register_schema(self.CONF_SCHEMA)
         self._loop = loop or asyncio.get_event_loop()
         self._host = None
         self.client = None

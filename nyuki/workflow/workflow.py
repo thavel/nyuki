@@ -11,7 +11,6 @@ from tukio.workflow import (
 from nyuki import Nyuki
 from nyuki.bus import reporting
 from nyuki.utils.mongo import MongoManager
-from nyuki.websocket import websocket_ready
 
 from .api.factory import (
     ApiFactoryRegex, ApiFactoryRegexes, ApiFactoryLookup, ApiFactoryLookups,
@@ -165,6 +164,8 @@ class WorkflowNyuki(Nyuki):
         self.storage = None
         # Stores workflow instances with their template data
         self.running_workflows = {}
+        # Multi-tenant websocket
+        self.ws_clients = None
 
         self.AVAILABLE_TASKS = {}
         for name, value in TaskRegistry.all().items():
@@ -192,7 +193,10 @@ class WorkflowNyuki(Nyuki):
         # Enable workflow exec follow-up
         get_broker().register(self.report_workflow, topic=EXEC_TOPIC)
         # Set workflow serializer
+        self.websocket.add_ready_handler(self.websocket_ready)
+        self.websocket.add_close_handler(self.websocket_close)
         self.websocket.serializer = serialize_wflow_exec
+        self.ws_clients = {}
 
     async def reload(self):
         asyncio.ensure_future(self.reload_from_storage())
@@ -201,33 +205,51 @@ class WorkflowNyuki(Nyuki):
         if self.engine:
             await self.engine.stop()
 
-    @websocket_ready
-    async def websocket_ready(self, token):
+    async def websocket_ready(self, client):
         """
         Immediately send all instances of workflows to the client.
         """
+        org = client.websocket.request_headers.get('X-Surycat-Organization')
+        if org not in self.ws_clients:
+            self.ws_clients[org] = []
+        self.ws_clients[org].append(client)
         return [
             workflow.report()
-            for workflow in self.running_workflows.values()
+            for workflow in self.running_workflows.get(org, {}).values()
         ]
+
+    async def websocket_close(self, client):
+        """
+        Called on websocket closing to clean client list.
+        """
+        for clients in self.ws_clients.values():
+            try:
+                clients.remove(client)
+            except ValueError:
+                pass
 
     def new_workflow(self, template, instance, org=None, **kwargs):
         """
         Keep in memory a workflow template/instance pair.
         """
         wflow = WorkflowInstance(template, instance, org=org, **kwargs)
-        self.running_workflows[instance.uid] = wflow
+        if org not in self.running_workflows:
+            self.running_workflows[org] = {}
+        self.running_workflows[org][instance.uid] = wflow
         return wflow
 
-    # TODO: Live reporting on organization's websocket
     async def report_workflow(self, event):
         """
         Send all worklfow updates to the clients.
         """
         source = event.source.as_dict()
         exec_id = source['workflow_exec_id']
-        wflow = self.running_workflows[exec_id]
+        for org_workflows in self.running_workflows.values():
+            if exec_id in org_workflows:
+                wflow = org_workflows[exec_id]
+                break
         source['workflow_exec_requester'] = wflow.exec.get('requester')
+
         # Workflow ended, clear it from memory
         if event.data['type'] in [
             WorkflowExecState.end.value,
@@ -238,7 +260,7 @@ class WorkflowNyuki(Nyuki):
                 asyncio.ensure_future(storage.instances.insert(
                     sanitize_workflow_exec(wflow.report())
                 ))
-            del self.running_workflows[exec_id]
+            del self.running_workflows[wflow.organization][exec_id]
 
         payload = {
             'type': event.data['type'],
@@ -251,7 +273,9 @@ class WorkflowNyuki(Nyuki):
         if event.data['type'] == WorkflowExecState.begin.value:
             payload['template'] = wflow.template
 
-        await self.websocket.broadcast(payload)
+        await self.websocket.send(
+            self.ws_clients.get(wflow.organization, []), payload
+        )
 
     async def workflow_event(self, efrom, data):
         """

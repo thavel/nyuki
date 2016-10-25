@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 import json
 from jsonschema import validate, ValidationError
 import logging
@@ -13,50 +14,45 @@ from nyuki.services import Service
 log = logging.getLogger(__name__)
 
 
-def websocket_ready(func):
-    """
-    This decorator set an async method to be called at a client connection,
-    the return value (dict) and will be sent as data to the client
-    """
-    @staticmethod
-    async def decorated(self, token):
-        return await func(self, token)
+class WebsocketClient:
 
-    WebHandler.READY_CALLBACK = decorated
-    return func
+    def __init__(self, token, websocket, path):
+        self._token = token
+        self._websocket = websocket
+        self._path = path
 
+    @property
+    def token(self):
+        return self._token
 
-def websocket_close(func):
-    """
-    This decorator set an async method to be called at a client connection,
-    the return value (dict) and will be sent as data to the client
-    """
-    @staticmethod
-    async def decorated(self, token):
-        return await func(self, token)
+    @property
+    def websocket(self):
+        return self._websocket
 
-    WebHandler.CLOSE_CALLBACK = decorated
-    return func
+    @property
+    def path(self):
+        return self._path
+
+    def __repr__(self):
+        return '<WebsocketClient {} at {}>'.format(self._token, hex(id(self)))
 
 
 class WebHandler(Service):
 
     CONF_SCHEMA = {
-        "type": "object",
-        "properties": {
-            "websocket": {
-                "type": "object",
-                "properties": {
-                    "host": {"type": "string"},
-                    "port": {"type": "integer"}
+        'type': 'object',
+        'properties': {
+            'websocket': {
+                'type': 'object',
+                'properties': {
+                    'host': {'type': 'string'},
+                    'port': {'type': 'integer', 'minimum': 1}
                 }
             }
         }
     }
 
-    READY_CALLBACK = None
-    CLOSE_CALLBACK = None
-    TOKEN_USAGE_TIMEOUT = 1
+    TOKEN_USAGE_TIMEOUT = 10
     KEEPALIVE_SCHEMA = {
         'type': 'object',
         'required': ['type'],
@@ -76,8 +72,12 @@ class WebHandler(Service):
         self.port = None
         self.server = None
         self.keepalive = None
-        self.clients = {}
+        self.tokens = None
         self._serializer = None
+
+        # Handlers
+        self._ready_handlers = []
+        self._close_handlers = []
 
     @property
     def serializer(self):
@@ -98,6 +98,7 @@ class WebHandler(Service):
         self.server = await websockets.serve(
             self._wshandler, self.host, self.port
         )
+        self.tokens = {}
 
     def configure(self, host='0.0.0.0', port=5559, keepalive=60):
         self.host = host
@@ -111,6 +112,22 @@ class WebHandler(Service):
             self.server.close()
             await self.server.wait_closed()
 
+    def add_ready_handler(self, ready):
+        """
+        Add a method to be ran on a new client connection.
+        """
+        if not asyncio.iscoroutinefunction(ready):
+            raise ValueError('Ready handler not coroutine')
+        self._ready_handlers.append(ready)
+
+    def add_close_handler(self, close):
+        """
+        Add a method to be ran at the end of a client connection.
+        """
+        if not asyncio.iscoroutinefunction(close):
+            raise ValueError('Close handler not coroutine')
+        self._close_handlers.append(close)
+
     def new_token(self):
         """
         Random token using 30 digits/lowercases
@@ -119,78 +136,87 @@ class WebHandler(Service):
             random.choice(string.ascii_letters + string.digits)
             for _ in range(30)
         )
-        log.debug('new token: %s', token)
-        self.clients[token] = None
+        log.debug('New websocket token: %s', token)
+        self.tokens[token] = None
         self._loop.call_later(
             self.TOKEN_USAGE_TIMEOUT, self._check_token_usage, token
         )
         return token
 
-    async def broadcast(self, message, tokens=None, timeout=2.0):
+    async def send(self, clients, data, timeout=2.0):
         """
-        Send a message to every connected client
+        Send data to a client or a list of clients.
         """
-        tasks = []
-        if not isinstance(message, str):
-            data = json.dumps(message, default=self._serializer)
-        if isinstance(tokens, str):
-            tokens = [tokens]
-        if isinstance(tokens, list):
-            log.debug('Sending to client list %s: %s', tokens, data)
-            for token in tokens:
-                client = self.clients[token]
-                if client is None:
-                    log.warning("Token '%s' initialized but not used", token)
-                    continue
-                tasks.append(asyncio.ensure_future(client.send(data)))
-        else:
-            log.debug('Sending to all WS clients: %s', data)
-            for websocket in self.server.websockets:
-                tasks.append(asyncio.ensure_future(websocket.send(data)))
+        if not isinstance(clients, list):
+            clients = [clients]
+        if not isinstance(data, str):
+            data = json.dumps(data, default=self._serializer)
 
+        tasks = [
+            asyncio.ensure_future(client.websocket.send(data))
+            for client in clients
+        ]
         if not tasks:
-            log.debug('Nobody to broadcast to')
             return
 
+        log.debug('Sending to client list %s: %s', clients, data)
         await asyncio.wait(tasks, timeout=timeout)
 
-    async def _send_ready(self, websocket, token):
+    async def broadcast(self, data, timeout=2.0):
         """
-        Send the 'ready' message to a client
+        Send a message to every connected client.
         """
-        self.clients[token] = websocket
-        ready = {
-            'type': 'ready',
-            'keepalive_delay': self.keepalive * 0.8,
-            'data': {}
-        }
-        if self.READY_CALLBACK:
-            log.info('Ready callback set up, calling it for new client')
-            ready['data'] = await self.READY_CALLBACK(self._nyuki, token) or {}
-        log.info('Sending ready packet')
-        log.debug('ready dump: %s', ready)
-        await websocket.send(json.dumps(ready, default=self._serializer))
+        if not isinstance(data, str):
+            data = json.dumps(data, default=self._serializer)
+
+        tasks = [
+            asyncio.ensure_future(websocket.send(data))
+            for websocket in self.server.websockets
+        ]
+        if not tasks:
+            return
+
+        log.debug('Sending to all WS clients: %s', data)
+        await asyncio.wait(tasks, timeout=timeout)
 
     def _check_token_usage(self, token):
         """
         Delete token if never used
         """
-        if token in self.clients and self.clients[token] is None:
+        if token in self.tokens and self.tokens[token] is None:
             log.debug("token '%s' never used, deleting it", token)
-            del self.clients[token]
+            del self.tokens[token]
 
-    async def _end_websocket_client(self, websocket, token, reason):
+    async def _send_ready(self, client):
+        """
+        Send the 'ready' message to a client
+        """
+        self.tokens[client.token] = client
+        ready = {
+            'type': 'ready',
+            'keepalive_delay': self.keepalive * 0.8,
+            'data': {}
+        }
+        for handler in self._ready_handlers:
+            ready['data'] = await handler(client) or {}
+        log.debug('Sending ready packet: %s', ready)
+        await client.websocket.send(json.dumps(ready, default=self._serializer))
+
+    async def _end_websocket_client(self, client, reason):
         """
         Close the connection if no keepalive have been received
         """
-        if self.CLOSE_CALLBACK:
-            log.info('Close callback set up, calling it before ending client')
-            await self.CLOSE_CALLBACK(self._nyuki, token)
-        websocket.close(reason=reason)
+        tasks = [
+            asyncio.ensure_future(handler(client))
+            for handler in self._close_handlers
+        ]
+        if tasks:
+            await asyncio.wait(tasks)
+        client.websocket.close(reason=reason)
         try:
-            del self.clients[token]
+            del self.tokens[client.token]
         except KeyError as ke:
-            log.debug("token '%s' already removed from keepalive", ke)
+            log.debug('Token %s already removed from keepalive', ke)
 
     def _schedule_keepalive(self, websocket, token):
         return self._loop.call_later(
@@ -211,18 +237,19 @@ class WebHandler(Service):
             return
 
         token = match.group('token')
-        if token not in self.clients:
+        if token not in self.tokens:
             log.debug("Unknown token '%s'", token)
             websocket.close()
             return
-        elif self.clients[token] is not None:
+        elif self.tokens[token] is not None:
             log.debug("Token already in use: '%s'", token)
             websocket.close()
             return
 
         log.info('Connection from token: %s', token)
         handle = self._schedule_keepalive(websocket, token)
-        await self._send_ready(websocket, token)
+        client = WebsocketClient(token, websocket, path)
+        await self._send_ready(client)
 
         while True:
             # Main read loop
@@ -251,6 +278,4 @@ class WebHandler(Service):
                 handle = self._schedule_keepalive(websocket, token)
 
         handle.cancel()
-        await self._end_websocket_client(
-            websocket, token, 'connection closed normally'
-        )
+        await self._end_websocket_client(client, 'connection closed normally')
