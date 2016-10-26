@@ -159,7 +159,7 @@ class WebHandler(Service):
         if not tasks:
             return
 
-        log.debug('Sending to client list %s: %s', clients, data)
+        log.debug('Sending data to client list %s', clients)
         await asyncio.wait(tasks, timeout=timeout)
 
     async def broadcast(self, data, timeout=2.0):
@@ -176,7 +176,7 @@ class WebHandler(Service):
         if not tasks:
             return
 
-        log.debug('Sending to all WS clients: %s', data)
+        log.debug('Sending data to all WS clients')
         await asyncio.wait(tasks, timeout=timeout)
 
     def _check_token_usage(self, token):
