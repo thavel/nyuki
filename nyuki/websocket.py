@@ -218,11 +218,11 @@ class WebHandler(Service):
         except KeyError as ke:
             log.debug('Token %s already removed from keepalive', ke)
 
-    def _schedule_keepalive(self, websocket, token):
+    def _schedule_keepalive(self, client):
         return self._loop.call_later(
             self.keepalive,
             lambda: asyncio.ensure_future(self._end_websocket_client(
-                websocket, token, 'keepalive timed out'
+                client, 'keepalive timed out'
             ), loop=self._loop)
         )
 
@@ -247,8 +247,8 @@ class WebHandler(Service):
             return
 
         log.info('Connection from token: %s', token)
-        handle = self._schedule_keepalive(websocket, token)
         client = WebsocketClient(token, websocket, path)
+        handle = self._schedule_keepalive(client)
         await self._send_ready(client)
 
         while True:
@@ -275,7 +275,7 @@ class WebHandler(Service):
             mtype = data['type']
             if mtype == 'keepalive':
                 handle.cancel()
-                handle = self._schedule_keepalive(websocket, token)
+                handle = self._schedule_keepalive(client)
 
         handle.cancel()
         await self._end_websocket_client(client, 'connection closed normally')

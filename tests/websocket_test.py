@@ -7,14 +7,15 @@ from websockets import client, exceptions
 
 from nyuki import Nyuki
 from nyuki.api.websocket import ApiWebsocketToken
-from nyuki.websocket import websocket_ready
 
 
 class WebNyuki(Nyuki):
 
-    @websocket_ready
-    async def ready(self, token):
-        return {'your_token': token}
+    async def setup(self):
+        self.websocket.add_ready_handler(self.ready)
+
+    async def ready(self, client):
+        return {'your_token': client.token}
 
 
 class WebsocketTest(TestCase):
@@ -26,6 +27,7 @@ class WebsocketTest(TestCase):
                 'websocket': {}
             }))
         self.nyuki = WebNyuki(config=conf.name)
+        await self.nyuki.setup()
 
     async def tearDown(self):
         await self.client.close()
@@ -47,7 +49,7 @@ class WebsocketTest(TestCase):
         api.nyuki = self.nyuki
         resp = api.get(None)
         token = json.loads(resp.body.decode())['token']
-        assert_in(token, web.clients)
+        assert_in(token, web.tokens)
 
         # Good token
         self.client = await client.connect('ws://localhost:5566/' + token)
@@ -72,7 +74,7 @@ class WebsocketTest(TestCase):
 
         # Close connection
         await self.client.close()
-        assert_not_in(token, web.clients)
+        assert_not_in(token, web.tokens)
 
     async def test_002_keepalive(self):
         # Init nyuki
@@ -85,13 +87,13 @@ class WebsocketTest(TestCase):
 
         # Connect
         self.client = await client.connect('ws://localhost:5566/' + token)
-        assert_in(token, web.clients)
+        assert_in(token, web.tokens)
         await asyncio.sleep(0.06)
-        assert_in(token, web.clients)
+        assert_in(token, web.tokens)
         await self.client.send(json.dumps({'type': 'keepalive'}))
 
         # Token expire
         await asyncio.sleep(0.06)
-        assert_in(token, web.clients)
+        assert_in(token, web.tokens)
         await asyncio.sleep(0.06)
-        assert_not_in(token, web.clients)
+        assert_not_in(token, web.tokens)
