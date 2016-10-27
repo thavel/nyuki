@@ -9,6 +9,7 @@ log = logging.getLogger(__name__)
 
 
 class TraceableDict(dict):
+
     """
     Python dict-based class that tracks any changes.
     Format:
@@ -17,9 +18,10 @@ class TraceableDict(dict):
         {"action": "update", "key": <key>, "old_value": <old-value>,
                                            "new_value": <new-value>},
     """
+
     def __init__(self, dict2):
-        self._changes = []
         super().__init__(deepcopy(dict2))
+        self._changes = []
 
     def __setitem__(self, key, value):
         if key not in self:
@@ -28,7 +30,7 @@ class TraceableDict(dict):
                 'key': key,
                 'value': deepcopy(value)
             })
-        else:
+        elif self[key] != value:
             self._changes.append({
                 'action': 'update',
                 'key': key,
@@ -53,7 +55,7 @@ class TraceableDict(dict):
                     'key': key,
                     'value': deepcopy(dict2[key])
                 })
-            else:
+            elif self[key] != dict2[key]:
                 self._changes.append({
                     'action': 'update',
                     'key': key,
