@@ -69,6 +69,27 @@ class TriggerWorkflowTask(TaskHolder):
     def report(self):
         return self._triggered
 
+    async def teardown(self):
+        exec_id = self._triggered['workflow_exec_id']
+        holder = self._triggered['workflow_holder']
+        uri = '{}@{}'.format(exec_id, holder)
+        if not exec_id:
+            log.debug('No triggered workflow to cancel')
+            return
+
+        async with ClientSession() as session:
+            params = {
+                'url': '{}/{}'.format(self.url, exec_id),
+                'headers': {'Content-Type': 'application/json'}
+            }
+            async with session.delete(**params) as response:
+                response = response.status
+
+        if response != 200:
+            log.debug('Failed to cancel triggered workflow {}'.format(uri))
+        else:
+            log.debug('Triggered workflow {} has been cancelled'.format(uri))
+
     async def async_exec(self, topic, data):
         log.debug(
             "Received data for async trigger_workflow in '%s': %s", topic, data
