@@ -26,7 +26,7 @@ class _DatabaseContext:
 
 class MongoManager:
 
-    DATABASE_PREFIX = 'org-'
+    DATABASE_PREFIX = 'site-'
     DEFAULT_DATABASE = 'default'
     DEFAULT_COL_PREFIX = 'default'
 
