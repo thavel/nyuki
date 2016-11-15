@@ -7,8 +7,8 @@ from tukio.task.holder import TaskHolder
 log = logging.getLogger(__name__)
 
 
-@register('send_input', 'execute')
-class SendInputTask(TaskHolder):
+@register('notify', 'execute')
+class NotifyTask(TaskHolder):
 
     SCHEMA = {
         'type': 'object',
@@ -23,6 +23,6 @@ class SendInputTask(TaskHolder):
 
     async def execute(self, event):
         topic = self.config.get('topic')
-        log.info('Sending input to topic: %s', topic)
+        log.info('Notifying data to topic: %s', topic)
         await runtime.bus.publish(event.data, topic=topic)
         return event
