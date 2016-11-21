@@ -1,13 +1,14 @@
-def generate_schema(properties={}, **definitions):
+def generate_factory_schema(schema):
     """
     Append custom object properties to the base selector schema.
     """
+    definitions = schema.get('definitions', {})
     return {
         'type': 'object',
-        'required': ['rules'],
+        'required': ['rules'] + schema.get('required', []),
         'properties': {
             'rules': {'$ref': '#/definitions/rules'},
-            **properties
+            **schema.get('properties', {})
         },
         'definitions': {
             'rules': {
@@ -16,6 +17,7 @@ def generate_schema(properties={}, **definitions):
                     'oneOf': [{'$ref': '#/definitions/condition-block'}] + [
                         {'$ref': '#/definitions/{}'.format(dtype)}
                         for dtype in definitions.keys()
+                        if dtype.startswith('rule-')
                     ]
                 }
             },

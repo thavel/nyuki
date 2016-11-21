@@ -6,72 +6,74 @@ from tukio.task import register
 from tukio.task.holder import TaskHolder
 
 from nyuki.utils import Converter
-from nyuki.workflow.tasks.utils import runtime, generate_schema
+from nyuki.workflow.tasks.utils import runtime, generate_factory_schema
 
 
 log = logging.getLogger(__name__)
 
 
 FACTORY_SCHEMAS = {
-    'extract': {
-        'type': 'object',
-        'required': ['type', 'fieldname', 'regex_id'],
-        'properties': {
-            'type': {'type': 'string', 'enum': ['extract']},
-            'fieldname': {'type': 'string', 'minLength': 1},
-            'regex_id': {'type': 'string', 'minLength': 1},
-            'pos': {'type': 'integer', 'minimum': 0},
-            'endpos': {'type': 'integer', 'minimum': 0},
-            'flags': {'type': 'integer'}
-        }
-    },
-    'lookup': {
-        'type': 'object',
-        'required': ['type', 'fieldname', 'lookup_id'],
-        'properties': {
-            'type': {'type': 'string', 'enum': ['lookup']},
-            'fieldname': {'type': 'string', 'minLength': 1},
-            'lookup_id': {'type': 'string', 'minLength': 1},
-            'icase': {'type': 'boolean'}
-        }
-    },
-    'set': {
-        'type': 'object',
-        'required': ['type', 'fieldname', 'value'],
-        'properties': {
-            'type': {'type': 'string', 'enum': ['set']},
-            'fieldname': {'type': 'string', 'minLength': 1},
-            'value': {'description': 'any value'}
-        }
-    },
-    'copy': {
-        'type': 'object',
-        'required': ['type', 'fieldname', 'copy'],
-        'properties': {
-            'type': {'type': 'string', 'enum': ['copy']},
-            'fieldname': {'type': 'string', 'minLength': 1},
-            'copy': {'type': 'string', 'minLength': 1,
-                     'description': 'the copy filed name'}
-        }
-    },
-    'sub': {
-        'type': 'object',
-        'required': ['type', 'fieldname', 'regex_id', 'repl'],
-        'properties': {
-            'type': {'type': 'string', 'enum': ['sub']},
-            'fieldname': {'type': 'string', 'minLength': 1},
-            'regex_id': {'type': 'string', 'minLength': 1},
-            'repl': {'type': 'string', 'minLength': 1},
-            'count': {'type': 'integer', 'minimum': 1},
-            'flags': {'type': 'integer'}
-        }
-    },
-    'unset': {
-        'type': 'object',
-        'required': ['type', 'fieldname'],
-        'properties': {
-            'type': {'type': 'string', 'enum': ['unset']},
-            'fieldname': {'type': 'string', 'minLength': 1}
+    'definitions': {
+        'rule-extract': {
+            'type': 'object',
+            'required': ['type', 'fieldname', 'regex_id'],
+            'properties': {
+                'type': {'type': 'string', 'enum': ['extract']},
+                'fieldname': {'type': 'string', 'minLength': 1},
+                'regex_id': {'type': 'string', 'minLength': 1},
+                'pos': {'type': 'integer', 'minimum': 0},
+                'endpos': {'type': 'integer', 'minimum': 0},
+                'flags': {'type': 'integer'}
+            }
+        },
+        'rule-lookup': {
+            'type': 'object',
+            'required': ['type', 'fieldname', 'lookup_id'],
+            'properties': {
+                'type': {'type': 'string', 'enum': ['lookup']},
+                'fieldname': {'type': 'string', 'minLength': 1},
+                'lookup_id': {'type': 'string', 'minLength': 1},
+                'icase': {'type': 'boolean'}
+            }
+        },
+        'rule-set': {
+            'type': 'object',
+            'required': ['type', 'fieldname', 'value'],
+            'properties': {
+                'type': {'type': 'string', 'enum': ['set']},
+                'fieldname': {'type': 'string', 'minLength': 1},
+                'value': {'description': 'any value'}
+            }
+        },
+        'rule-copy': {
+            'type': 'object',
+            'required': ['type', 'fieldname', 'copy'],
+            'properties': {
+                'type': {'type': 'string', 'enum': ['copy']},
+                'fieldname': {'type': 'string', 'minLength': 1},
+                'copy': {'type': 'string', 'minLength': 1,
+                         'description': 'the copy filed name'}
+            }
+        },
+        'rule-sub': {
+            'type': 'object',
+            'required': ['type', 'fieldname', 'regex_id', 'repl'],
+            'properties': {
+                'type': {'type': 'string', 'enum': ['sub']},
+                'fieldname': {'type': 'string', 'minLength': 1},
+                'regex_id': {'type': 'string', 'minLength': 1},
+                'repl': {'type': 'string', 'minLength': 1},
+                'count': {'type': 'integer', 'minimum': 1},
+                'flags': {'type': 'integer'}
+            }
+        },
+        'rule-unset': {
+            'type': 'object',
+            'required': ['type', 'fieldname'],
+            'properties': {
+                'type': {'type': 'string', 'enum': ['unset']},
+                'fieldname': {'type': 'string', 'minLength': 1}
+            }
         }
     }
 }
@@ -80,7 +82,7 @@ FACTORY_SCHEMAS = {
 @register('factory', 'execute')
 class FactoryTask(TaskHolder):
 
-    SCHEMA = generate_schema(**FACTORY_SCHEMAS)
+    SCHEMA = generate_factory_schema(FACTORY_SCHEMAS)
 
     def __init__(self, config):
         super().__init__(config)

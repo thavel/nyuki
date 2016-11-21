@@ -5,7 +5,7 @@ from tukio.task import register
 from tukio.task.holder import TaskHolder
 
 from nyuki.utils.evaluate import ConditionBlock
-from nyuki.workflow.tasks.utils import generate_schema
+from nyuki.workflow.tasks.utils import generate_factory_schema
 
 
 log = logging.getLogger(__name__)
@@ -43,17 +43,21 @@ class TaskSelector(TaskHolder):
         super().__init__(*args, **kwargs)
         self._selected = None
 
-    SCHEMA = generate_schema(tasks={
-        'type': 'object',
-        'required': ['type', 'tasks'],
-        'properties': {
-            'type': {'type': 'string', 'enum': ['task-selector']},
-            'tasks': {
-                'type': 'array',
-                'items': {
-                    'type': 'string',
-                    'minLength': 1,
-                    'uniqueItems': True
+    SCHEMA = generate_factory_schema({
+        'definitions': {
+            'rule-tasks': {
+                'type': 'object',
+                'required': ['type', 'tasks'],
+                'properties': {
+                    'type': {'type': 'string', 'enum': ['task-selector']},
+                    'tasks': {
+                        'type': 'array',
+                        'items': {
+                            'type': 'string',
+                            'minLength': 1,
+                            'uniqueItems': True
+                        }
+                    }
                 }
             }
         }
