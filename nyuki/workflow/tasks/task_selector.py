@@ -39,29 +39,25 @@ class TaskConditionBlock(ConditionBlock):
 @register('task_selector', 'execute')
 class TaskSelector(TaskHolder):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._selected = None
-
-    SCHEMA = generate_factory_schema({
-        'definitions': {
-            'rule-tasks': {
-                'type': 'object',
-                'required': ['type', 'tasks'],
-                'properties': {
-                    'type': {'type': 'string', 'enum': ['task-selector']},
-                    'tasks': {
-                        'type': 'array',
-                        'items': {
-                            'type': 'string',
-                            'minLength': 1,
-                            'uniqueItems': True
-                        }
-                    }
+    SCHEMA = generate_factory_schema({'type': 'object'}, tasks={
+        'type': 'object',
+        'required': ['type', 'tasks'],
+        'properties': {
+            'type': {'type': 'string', 'enum': ['task-selector']},
+            'tasks': {
+                'type': 'array',
+                'items': {
+                    'type': 'string',
+                    'minLength': 1,
+                    'uniqueItems': True
                 }
             }
         }
     })
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._selected = None
 
     async def execute(self, event):
         data = event.data
