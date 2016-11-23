@@ -32,7 +32,7 @@ class TriggerWorkflowTask(TaskHolder):
             'nyuki_api': {'type': 'string', 'description': 'nyuki_api'},
             'template': {'type': 'string', 'description': 'template_id'},
             'draft': {'type': 'boolean'},
-            'await_completion': {'type': 'boolean'},
+            'await_completion': {'type': 'boolean', 'default': True},
             'timeout': {'type': 'integer', 'minimum': 1, 'default': 60}
         },
         'dependencies': {
