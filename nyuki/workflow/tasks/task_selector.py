@@ -39,7 +39,7 @@ class TaskConditionBlock(ConditionBlock):
 @register('task_selector', 'execute')
 class TaskSelector(TaskHolder):
 
-    SCHEMA = generate_factory_schema({'type': 'object'}, tasks={
+    SCHEMA = generate_factory_schema(tasks={
         'type': 'object',
         'required': ['type', 'tasks'],
         'properties': {

@@ -80,7 +80,7 @@ FACTORY_SCHEMAS = {
 @register('factory', 'execute')
 class FactoryTask(TaskHolder):
 
-    SCHEMA = generate_factory_schema({'type': 'object'}, **FACTORY_SCHEMAS)
+    SCHEMA = generate_factory_schema(**FACTORY_SCHEMAS)
 
     def __init__(self, config):
         super().__init__(config)

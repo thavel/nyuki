@@ -1,7 +1,9 @@
-def generate_factory_schema(schema, **rules):
+def generate_factory_schema(schema=None, **rules):
     """
     Append custom object properties to the base selector schema.
     """
+    if schema is None:
+        schema = {'type': 'object'}
     schema['required'] = schema.get('required', []) + ['rules']
     schema['properties'] = {
         **schema.get('properties', {}),
