@@ -42,6 +42,13 @@ class MongoManager:
             self.DATABASE_PREFIX, name or self.DEFAULT_DATABASE
         )
 
+    async def drop_database(self, name):
+        """
+        Drop the database with given name.
+        """
+        name = self._db_name(name)
+        await self._client.drop_database(name)
+
     async def list_databases(self):
         """
         List all organization databases.
