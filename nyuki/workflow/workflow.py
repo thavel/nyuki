@@ -221,7 +221,8 @@ class WorkflowNyuki(Nyuki):
         payload = {
             'type': event.data['type'],
             'data': event.data.get('content') or {},
-            'source': source
+            'source': source,
+            'timestamp': datetime.utcnow().isoformat()
         }
 
         # Is workflow begin, also send the full template.
