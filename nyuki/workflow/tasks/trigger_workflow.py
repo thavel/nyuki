@@ -46,7 +46,6 @@ class TriggerWorkflowTask(TaskHolder):
         self.template = self.config['template']
         self.draft = self.config.get('draft', False)
         self.blocking = self.config.get('await_completion', False)
-        self.recipient_field = self.config.get('recipient_field', 'recipient')
         self.timeout = self.config.get('timeout', 60)
         # Workflow URL
         self.nyuki_api = self.config.get('nyuki_api') or ''
