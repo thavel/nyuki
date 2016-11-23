@@ -1,3 +1,4 @@
+import re
 import ast
 from collections import defaultdict
 import logging
@@ -82,7 +83,12 @@ class ConditionBlock:
         # Unknown fields will be converted to None
         format_fields = defaultdict(lambda: None)
         format_fields.update(data)
-        return condition.format(**format_fields)
+
+        # Escape curly brackets (but keep `{var!r}`)
+        cond = condition.replace('{', '{{').replace('}', '}}')
+        cond = re.sub(r"({{[^\s\W]+!r}})", (lambda x: x.group(0)[1:-1]), cond)
+
+        return cond.format(**format_fields)
 
     def condition_validated(self, condition, data):
         """
