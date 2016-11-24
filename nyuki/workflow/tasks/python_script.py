@@ -23,7 +23,7 @@ class PythonScript(TaskHolder):
     async def execute(self, event):
         if self.config.get('script'):
             # Compile string into python statement (allow multi-line)
-            cc = compile(self.config['script'], 'dummy', 'exec')
+            cc = compile(self.config['script'], '<string>', 'exec')
             # Eval the compiled string
             eval(cc)
         return event.data
