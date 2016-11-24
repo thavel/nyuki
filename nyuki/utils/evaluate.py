@@ -77,18 +77,16 @@ class ConditionBlock:
 
     def _clean_condition(self, condition, data):
         """
-        Format the condition string:
-        nb: strings should be {some_string!r} (includes '')
+        Format the condition string (as eval-compliant code).
+        nb: variable replacement should be `@variable_name` formatted.
         """
-        # Unknown fields will be converted to None
-        format_fields = defaultdict(lambda: None)
-        format_fields.update(data)
+        def replace(match):
+            key = match.group('var_name')
+            value = data.get(key)
+            placeholder = '{!r}' if isinstance(value, str) else '{}'
+            return placeholder.format(value)
 
-        # Escape curly brackets (but keep `{var!r}`)
-        cond = condition.replace('{', '{{').replace('}', '}}')
-        cond = re.sub(r"({{[^\s\W]+!r}})", (lambda x: x.group(0)[1:-1]), cond)
-
-        return cond.format(**format_fields)
+        return re.sub(r"@(?P<var_name>[^\s\W]+)", replace, condition)
 
     def condition_validated(self, condition, data):
         """
