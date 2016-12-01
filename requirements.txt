@@ -1,7 +1,7 @@
 aiohttp>=1.1,<1.2
-hbmqtt>=0.7,<0.8
+hbmqtt>=0.8,<0.9
 jsonschema>=2.5,<2.6
-motor>=0.6,<0.7
+motor>=1.0,<1.1
 pijon>=0.1,<0.2
 # pycares-2.0.0 breaks errno.ECONNRESET
 pycares==1.0.0
