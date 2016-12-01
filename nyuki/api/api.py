@@ -48,13 +48,11 @@ class Response(web.Response):
 
         # Check json
         if isinstance(body, dict) or isinstance(body, list):
-            log.debug('converting dict/list response to bytes')
             body = json.dumps(body).encode(self.ENCODING)
             if not self._get_content_type(kwargs):
                 kwargs['content_type'] = 'application/json'
         # Check body
         elif body is not None:
-            log.debug('converting string response to bytes')
             body = str(body).encode(self.ENCODING)
             if not self._get_content_type(kwargs):
                 kwargs['content_type'] = 'text/plain'
