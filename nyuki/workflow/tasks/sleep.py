@@ -17,7 +17,7 @@ class SleepTask(TaskHolder):
     SCHEMA = {
         'type': 'object',
         'properties': {
-            'time': {'type': 'integer', 'minimum': 0}
+            'time': {'type': 'integer', 'minimum': 1}
         }
     }
 
