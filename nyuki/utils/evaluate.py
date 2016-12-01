@@ -80,14 +80,29 @@ class ConditionBlock:
         Format the condition string (as eval-compliant code).
         nb: variable replacement should be `@variable_name` formatted.
         """
+        match = re.findall(
+            r'(?:( and| or) +)?\( *(\S*) +(~|[=<>!]=?|not in|not|in) +(\S*) *\)',
+            condition
+        )
+        if not match:
+            return condition
+
         def replace(match):
             key = match.group('var_name')
             value = data.get(key)
-            placeholder = '{}{!r}' if isinstance(value, str) else '{}{}'
-            # `match.group('in')` is either ' ' or '('
-            return placeholder.format(match.group('in'), value)
+            placeholder = '{!r}' if isinstance(value, str) else '{}'
+            return placeholder.format(value)
 
-        return re.sub(r"(?P<in>[ \(])@(?P<var_name>[^\s\W]+)", replace, condition)
+        # Reconstruct a cleaned string from the operation parts.
+        # See https://regex101.com/r/ekT5wk/3
+        cleaned = ''
+        for operation in match:
+            ops = [operation[0]] if operation[0] else []
+            ops.append(re.sub(r'^@(?P<var_name>\w+)$', replace, operation[1]))
+            ops.append(operation[2])
+            ops.append(re.sub(r'^@(?P<var_name>\w+)$', replace, operation[3]))
+            cleaned += '({})'.format(' '.join(ops))
+        return cleaned
 
     def condition_validated(self, condition, data):
         """
