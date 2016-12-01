@@ -83,10 +83,11 @@ class ConditionBlock:
         def replace(match):
             key = match.group('var_name')
             value = data.get(key)
-            placeholder = '{!r}' if isinstance(value, str) else '{}'
-            return placeholder.format(value)
+            placeholder = '{}{!r}' if isinstance(value, str) else '{}{}'
+            # `match.group('in')` is either ' ' or '('
+            return placeholder.format(match.group('in'), value)
 
-        return re.sub(r"@(?P<var_name>[^\s\W]+)", replace, condition)
+        return re.sub(r"(?P<in>[ \(])@(?P<var_name>[^\s\W]+)", replace, condition)
 
     def condition_validated(self, condition, data):
         """
@@ -106,7 +107,7 @@ class ConditionBlock:
                 return
             # Else find the condition and evaluate it
             cleaned = self._clean_condition(condition['condition'], data)
-            log.debug('arithmetics: trying %s', condition)
+            log.debug('arithmetics: trying %s', cleaned)
             if safe_eval(cleaned):
                 log.debug(
                     'arithmetics: validated condition "%s" as "%s"',

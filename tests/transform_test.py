@@ -65,13 +65,13 @@ class TestTransformCases(TestCase):
 
     def test_008_condition_block(self):
         rule = FactoryConditionBlock([
-            {'type': 'if', 'condition': "@test == 'test if'", 'rules': [
+            {'type': 'if', 'condition': "(@test == 'test if')", 'rules': [
                 {'type': 'set', 'fieldname': 'if', 'value': 'ok'}
             ]},
-            {'type': 'elif', 'condition': "@test == 'test elif'", 'rules': [
+            {'type': 'elif', 'condition': "('test elif' == @test)", 'rules': [
                 {'type': 'set', 'fieldname': 'elif', 'value': 'ok'}
             ]},
-            {'type': 'elif', 'condition': "@test == 123456", 'rules': [
+            {'type': 'elif', 'condition': "(@test == 123456)", 'rules': [
                 {'type': 'set', 'fieldname': 'elif 2', 'value': 'ok'}
             ]},
             {'type': 'else', 'rules': [
