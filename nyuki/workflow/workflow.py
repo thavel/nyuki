@@ -167,7 +167,7 @@ class WorkflowNyuki(Nyuki):
         asyncio.ensure_future(self.reload_from_storage())
         for topic in self.topics:
             asyncio.ensure_future(self.bus.subscribe(
-                self.bus.publish_topic(topic), self.workflow_event
+                topic, self.workflow_event
             ))
         # Enable workflow exec follow-up
         get_broker().register(self.report_workflow, topic=EXEC_TOPIC)

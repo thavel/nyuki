@@ -123,8 +123,8 @@ class XmppBus(Service):
         self._publish_futures = dict()
 
         # MUCs
+        self.name = None
         self._callbacks = dict()
-        self._topic = None
         self._mucs = None
         self._muc_domain = None
 
@@ -133,13 +133,6 @@ class XmppBus(Service):
         if not self._mucs:
             return []
         return [topic.split('@')[0] for topic in self._mucs.rooms.keys()]
-
-    @property
-    def public_topics(self):
-        """
-        Return all public topics ("topic")
-        """
-        return [topic for topic in self.topics if re.match(r'^[^\/]+$', topic)]
 
     async def start(self, timeout=0):
         self.client.connect()
@@ -170,19 +163,19 @@ class XmppBus(Service):
         self.client.add_event_handler('stream_error', self._on_stream_error)
 
         # MUCs
-        self._topic = self.client.boundjid.user
-        self._callbacks[self._topic] = None
+        self.name = self.client.boundjid.user
+        self._callbacks[self.name] = None
         self._mucs = self.client.plugin['xep_0045']
         self._muc_domain = muc_domain
         self.client.add_event_handler('groupchat_message', self._on_event)
         self.client.add_event_handler(
-            'muc::{}::message_error'.format(self._muc_address(self._topic)),
+            'muc::{}::message_error'.format(self._muc_address(self.name)),
             self._on_failed_publish
         )
         self._report_channel = report_channel
 
         # Persistence storage
-        self._persistence = BusPersistence(name=self._topic, **persistence)
+        self._persistence = BusPersistence(name=self.name, **persistence)
         log.info('Bus persistence set to %s', self._persistence.backend)
 
     async def stop(self):
@@ -211,12 +204,6 @@ class XmppBus(Service):
 
     def _muc_address(self, topic):
         return '{}@{}'.format(topic, self._muc_domain)
-
-    def publish_topic(self, nyuki):
-        """
-        Returns the topic in which the given nyuki will send publications
-        """
-        return nyuki
 
     async def _on_register(self, event):
         """
@@ -250,7 +237,7 @@ class XmppBus(Service):
 
         # Auto-subscribe to the topic where the nyuki could publish events.
         self._connected.set()
-        await self.subscribe(self._topic)
+        await self.subscribe(self.name)
 
         # Replay events that have been lost, if any
         if self._persistence:
@@ -316,7 +303,7 @@ class XmppBus(Service):
         # Event's resource is checked as well in case of self monitoring:
         # 'monitoring@mucs.localhost/this_nyuki'
         efrom = event['from'].user
-        if efrom == self._topic or event['from'].resource == self._topic:
+        if efrom == self.name or event['from'].resource == self.name:
             future = self._publish_futures.get(event['id'])
             if not future:
                 log.warning('Received own publish that was not in memory')
@@ -386,7 +373,7 @@ class XmppBus(Service):
         msg = self.client.Message()
         msg['id'] = uid = previous_uid or str(uuid4())
         msg['type'] = 'groupchat'
-        msg['to'] = self._muc_address(topic or self._topic)
+        msg['to'] = self._muc_address(topic or self.name)
         msg['body'] = json.dumps(event, default=serialize_bus_event)
 
         self._publish_futures[uid] = asyncio.Future()
@@ -397,7 +384,7 @@ class XmppBus(Service):
             await self._persistence.store({
                 'id': uid,
                 'status': status.value,
-                'topic': topic or self._topic,
+                'topic': topic or self.name,
                 'message': msg['body'],
             })
             in_memory = self._persistence.memory_buffer
@@ -408,7 +395,7 @@ class XmppBus(Service):
 
         # Publish in MUC
         if self._connected.is_set():
-            log.debug(">> publishing to '{}': {}".format(self._topic, event))
+            log.debug(">> publishing to '{}': {}".format(self.name, event))
             log.info('Publishing an event to %s', msg['to'])
             status = None
             while True:
@@ -459,7 +446,7 @@ class XmppBus(Service):
 
         # '/' are not supported in MUCs name
         topic = topic.replace('/', '.')
-        self._mucs.joinMUC(self._muc_address(topic), self._topic)
+        self._mucs.joinMUC(self._muc_address(topic), self.name)
         log.info("Subscribed to '%s'", topic)
         if self._callbacks.get(topic) is None:
             self._callbacks[topic] = callback
@@ -474,7 +461,7 @@ class XmppBus(Service):
             log.warning("Waiting for a connection to unsubscribe from '%s'", topic)
         await self._connected.wait()
 
-        self._mucs.leaveMUC(self._muc_address(topic), self._topic)
+        self._mucs.leaveMUC(self._muc_address(topic), self.name)
         if topic in self._callbacks:
             del self._callbacks[topic]
         log.info("Unsubscribed from '%s'", topic)

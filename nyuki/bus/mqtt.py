@@ -61,13 +61,10 @@ class MqttBus(Service):
         }
     }
 
-    BASE_PUB = 'publications'
-
     def __init__(self, nyuki, loop=None):
         self._nyuki = nyuki
         self._loop = loop or asyncio.get_event_loop()
         self._host = None
-        self._self_topic = None
         self.client = None
         self._pending = {}
         self.name = None
@@ -81,14 +78,6 @@ class MqttBus(Service):
     def topics(self):
         return list(self._subscriptions.keys())
 
-    @property
-    def public_topics(self):
-        """
-        Only return standard publication topics. ("something/publications")
-        """
-        regex = r'^[^\/]+/{}$'.format(self.BASE_PUB)
-        return [topic for topic in self.topics if re.match(regex, topic)]
-
     def configure(self, name, scheme='mqtt', host='localhost', port=1883,
                   cafile=None, certfile=None, keyfile=None, persistence={},
                   report_channel='monitoring', service=None):
@@ -100,7 +89,6 @@ class MqttBus(Service):
 
         self._host = '{}://{}:{}'.format(scheme, host, port)
         self.name = name
-        self._self_topic = self.publish_topic(self.name)
         self._cafile = cafile
         self._report_channel = report_channel
         self.client = MQTTClient(
@@ -158,12 +146,6 @@ class MqttBus(Service):
         """
         reporting.init(self.name, self)
 
-    def publish_topic(self, nyuki):
-        """
-        Returns the topic in which the given nyuki will send publications
-        """
-        return '{}/{}'.format(nyuki, self.BASE_PUB)
-
     def _regex_topic(self, topic):
         """
         Transform the mqtt pattern into a regex one
@@ -216,7 +198,7 @@ class MqttBus(Service):
         Publish in given topic or default one
         """
         uid = previous_uid or str(uuid4())
-        topic = topic or self._self_topic
+        topic = topic or self.name
         log.info('Publishing an event to %s', topic)
         log.debug('dump: %s', data)
         data = json.dumps(data, default=serialize_bus_event)
@@ -292,7 +274,7 @@ class MqttBus(Service):
             topic = message.topic
 
             # Ignore own message
-            if topic == self.publish_topic(self.name):
+            if topic == self.name:
                 continue
 
             for cb_topic, callback in self._subscriptions.items():

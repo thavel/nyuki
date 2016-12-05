@@ -53,7 +53,7 @@ class ApiBusTopics:
             self.nyuki._services.get('bus')
         except KeyError:
             return Response(status=404)
-        return Response(self.nyuki.bus.public_topics)
+        return Response(self.nyuki.bus.topics)
 
 
 @resource('/bus/publish', versions=['v1'])
