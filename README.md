@@ -206,7 +206,8 @@ All workflow PAI entries are in the ressource /workflow (see the nyuki swagger: 
         "host": "mongo",
         "database": "pipeline",
         "ssl": true,
-        "ssl_certfile": "/mongo/mongo.pem"
+        "ssl_certfile": "/mongo/mongo.pem",
+        "ssl_cert_reqs": 0
     }
 }
 ```
@@ -217,6 +218,7 @@ All workflow PAI entries are in the ressource /workflow (see the nyuki swagger: 
 | `database` | The mongo database name |
 | `ssl` | Connect to the db in ssl (default true) |
 | `ssl_certfile` | the mongo ssl certificate file name |
+| `ssl_cert_reqs` | do we need ot check the certificate validity |
 
 ### Tasks:
 The following tasks may be used in any Nyuki workflow:
