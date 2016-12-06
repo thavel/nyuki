@@ -322,6 +322,8 @@ class _InstanceCollection:
         else:
             fields = {'_id': 0}
         cursor = self._instances.find(query, fields)
+        # Count total results regardless of limit/offset
+        count = await cursor.count()
 
         # Set offset and limit
         if isinstance(offset, int) and offset >= 0:
@@ -330,7 +332,7 @@ class _InstanceCollection:
             cursor.limit(limit)
         cursor.sort('exec.start', DESCENDING)
         # Execute query
-        return await cursor.to_list(None)
+        return count, await cursor.to_list(None)
 
     async def insert(self, workflow_exec):
         """

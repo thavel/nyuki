@@ -221,17 +221,14 @@ class ApiWorkflowsHistory:
                     'error': 'Limit must be an int'
                 })
         try:
-            history = await self.nyuki.storage.instances.get(
+            count, history = await self.nyuki.storage.instances.get(
                 full=bool(request.GET.get('full')),
                 offset=offset, limit=limit, since=since, state=state
             )
         except AutoReconnect:
             return Response(status=503)
 
-        data = {
-            'count': len(history),
-            'data': history
-        }
+        data = {'count': count, 'data': history}
         return Response(
             json.dumps(data, default=serialize_wflow_exec),
             content_type='application/json'
