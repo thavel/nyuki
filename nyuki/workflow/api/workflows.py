@@ -227,8 +227,13 @@ class ApiWorkflowsHistory:
             )
         except AutoReconnect:
             return Response(status=503)
+
+        data = {
+            'count': len(history),
+            'data': history
+        }
         return Response(
-            json.dumps(history, default=serialize_wflow_exec),
+            json.dumps(data, default=serialize_wflow_exec),
             content_type='application/json'
         )
 
