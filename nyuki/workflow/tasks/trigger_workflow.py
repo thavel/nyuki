@@ -95,7 +95,8 @@ class TriggerWorkflowTask(TaskHolder):
             "Received data for async trigger_workflow in '%s': %s", topic, data
         )
         if data['type'] in [WorkflowExecState.end.value, WorkflowExecState.error.value]:
-            self.async_future.set_result(data)
+            if not self.async_future.done():
+                self.async_future.set_result(data)
             asyncio.ensure_future(runtime.bus.unsubscribe(topic))
 
     async def execute(self, event):

@@ -292,6 +292,7 @@ class _InstanceCollection:
         asyncio.ensure_future(_index(self._instances, [('exec.start', DESCENDING)]))
         asyncio.ensure_future(_index(self._instances, [('exec.end', DESCENDING)]))
         asyncio.ensure_future(_index(self._instances, 'exec.state'))
+        asyncio.ensure_future(_index(self._instances, 'exec.requester'))
 
     async def get_one(self, exec_id):
         """
@@ -299,7 +300,8 @@ class _InstanceCollection:
         """
         return await self._instances.find_one({'exec.id': exec_id}, {'_id': 0})
 
-    async def get(self, full=False, offset=None, limit=None, since=None, state=None):
+    async def get(self, root=False, full=False, offset=None, limit=None,
+                  since=None, state=None):
         """
         Return all instances from history from `since` with state `state`.
         """
@@ -309,6 +311,8 @@ class _InstanceCollection:
             query['exec.start'] = {'$gte': since}
         if isinstance(state, Enum):
             query['exec.state'] = state.value
+        if root is True:
+            query['exec.requester'] = None
 
         if full is False:
             fields = {

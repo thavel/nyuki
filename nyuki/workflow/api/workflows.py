@@ -184,6 +184,16 @@ class ApiWorkflow(_WorkflowResource):
 class ApiWorkflowsHistory:
 
     async def get(self, request):
+        """
+        Filters:
+            * `root` return only the root workflows
+            * `full` return the full graph and details of all workflows
+                * :warning: can be a huge amount of data
+            * `since` return the workflows since this date
+            * `state` return the workflows on this FutureState
+            * `offset` return the worflows from this offset
+            * `limit` return this amount of workflows
+        """
         # Filter on start date
         since = request.GET.get('since')
         if since:
@@ -222,7 +232,8 @@ class ApiWorkflowsHistory:
                 })
         try:
             count, history = await self.nyuki.storage.instances.get(
-                full=bool(request.GET.get('full')),
+                root=(request.GET.get('root') == '1'),
+                full=(request.GET.get('full') == '1'),
                 offset=offset, limit=limit, since=since, state=state
             )
         except AutoReconnect:
