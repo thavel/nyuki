@@ -95,7 +95,9 @@ class MqttBus(Service):
             config={
                 'auto_reconnect': False,
                 'certfile': certfile,
-                'keyfile': keyfile
+                'keyfile': keyfile,
+                'keep_alive': 60,
+                'ping_delay': 5
             },
             loop=self._loop
         )
