@@ -299,7 +299,7 @@ class _InstanceCollection:
         """
         return await self._instances.find_one({'exec.id': exec_id}, {'_id': 0})
 
-    async def get(self, offset=None, limit=None, since=None, state=None):
+    async def get(self, full=False, offset=None, limit=None, since=None, state=None):
         """
         Return all instances from history from `since` with state `state`.
         """
@@ -309,7 +309,20 @@ class _InstanceCollection:
             query['exec.start'] = {'$gte': since}
         if isinstance(state, Enum):
             query['exec.state'] = state.value
-        cursor = self._instances.find(query, {'_id': 0})
+
+        if full is False:
+            fields = {
+                '_id': 0,
+                'title': 1,
+                'exec': 1,
+                'id': 1,
+                'version': 1,
+                'draft': 1
+            }
+        else:
+            fields = {'_id': 0}
+        cursor = self._instances.find(query, fields)
+
         # Set offset and limit
         if isinstance(offset, int) and offset >= 0:
             cursor.skip(offset)

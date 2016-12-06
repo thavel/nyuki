@@ -203,6 +203,7 @@ class ApiWorkflowsHistory:
                 })
         try:
             history = await self.nyuki.storage.instances.get(
+                full=bool(request.GET.get('full')),
                 offset=offset, limit=limit, since=since, state=state
             )
         except AutoReconnect:
