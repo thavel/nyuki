@@ -86,8 +86,8 @@ class XmppBus(Service):
                 "type": "object",
                 "required": ["jid", "password"],
                 "properties": {
-                    "certificate": {"type": "string","minLength": 1},
-                    "host": {"type": "string","minLength": 1},
+                    "certificate": {"type": "string", "minLength": 1},
+                    "host": {"type": "string", "minLength": 1},
                     "jid": {"type": "string", "minLength": 1},
                     "muc_domain": {"type": ["string", "null"]},
                     "password": {"type": "string", "minLength": 1},
@@ -101,7 +101,6 @@ class XmppBus(Service):
                         }
                     },
                     "port": {"type": "integer"},
-                    "report_channel": {"type": "string", "minLength": 1},
                     "service": {"type": "string", "minLength": 1}
                 },
                 "additionalProperties": False
@@ -149,7 +148,7 @@ class XmppBus(Service):
 
     def configure(self, jid, password, host='localhost', port=5222,
                   muc_domain='mucs.localhost', certificate=None,
-                  persistence={}, report_channel='monitoring', service=None):
+                  persistence={}, service=None):
         # XMPP client and main handlers
         self.client = _XmppClient(
             jid, password, host, port, certificate=certificate
@@ -172,7 +171,6 @@ class XmppBus(Service):
             'muc::{}::message_error'.format(self._muc_address(self.name)),
             self._on_failed_publish
         )
-        self._report_channel = report_channel
 
         # Persistence storage
         self._persistence = BusPersistence(name=self.name, **persistence)

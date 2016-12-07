@@ -145,6 +145,8 @@ Mandatory parameters are the Jabber ID (`jid`) and the password. Others are opti
 | `scheme` | the scheme protocol used within mqtt options are 'ws': websocket, 'wss': websocket SSL, 'mqtt': MQTT, 'mqtts': MQTT SSL |
 | `host` | the mqtt server host |
 | `name` | the mqtt nyuki name |
+| `keep_alive` | The keepalive set on your mqtt broker |
+| `ping_delay` | Ping every `keep_alive - ping_delay` |
 
 
 #### XMPP

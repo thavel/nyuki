@@ -49,12 +49,13 @@ class MqttBus(Service):
                             }
                         }
                     },
-                    'report_channel': {'type': 'string', 'minLength': 1},
                     'scheme': {
                         'type': 'string',
                         'enum': ['ws', 'wss', 'mqtt', 'mqtts']
                     },
-                    'service': {'type': 'string', 'minLength': 1}
+                    'service': {'type': 'string', 'minLength': 1},
+                    'keep_alive': {'type': 'integer', 'minimum': 1},
+                    'ping_delay': {'type': 'integer', 'minimum': 1}
                 },
                 'additionalProperties': False
             }
@@ -80,7 +81,7 @@ class MqttBus(Service):
 
     def configure(self, name, scheme='mqtt', host='localhost', port=1883,
                   cafile=None, certfile=None, keyfile=None, persistence={},
-                  report_channel='monitoring', service=None):
+                  service=None, keep_alive=60, ping_delay=5):
         if scheme in ['mqtts', 'wss']:
             if not cafile or not certfile or not keyfile:
                 raise ValueError(
@@ -90,14 +91,13 @@ class MqttBus(Service):
         self._host = '{}://{}:{}'.format(scheme, host, port)
         self.name = name
         self._cafile = cafile
-        self._report_channel = report_channel
         self.client = MQTTClient(
             config={
                 'auto_reconnect': False,
                 'certfile': certfile,
                 'keyfile': keyfile,
-                'keep_alive': 60,
-                'ping_delay': 5
+                'keep_alive': keep_alive,
+                'ping_delay': ping_delay
             },
             loop=self._loop
         )
