@@ -4,7 +4,7 @@ import logging
 from aiohttp.web_reqrep import FileField
 from datetime import datetime
 from enum import Enum
-from pymongo import DESCENDING, ASCENDING, TEXT
+from pymongo import DESCENDING, ASCENDING
 from pymongo.errors import AutoReconnect
 from tukio import get_broker, EXEC_TOPIC
 from tukio.utils import FutureState
