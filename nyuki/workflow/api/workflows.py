@@ -1,9 +1,11 @@
 import asyncio
-from datetime import datetime
 import json
 import logging
-from pymongo.errors import AutoReconnect
 from aiohttp.web_reqrep import FileField
+from datetime import datetime
+from enum import Enum
+from pymongo import DESCENDING, ASCENDING, TEXT
+from pymongo.errors import AutoReconnect
 from tukio import get_broker, EXEC_TOPIC
 from tukio.utils import FutureState
 from tukio.workflow import (
@@ -13,6 +15,8 @@ from tukio.workflow import (
 from nyuki.api import Response, resource, content_type
 from nyuki.utils import from_isoformat
 from nyuki.workflow.tasks.utils.uri import URI, InvalidWorkflowUri
+
+from .utils import index
 
 
 log = logging.getLogger(__name__)
@@ -27,6 +31,96 @@ def serialize_wflow_exec(obj):
     if isinstance(obj, Workflow):
         return obj.report()
     return 'Internal server data: {}'.format(type(obj))
+
+
+class Ordering(Enum):
+
+    title_asc = ('title', ASCENDING)
+    title_desc = ('title', DESCENDING)
+    start_asc = ('exec.start', ASCENDING)
+    start_desc = ('exec.start', DESCENDING)
+    end_asc = ('exec.end', ASCENDING)
+    end_desc = ('exec.end', DESCENDING)
+
+    @classmethod
+    def keys(cls):
+        return [key for key in cls.__members__.keys()]
+
+
+class InstanceCollection:
+
+    def __init__(self, instances_collection):
+        self._instances = instances_collection
+        asyncio.ensure_future(index(self._instances, 'exec.id', unique=True))
+        asyncio.ensure_future(index(self._instances, 'exec.state'))
+        asyncio.ensure_future(index(self._instances, 'exec.requester'))
+        # Search and sorting indexes
+        asyncio.ensure_future(index(self._instances, [('title', ASCENDING)]))
+        asyncio.ensure_future(index(self._instances, [('title', DESCENDING)]))
+        asyncio.ensure_future(index(self._instances, [('exec.start', ASCENDING)]))
+        asyncio.ensure_future(index(self._instances, [('exec.start', DESCENDING)]))
+        asyncio.ensure_future(index(self._instances, [('exec.end', ASCENDING)]))
+        asyncio.ensure_future(index(self._instances, [('exec.end', DESCENDING)]))
+
+    async def get_one(self, exec_id):
+        """
+        Return the instance with `exec_id` from workflow history.
+        """
+        return await self._instances.find_one({'exec.id': exec_id}, {'_id': 0})
+
+    async def get(self, root=False, full=False, offset=None, limit=None,
+                  since=None, state=None, search=None, order=None):
+        """
+        Return all instances from history from `since` with state `state`.
+        """
+        query = {}
+        # Prepare query
+        if isinstance(since, datetime):
+            query['exec.start'] = {'$gte': since}
+        if isinstance(state, Enum):
+            query['exec.state'] = state.value
+        if root is True:
+            query['exec.requester'] = None
+        if search:
+            query['title'] = {'$regex': '.*{}.*'.format(search)}
+
+        if full is False:
+            fields = {
+                '_id': 0,
+                'title': 1,
+                'exec': 1,
+                'id': 1,
+                'version': 1,
+                'draft': 1
+            }
+        else:
+            fields = {'_id': 0}
+
+        cursor = self._instances.find(query, fields)
+        # Count total results regardless of limit/offset
+        count = await cursor.count()
+
+        # Set offset and limit
+        if isinstance(offset, int) and offset >= 0:
+            cursor.skip(offset)
+        if isinstance(limit, int) and limit > 0:
+            cursor.limit(limit)
+
+        # Sort depending on Order enum values
+        if order is not None:
+            cursor.sort(*order)
+        else:
+            # End descending by default
+            cursor.sort(*Ordering.end_desc.value)
+
+        # Execute query
+        return count, await cursor.to_list(None)
+
+    async def insert(self, workflow_exec):
+        """
+        Insert a finished workflow report into the workflow history.
+        """
+        await self._instances.insert(workflow_exec)
 
 
 class _WorkflowResource:
@@ -230,11 +324,22 @@ class ApiWorkflowsHistory:
                 return Response(status=400, body={
                     'error': 'Limit must be an int'
                 })
+        order = request.GET.get('ordering')
+        if order:
+            try:
+                order = Ordering[order].value
+            except KeyError:
+                return Response(status=400, body={
+                    'error': 'Ordering must be in {}'.format(Ordering.keys())
+                })
+
         try:
             count, history = await self.nyuki.storage.instances.get(
                 root=(request.GET.get('root') == '1'),
                 full=(request.GET.get('full') == '1'),
-                offset=offset, limit=limit, since=since, state=state
+                search=request.GET.get('search'),
+                order=order,
+                offset=offset, limit=limit, since=since, state=state,
             )
         except AutoReconnect:
             return Response(status=503)

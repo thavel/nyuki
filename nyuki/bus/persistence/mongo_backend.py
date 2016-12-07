@@ -47,7 +47,7 @@ class MongoBackend(PersistenceBackend):
     async def _index_ttl(self):
         # Set a TTL to the documents in this collection
         async def index():
-            await self._collection.ensure_index(
+            await self._collection.create_index(
                 'created_at', expireAfterSeconds=self.ttl
             )
 

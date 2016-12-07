@@ -1,13 +1,12 @@
 import asyncio
-from contextlib import contextmanager
-from datetime import datetime
-from enum import Enum
 import logging
+from contextlib import contextmanager
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import DESCENDING
 from pymongo.errors import OperationFailure, DuplicateKeyError
 
-from nyuki.bus import reporting
+from .api.utils import index
+from .api.workflows import InstanceCollection
 
 
 log = logging.getLogger(__name__)
@@ -15,23 +14,6 @@ log = logging.getLogger(__name__)
 
 class DuplicateTemplateError(Exception):
     pass
-
-
-@contextmanager
-def _report_operation(*args, **kwargs):
-    try:
-        yield
-    except OperationFailure as exc:
-        reporting.exception(exc)
-        raise
-
-
-async def _index(collection, *args, **kwargs):
-    """
-    Helper to ensure_index in __init__
-    """
-    with _report_operation():
-        await collection.ensure_index(*args, **kwargs)
 
 
 class _TemplateCollection:
@@ -47,13 +29,13 @@ class _TemplateCollection:
         self._templates = templates_collection
         self._metadata = metadata_collection
         # Indexes (ASCENDING by default)
-        asyncio.ensure_future(_index(metadata_collection, 'id', unique=True))
-        asyncio.ensure_future(_index(
+        asyncio.ensure_future(index(metadata_collection, 'id', unique=True))
+        asyncio.ensure_future(index(
             templates_collection,
             [('id', DESCENDING), ('version', DESCENDING)],
             unique=True
         ))
-        asyncio.ensure_future(_index(
+        asyncio.ensure_future(index(
             templates_collection,
             [('id', DESCENDING), ('draft', DESCENDING)]
         ))
@@ -64,11 +46,7 @@ class _TemplateCollection:
         """
         query = {'id': tid} if tid else None
         cursor = self._metadata.find(query, {'_id': 0})
-
-        metadatas = []
-        with _report_operation():
-            metadatas = await cursor.to_list(None)
-        return metadatas
+        return await cursor.to_list(None)
 
     async def get_all(self, latest=False, draft=False, with_metadata=True):
         """
@@ -79,10 +57,7 @@ class _TemplateCollection:
         """
         cursor = self._templates.find(None, {'_id': 0})
         cursor.sort('version', DESCENDING)
-
-        templates = []
-        with _report_operation():
-            templates = await cursor.to_list(None)
+        templates = await cursor.to_list(None)
 
         # Collect metadata
         if with_metadata and templates:
@@ -119,10 +94,7 @@ class _TemplateCollection:
 
         cursor = self._templates.find(query, {'_id': 0})
         cursor.sort('version', DESCENDING)
-
-        templates = []
-        with _report_operation():
-            templates = await cursor.to_list(None)
+        templates = await cursor.to_list(None)
 
         # Collect metadata
         if with_metadata and templates:
@@ -140,9 +112,7 @@ class _TemplateCollection:
         query = {'id': tid, 'draft': False}
         cursor = self._templates.find(query)
         cursor.sort('version', DESCENDING)
-
-        with _report_operation():
-            await cursor.fetch_next
+        await cursor.fetch_next
 
         template = cursor.next_object()
         return template['version'] if template else 0
@@ -160,12 +130,11 @@ class _TemplateCollection:
         await self.delete(template['id'], template['version'], True)
 
         log.info('Insert template with query: %s', query)
-        with _report_operation():
-            try:
-                # Copy dict, mongo somehow alter the given dict
-                await self._templates.insert(template.copy())
-            except DuplicateKeyError as exc:
-                raise DuplicateTemplateError from exc
+        try:
+            # Copy dict, mongo somehow alter the given dict
+            await self._templates.insert(template.copy())
+        except DuplicateKeyError as exc:
+            raise DuplicateTemplateError from exc
 
     async def insert_draft(self, template):
         """
@@ -176,12 +145,11 @@ class _TemplateCollection:
             'draft': True
         }
 
-        with _report_operation():
-            try:
-                log.info('Update draft for query: %s', query)
-                await self._templates.update(query, template, upsert=True)
-            except DuplicateKeyError as exc:
-                raise DuplicateTemplateError from exc
+        try:
+            log.info('Update draft for query: %s', query)
+            await self._templates.update(query, template, upsert=True)
+        except DuplicateKeyError as exc:
+            raise DuplicateTemplateError from exc
 
     async def insert_metadata(self, metadata):
         """
@@ -195,9 +163,8 @@ class _TemplateCollection:
             'tags': metadata.get('tags', [])
         }
 
-        with _report_operation():
-            log.info('Update metadata for query: %s', query)
-            await self._metadata.update(query, metadata, upsert=True)
+        log.info('Update metadata for query: %s', query)
+        await self._metadata.update(query, metadata, upsert=True)
 
         return metadata
 
@@ -206,8 +173,7 @@ class _TemplateCollection:
         From draft to production
         """
         query = {'id': tid, 'draft': True}
-        with _report_operation():
-            await self._templates.update(query, {'$set': {'draft': False}})
+        await self._templates.update(query, {'$set': {'draft': False}})
 
     async def delete(self, tid, version=None, draft=None):
         """
@@ -221,36 +187,31 @@ class _TemplateCollection:
 
         log.info("Removing template(s) with query: %s", query)
 
-        with _report_operation():
-            await self._templates.remove(query)
-            left = await self._templates.find({'id': tid}).count()
-            if not left:
-                await self._metadata.remove({'id': tid})
+        await self._templates.remove(query)
+        left = await self._templates.find({'id': tid}).count()
+        if not left:
+            await self._metadata.remove({'id': tid})
 
 
 class _DataProcessingCollection:
 
     def __init__(self, data_collection):
         self._rules = data_collection
-        asyncio.ensure_future(_index(data_collection, 'id', unique=True))
+        asyncio.ensure_future(index(data_collection, 'id', unique=True))
 
     async def get_all(self):
         """
         Return a list of all rules
         """
         cursor = self._rules.find(None, {'_id': 0})
-        rules = []
-        with _report_operation():
-            rules = await cursor.to_list(None)
-        return rules
+        return await cursor.to_list(None)
 
     async def get(self, rule_id):
         """
         Return the rule for given id or None
         """
         cursor = self._rules.find({'id': rule_id}, {'_id': 0})
-        with _report_operation():
-            await cursor.fetch_next
+        await cursor.fetch_next
         return cursor.next_object()
 
     async def insert(self, data):
@@ -270,8 +231,7 @@ class _DataProcessingCollection:
             self._rules.name
         )
         log.debug('upserting data: %s', data)
-        with _report_operation():
-            await self._rules.update(query, data, upsert=True)
+        await self._rules.update(query, data, upsert=True)
 
     async def delete(self, rule_id=None):
         """
@@ -280,94 +240,28 @@ class _DataProcessingCollection:
         query = {'id': rule_id} if rule_id is not None else None
         log.info("Removing rule(s) from collection '%s'", self._rules.name)
         log.debug('delete query: %s', query)
-        with _report_operation():
-            await self._rules.remove(query)
-
-
-class _InstanceCollection:
-
-    def __init__(self, instances_collection):
-        self._instances = instances_collection
-        asyncio.ensure_future(_index(self._instances, 'exec.id', unique=True))
-        asyncio.ensure_future(_index(self._instances, [('exec.start', DESCENDING)]))
-        asyncio.ensure_future(_index(self._instances, [('exec.end', DESCENDING)]))
-        asyncio.ensure_future(_index(self._instances, 'exec.state'))
-        asyncio.ensure_future(_index(self._instances, 'exec.requester'))
-
-    async def get_one(self, exec_id):
-        """
-        Return the instance with `exec_id` from workflow history.
-        """
-        return await self._instances.find_one({'exec.id': exec_id}, {'_id': 0})
-
-    async def get(self, root=False, full=False, offset=None, limit=None,
-                  since=None, state=None):
-        """
-        Return all instances from history from `since` with state `state`.
-        """
-        query = {}
-        # Prepare query
-        if isinstance(since, datetime):
-            query['exec.start'] = {'$gte': since}
-        if isinstance(state, Enum):
-            query['exec.state'] = state.value
-        if root is True:
-            query['exec.requester'] = None
-
-        if full is False:
-            fields = {
-                '_id': 0,
-                'title': 1,
-                'exec': 1,
-                'id': 1,
-                'version': 1,
-                'draft': 1
-            }
-        else:
-            fields = {'_id': 0}
-        cursor = self._instances.find(query, fields)
-        # Count total results regardless of limit/offset
-        count = await cursor.count()
-
-        # Set offset and limit
-        if isinstance(offset, int) and offset >= 0:
-            cursor.skip(offset)
-        if isinstance(limit, int) and limit > 0:
-            cursor.limit(limit)
-        cursor.sort('exec.start', DESCENDING)
-        # Execute query
-        return count, await cursor.to_list(None)
-
-    async def insert(self, workflow_exec):
-        """
-        Insert a finished workflow report into the workflow history.
-        """
-        await self._instances.insert(workflow_exec)
+        await self._rules.remove(query)
 
 
 class _TriggerCollection:
 
     def __init__(self, data_collection):
         self._triggers = data_collection
-        asyncio.ensure_future(_index(data_collection, 'tid', unique=True))
+        asyncio.ensure_future(index(data_collection, 'tid', unique=True))
 
     async def get_all(self):
         """
         Return a list of all trigger forms
         """
         cursor = self._triggers.find(None, {'_id': 0})
-        triggers = []
-        with _report_operation():
-            triggers = await cursor.to_list(None)
-        return triggers
+        return await cursor.to_list(None)
 
     async def get(self, template_id):
         """
         Return the trigger form of a given workflow template id
         """
         cursor = self._triggers.find({'tid': template_id}, {'_id': 0})
-        with _report_operation():
-            await cursor.fetch_next
+        await cursor.fetch_next
         return cursor.next_object()
 
     async def insert(self, tid, form):
@@ -375,8 +269,7 @@ class _TriggerCollection:
         Insert a trigger form for the given workflow template
         """
         data = {'tid': tid, 'form': form}
-        with _report_operation():
-            await self._triggers.update({'tid': tid}, data, upsert=True)
+        await self._triggers.update({'tid': tid}, data, upsert=True)
         return data
 
     async def delete(self, template_id=None):
@@ -384,8 +277,7 @@ class _TriggerCollection:
         Delete a trigger form
         """
         query = {'tid': template_id} if template_id is not None else None
-        with _report_operation():
-            await self._triggers.remove(query)
+        await self._triggers.remove(query)
 
 
 class MongoStorage:
@@ -401,7 +293,7 @@ class MongoStorage:
 
         # Collections
         self.templates = _TemplateCollection(db['templates'], db['metadata'])
-        self.instances = _InstanceCollection(db['instances'])
+        self.instances = InstanceCollection(db['instances'])
         self.regexes = _DataProcessingCollection(db['regexes'])
         self.lookups = _DataProcessingCollection(db['lookups'])
         self.triggers = _TriggerCollection(db['triggers'])
