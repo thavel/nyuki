@@ -287,6 +287,8 @@ class ApiWorkflowsHistory:
             * `state` return the workflows on this FutureState
             * `offset` return the worflows from this offset
             * `limit` return this amount of workflows
+            * `order` order results following the Ordering enum values
+            * `search` search templates with specific title
         """
         # Filter on start date
         since = request.GET.get('since')
