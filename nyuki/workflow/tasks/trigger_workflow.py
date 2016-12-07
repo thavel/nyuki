@@ -112,13 +112,18 @@ class TriggerWorkflowTask(TaskHolder):
             self.url, self.draft, data
         )
 
-        # Setup headers
+        # Setup headers (set requester and exec-track to avoid workflow loops)
         workflow = Workflow.current_workflow()
-        track = runtime.workflows[workflow.uid].exec.get('track', [])
+        wf_instance = runtime.workflows[workflow.uid]
+        parent = wf_instance.exec.get('requester')
+        track = list(wf_instance.exec.get('track', []))
+        if parent:
+            track.append(parent)
+
         headers = {
             'Content-Type': 'application/json',
             'Referer': URI.instance(workflow),
-            'X-Surycat-Exec-Track': track
+            'X-Surycat-Exec-Track': ','.join(track)
         }
 
         # Handle blocking trigger_workflow using mqtt
@@ -146,11 +151,13 @@ class TriggerWorkflowTask(TaskHolder):
             async with session.put(**params) as response:
                 # Response validity
                 if response.status != 200:
-                    raise RuntimeError(
-                        "Can't process remote workflow template {} on {}".format(
-                            self.template, self.nyuki_api
-                        )
+                    msg = "Can't process workflow template {} on {}".format(
+                        self.template, self.nyuki_api
                     )
+                    if response.status % 400 < 100:
+                        reason = await response.json()
+                        msg = "{}, reason: {}".format(msg, reason['error'])
+                    raise RuntimeError(msg)
                 resp_body = await response.json()
 
         instance = resp_body['exec']['id']
