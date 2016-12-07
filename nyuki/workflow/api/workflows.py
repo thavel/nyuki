@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 from aiohttp.web_reqrep import FileField
 from datetime import datetime
 from enum import Enum
@@ -80,7 +81,7 @@ class InstanceCollection:
         if isinstance(state, Enum):
             query['exec.state'] = state.value
         if root is True:
-            query['exec.requester'] = None
+            query['exec.requester'] = {'$not': re.compile(r'^nyuki://.*')}
         if search:
             query['title'] = {'$regex': '.*{}.*'.format(search)}
 
