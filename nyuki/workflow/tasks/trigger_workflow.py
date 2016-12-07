@@ -112,13 +112,16 @@ class TriggerWorkflowTask(TaskHolder):
             self.url, self.draft, data
         )
 
-        # Handle blocking trigger_workflow using mqtt
+        # Setup headers
         workflow = Workflow.current_workflow()
+        track = runtime.workflows[workflow.uid].exec.get('track', [])
         headers = {
             'Content-Type': 'application/json',
-            'Referer': URI.instance(workflow)
+            'Referer': URI.instance(workflow),
+            'X-Surycat-Exec-Track': track
         }
 
+        # Handle blocking trigger_workflow using mqtt
         if self.blocking:
             topic = '{}/async/{}'.format(runtime.bus.name, str(uuid4())[:8])
             headers['X-Surycat-Async-Topic'] = topic

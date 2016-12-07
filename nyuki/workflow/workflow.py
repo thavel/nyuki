@@ -55,15 +55,15 @@ class WorkflowInstance:
     Holds a workflow pair of template/instance.
     Allow retrieving a workflow exec state at any moment.
     """
-    ALLOWED_EXEC_EXTRA = ['requester', 'track']
+    ALLOWED_EXEC_KEYS = ['requester', 'track']
 
     def __init__(self, template, instance, **kwargs):
         self._template = template
         self._instance = instance
-        self._extra = {
+        self._exec = {
             key: kwargs[key]
             for key in kwargs
-            if key in self.ALLOWED_EXEC_EXTRA
+            if key in self.ALLOWED_EXEC_KEYS
         }
 
     @property
@@ -74,8 +74,9 @@ class WorkflowInstance:
     def instance(self):
         return self._instance
 
-    def get(self, key):
-        return self._extra.get(key)
+    @property
+    def exec(self):
+        return self._exec
 
     def report(self):
         """
@@ -85,7 +86,7 @@ class WorkflowInstance:
         inst = self._instance.report()
         tasks = {task['id']: task for task in template['tasks']}
 
-        inst['exec'].update(self._extra)
+        inst['exec'].update(self._exec)
         for task in inst['tasks']:
             # Stored template contains more info than tukio's (title...),
             # so we add it to the report.
@@ -160,6 +161,7 @@ class WorkflowNyuki(Nyuki):
 
         runtime.bus = self.bus
         runtime.config = self.config
+        runtime.workflows = self.running_workflows
 
     @property
     def mongo_config(self):
@@ -213,7 +215,7 @@ class WorkflowNyuki(Nyuki):
         source = event.source.as_dict()
         exec_id = source['workflow_exec_id']
         wflow = self.running_workflows[exec_id]
-        source['workflow_exec_requester'] = wflow.get('requester')
+        source['workflow_exec_requester'] = wflow.exec.get('requester')
         # Workflow ended, clear it from memory
         if event.data['type'] in [
             WorkflowExecState.end.value,

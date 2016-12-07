@@ -12,6 +12,7 @@ from tukio.workflow import (
 
 from nyuki.api import Response, resource, content_type
 from nyuki.utils import from_isoformat
+from nyuki.workflow.tasks.utils.uri import URI
 
 
 log = logging.getLogger(__name__)
@@ -81,7 +82,7 @@ class ApiWorkflows(_WorkflowResource):
         }
         """
         async_topic = request.headers.get('X-Surycat-Async-Topic')
-        exec_track = request.headers.get('X-Surycat-Exec-Track')
+        exec_track = request.headers.get('X-Surycat-Exec-Track') or []
         requester = request.headers.get('Referer')
         request = await request.json()
 
@@ -116,6 +117,15 @@ class ApiWorkflows(_WorkflowResource):
             return Response(status=400, body={
                 'error': 'Could not start any workflow from this template'
             })
+
+        # Prevent workflow loop
+        holder = self.nyuki.bus.name
+        for ancestor in exec_track:
+            info = URI.parse(ancestor)
+            if info.template_id == wf_tmpl.uid and info.holder == holder:
+                return Response(status=400, body={
+                    'error': 'Loop detected between workflows'
+                })
 
         # Keep full instance+template in nyuki's memory
         wfinst = self.nyuki.new_workflow(

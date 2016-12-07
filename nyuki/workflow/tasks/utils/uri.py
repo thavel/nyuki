@@ -1,8 +1,6 @@
 import re
 from collections import namedtuple
-from tukio.workflow import Workflow
 
-from nyuki.workflow.workflow import WorkflowInstance
 from . import runtime
 
 
@@ -26,15 +24,11 @@ class URI:
 
     @staticmethod
     def instance(obj):
-        if isinstance(obj, Workflow):
-            tid = obj.template.uid
-            iid = obj.uid
-        elif isinstance(obj, WorkflowInstance):
-            tid = obj.template.uid
+        tid = obj.template.uid
+        try:
             iid = obj.instance.uid
-        else:
-            raise ValueError('Invalid workflow instance object')
-
+        except AttributeError:
+            iid = obj.uid
         return 'nyuki://{template_id}@{holder}/{instance_id}'.format(
             template_id=tid, holder=runtime.bus.name, instance_id=iid
         )
