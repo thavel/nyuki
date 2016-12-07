@@ -70,6 +70,10 @@ class WorkflowInstance:
     def template(self):
         return self._template
 
+    @property
+    def instance(self):
+        return self._instance
+
     def get(self, key):
         return self._extra.get(key)
 

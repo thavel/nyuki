@@ -10,6 +10,7 @@ from tukio.task.holder import TaskHolder
 from tukio.workflow import WorkflowExecState, Workflow
 
 from .utils import runtime
+from .utils.uri import URI
 
 
 log = logging.getLogger(__name__)
@@ -71,7 +72,7 @@ class TriggerWorkflowTask(TaskHolder):
     async def teardown(self):
         exec_id = self._triggered['workflow_exec_id']
         holder = self._triggered['workflow_holder']
-        uri = '{}@{}'.format(exec_id, holder)
+        wf_id = '{}@{}'.format(exec_id, holder)
         if not exec_id:
             log.debug('No triggered workflow to cancel')
             return
@@ -85,9 +86,9 @@ class TriggerWorkflowTask(TaskHolder):
                 response = response.status
 
         if response != 200:
-            log.debug('Failed to cancel triggered workflow {}'.format(uri))
+            log.debug('Failed to cancel triggered workflow {}'.format(wf_id))
         else:
-            log.debug('Triggered workflow {} has been cancelled'.format(uri))
+            log.debug('Triggered workflow {} has been cancelled'.format(wf_id))
 
     async def async_exec(self, topic, data):
         log.debug(
@@ -115,7 +116,7 @@ class TriggerWorkflowTask(TaskHolder):
         workflow = Workflow.current_workflow()
         headers = {
             'Content-Type': 'application/json',
-            'Referer': '{}/{}'.format(runtime.bus.name, workflow.uid)
+            'Referer': URI.instance(workflow)
         }
 
         if self.blocking:
