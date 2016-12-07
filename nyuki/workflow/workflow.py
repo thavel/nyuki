@@ -51,24 +51,27 @@ def sanitize_workflow_exec(obj):
 
 
 class WorkflowInstance:
-
     """
     Holds a workflow pair of template/instance.
     Allow retrieving a workflow exec state at any moment.
     """
+    ALLOWED_EXEC_EXTRA = ['requester', 'track']
 
-    def __init__(self, template, instance, *, requester=None):
+    def __init__(self, template, instance, **kwargs):
         self._template = template
         self._instance = instance
-        self._requester = requester
+        self._extra = {
+            key: kwargs[key]
+            for key in kwargs
+            if key in self.ALLOWED_EXEC_EXTRA
+        }
 
     @property
     def template(self):
         return self._template
 
-    @property
-    def requester(self):
-        return self._requester
+    def get(self, key):
+        return self._extra.get(key)
 
     def report(self):
         """
@@ -78,7 +81,7 @@ class WorkflowInstance:
         inst = self._instance.report()
         tasks = {task['id']: task for task in template['tasks']}
 
-        inst['exec'].update({'requester': self._requester})
+        inst['exec'].update(self._extra)
         for task in inst['tasks']:
             # Stored template contains more info than tukio's (title...),
             # so we add it to the report.
@@ -191,11 +194,11 @@ class WorkflowNyuki(Nyuki):
             for workflow in self.running_workflows.values()
         ]
 
-    def new_workflow(self, template, instance, requester=None):
+    def new_workflow(self, template, instance, **kwargs):
         """
         Keep in memory a workflow template/instance pair.
         """
-        wflow = WorkflowInstance(template, instance, requester=requester)
+        wflow = WorkflowInstance(template, instance, **kwargs)
         self.running_workflows[instance.uid] = wflow
         return wflow
 
@@ -206,7 +209,7 @@ class WorkflowNyuki(Nyuki):
         source = event.source.as_dict()
         exec_id = source['workflow_exec_id']
         wflow = self.running_workflows[exec_id]
-        source['workflow_exec_requester'] = wflow.requester
+        source['workflow_exec_requester'] = wflow.get('requester')
         # Workflow ended, clear it from memory
         if event.data['type'] in [
             WorkflowExecState.end.value,

@@ -81,6 +81,7 @@ class ApiWorkflows(_WorkflowResource):
         }
         """
         async_topic = request.headers.get('X-Surycat-Async-Topic')
+        exec_track = request.headers.get('X-Surycat-Exec-Track')
         requester = request.headers.get('Referer')
         request = await request.json()
 
@@ -117,7 +118,11 @@ class ApiWorkflows(_WorkflowResource):
             })
 
         # Keep full instance+template in nyuki's memory
-        wfinst = self.nyuki.new_workflow(templates[0], wflow, requester)
+        wfinst = self.nyuki.new_workflow(
+            templates[0], wflow,
+            track=exec_track,
+            requester=requester
+        )
         # Handle async workflow exec updates
         if async_topic is not None:
             self.register_async_handler(async_topic, wflow)
