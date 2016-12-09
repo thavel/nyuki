@@ -65,7 +65,7 @@ class TestTransformCases(TestCase):
 
     def test_008_condition_block(self):
         rule = FactoryConditionBlock([
-            {'type': 'if', 'condition': "(@test == 'test if')", 'rules': [
+            {'type': 'if', 'condition': "(  @test  == 'test if'   )", 'rules': [
                 {'type': 'set', 'fieldname': 'if', 'value': 'ok'}
             ]},
             {'type': 'elif', 'condition': "('test elif' == @test)", 'rules': [
