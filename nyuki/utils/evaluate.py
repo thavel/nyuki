@@ -80,8 +80,9 @@ class ConditionBlock:
         Format the condition string (as eval-compliant code).
         nb: variable replacement should be `@variable_name` formatted.
         """
+        # /!\ This regex forbids the use of ' and " in a string
         match = re.findall(
-            r' *(and|or)? *\( *(@\S*|true|false|\'[^\']*\'|\d+) +([=<>!]=?|not in|in) +(@\S*|true|false|\d+|\'[^\']*\') *\)',
+            r' *(and|or)? *\( *(@\S*|true|false|[\"\'][^\'\"]*[\'\"]|\d+) +([=<>!]=?|not in|in) +(@\S*|true|false|\d+|[\"\'][^\'\"]*[\'\"]) *\)',
             condition
         )
         if not match:
@@ -94,7 +95,7 @@ class ConditionBlock:
             return placeholder.format(value)
 
         # Reconstruct a cleaned string from the operation parts.
-        # See https://regex101.com/r/hUueag/2
+        # See https://regex101.com/r/hUueag/4
         cleaned = ''
         for operation in match:
             # Get 'and' or 'or' operation
