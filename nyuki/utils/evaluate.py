@@ -81,7 +81,7 @@ class ConditionBlock:
         nb: variable replacement should be `@variable_name` formatted.
         """
         match = re.findall(
-            r' *(and|or)? *\( *(@\S*|\'[^\']*\'|\d+) +([=<>!]=?|not in|in) +(@\S*|\d+|\'[^\']*\') *\)',
+            r' *(and|or)? *\( *(@\S*|true|false|\'[^\']*\'|\d+) +([=<>!]=?|not in|in) +(@\S*|true|false|\d+|\'[^\']*\') *\)',
             condition
         )
         if not match:
@@ -94,7 +94,7 @@ class ConditionBlock:
             return placeholder.format(value)
 
         # Reconstruct a cleaned string from the operation parts.
-        # See https://regex101.com/r/hUueag/1
+        # See https://regex101.com/r/hUueag/2
         cleaned = ''
         for operation in match:
             # Get 'and' or 'or' operation
