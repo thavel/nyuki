@@ -94,7 +94,7 @@ class ConditionBlock:
             return placeholder.format(value)
 
         # Reconstruct a cleaned string from the operation parts.
-        # See https://regex101.com/r/ekT5wk/3
+        # See https://regex101.com/r/hUueag/1
         cleaned = ''
         for operation in match:
             # Get 'and' or 'or' operation
