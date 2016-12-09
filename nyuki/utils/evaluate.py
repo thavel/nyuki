@@ -81,7 +81,7 @@ class ConditionBlock:
         nb: variable replacement should be `@variable_name` formatted.
         """
         match = re.findall(
-            r'(?:( and| or) +)?\((.*) (~|[=<>!]=?|not in|not|in) (.*)\)',
+            r' *(and|or)? *\( *(@\S*|\'[^\']*\'|\d+) +([=<>!]=?|not in|in) +(@\S*|\d+|\'[^\']*\') *\)',
             condition
         )
         if not match:
@@ -97,12 +97,14 @@ class ConditionBlock:
         # See https://regex101.com/r/ekT5wk/3
         cleaned = ''
         for operation in match:
+            # Get 'and' or 'or' operation
+            andor = operation[0]
             # Restructure condition string, striping any trailing space
-            ops = [operation[0].strip()] if operation[0] else []
-            ops.append(re.sub(r'^@(?P<var_name>\w+)$', replace, operation[1].strip()))
-            ops.append(operation[2].strip())
-            ops.append(re.sub(r'^@(?P<var_name>\w+)$', replace, operation[3].strip()))
-            cleaned += '({})'.format(' '.join(ops))
+            ops = []
+            ops.append(re.sub(r'^@(?P<var_name>\w+)$', replace, operation[1]))
+            ops.append(operation[2])
+            ops.append(re.sub(r'^@(?P<var_name>\w+)$', replace, operation[3]))
+            cleaned += '{}({})'.format(andor, ' '.join(ops))
         return cleaned
 
     def condition_validated(self, condition, data):

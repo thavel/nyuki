@@ -71,7 +71,7 @@ class TestTransformCases(TestCase):
             {'type': 'elif', 'condition': "('test elif' == @test)", 'rules': [
                 {'type': 'set', 'fieldname': 'elif', 'value': 'ok'}
             ]},
-            {'type': 'elif', 'condition': "(@test == 123456)", 'rules': [
+            {'type': 'elif', 'condition': "(@test == 123456) and ('ok' == 'ok')", 'rules': [
                 {'type': 'set', 'fieldname': 'elif 2', 'value': 'ok'}
             ]},
             {'type': 'else', 'rules': [
