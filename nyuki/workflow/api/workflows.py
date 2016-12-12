@@ -17,8 +17,6 @@ from nyuki.api import Response, resource, content_type
 from nyuki.utils import from_isoformat
 from nyuki.workflow.tasks.utils.uri import URI, InvalidWorkflowUri
 
-from .utils import index
-
 
 log = logging.getLogger(__name__)
 
@@ -50,18 +48,17 @@ class Ordering(Enum):
 
 class InstanceCollection:
 
+    REQUESTER_REGEX = re.compile(r'^nyuki://.*')
+
     def __init__(self, instances_collection):
         self._instances = instances_collection
-        asyncio.ensure_future(index(self._instances, 'exec.id', unique=True))
-        asyncio.ensure_future(index(self._instances, 'exec.state'))
-        asyncio.ensure_future(index(self._instances, 'exec.requester'))
+        asyncio.ensure_future(self._instances.create_index('exec.id', unique=True))
+        asyncio.ensure_future(self._instances.create_index('exec.state'))
+        asyncio.ensure_future(self._instances.create_index('exec.requester'))
         # Search and sorting indexes
-        asyncio.ensure_future(index(self._instances, [('title', ASCENDING)]))
-        asyncio.ensure_future(index(self._instances, [('title', DESCENDING)]))
-        asyncio.ensure_future(index(self._instances, [('exec.start', ASCENDING)]))
-        asyncio.ensure_future(index(self._instances, [('exec.start', DESCENDING)]))
-        asyncio.ensure_future(index(self._instances, [('exec.end', ASCENDING)]))
-        asyncio.ensure_future(index(self._instances, [('exec.end', DESCENDING)]))
+        asyncio.ensure_future(self._instances.create_index('title'))
+        asyncio.ensure_future(self._instances.create_index('exec.start'))
+        asyncio.ensure_future(self._instances.create_index('exec.end'))
 
     async def get_one(self, exec_id):
         """
@@ -81,7 +78,7 @@ class InstanceCollection:
         if isinstance(state, Enum):
             query['exec.state'] = state.value
         if root is True:
-            query['exec.requester'] = {'$not': re.compile(r'^nyuki://.*')}
+            query['exec.requester'] = {'$not': self.REQUESTER_REGEX}
         if search:
             query['title'] = {'$regex': '.*{}.*'.format(search)}
 
@@ -101,18 +98,18 @@ class InstanceCollection:
         # Count total results regardless of limit/offset
         count = await cursor.count()
 
-        # Set offset and limit
-        if isinstance(offset, int) and offset >= 0:
-            cursor.skip(offset)
-        if isinstance(limit, int) and limit > 0:
-            cursor.limit(limit)
-
         # Sort depending on Order enum values
         if order is not None:
             cursor.sort(*order)
         else:
             # End descending by default
             cursor.sort(*Ordering.end_desc.value)
+
+        # Set offset and limit
+        if isinstance(offset, int) and offset >= 0:
+            cursor.skip(offset)
+        if isinstance(limit, int) and limit > 0:
+            cursor.limit(limit)
 
         # Execute query
         return count, await cursor.to_list(None)

@@ -27,7 +27,9 @@
 
 ## `?search=something-in-the-title`
 
-## `?since=isoformat-date`
+## `?since=2016-12-12T15:36:58.983520`
+
+Show all workflows since `12/12/2016 15:36:28.983520`.
 
 ## `?limit=10`
 

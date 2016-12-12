@@ -2,7 +2,6 @@ import asyncio
 import logging
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from .api.utils import index
 from .api.templates import TemplateCollection
 from .api.workflows import InstanceCollection
 
@@ -14,7 +13,7 @@ class _DataProcessingCollection:
 
     def __init__(self, data_collection):
         self._rules = data_collection
-        asyncio.ensure_future(index(data_collection, 'id', unique=True))
+        asyncio.ensure_future(self._rules.create_index('id', unique=True))
 
     async def get_all(self):
         """
@@ -64,7 +63,7 @@ class _TriggerCollection:
 
     def __init__(self, data_collection):
         self._triggers = data_collection
-        asyncio.ensure_future(index(data_collection, 'tid', unique=True))
+        asyncio.ensure_future(self._triggers.create_index('tid', unique=True))
 
     async def get_all(self):
         """

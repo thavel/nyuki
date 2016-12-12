@@ -7,8 +7,6 @@ from tukio.workflow import TemplateGraphError, WorkflowTemplate
 from nyuki.api import Response, resource
 from nyuki.workflow.validation import validate, TemplateError
 
-from .utils import index
-
 
 log = logging.getLogger(__name__)
 
@@ -34,14 +32,12 @@ class TemplateCollection:
         self._templates = templates_collection
         self._metadata = metadata_collection
         # Indexes (ASCENDING by default)
-        asyncio.ensure_future(index(metadata_collection, 'id', unique=True))
-        asyncio.ensure_future(index(
-            templates_collection,
+        asyncio.ensure_future(self._metadata.create_index('id', unique=True))
+        asyncio.ensure_future(self._templates.create_index(
             [('id', DESCENDING), ('version', DESCENDING)],
             unique=True
         ))
-        asyncio.ensure_future(index(
-            templates_collection,
+        asyncio.ensure_future(self._templates.create_index(
             [('id', DESCENDING), ('draft', DESCENDING)]
         ))
 
