@@ -144,6 +144,7 @@ Mandatory parameters are the Jabber ID (`jid`) and the password. Others are opti
 | `service` | the bus service used (mqtt or xmpp) |
 | `scheme` | the scheme protocol used within mqtt options are 'ws': websocket, 'wss': websocket SSL, 'mqtt': MQTT, 'mqtts': MQTT SSL |
 | `host` | the mqtt server host |
+| `port` | the mqtt server port (1883 for ws, 1884 for mqtt with surycat/mosquitto image)|
 | `name` | the mqtt nyuki name |
 | `keep_alive` | The keepalive set on your mqtt broker |
 | `ping_delay` | Ping every `keep_alive - ping_delay` |
