@@ -129,25 +129,6 @@ def validate_task(task, tasks=None):
     schema = getattr(TaskRegistry.get(name)[0], 'SCHEMA', {})
     format_checker = getattr(TaskRegistry.get(name)[0], 'FORMAT_CHECKER', None)
     try:
-        validate_schema(config, schema, cls=custom_validator(tasks), format_checker=format_checker)
+        validate_schema(config, schema, format_checker=format_checker)
     except ValidationError as exc:
         return TemplateError.format_details(exc, task)
-
-
-def custom_validator(tasks=None):
-    """
-    Custom validator for task_id fields.
-    """
-    # Validation for `type`
-    def type_draft4_custom(validator, types, instance, schema):
-        i_type = schema.get('type')
-        i_description = schema.get('description')
-        # Should match `{'type': 'string', 'description': 'task_id'}`
-        if i_type == 'string' and i_description == 'task_id' and tasks:
-            # Check the task_id exists
-            if not list(filter(lambda t: t['id'] == instance, tasks)):
-                yield ValidationError(_utils.types_msg(instance, ['task_id']))
-        # Default validation
-        return type_draft4(validator, types, instance, schema)
-
-    return extend_validator(Draft4Validator, {'type': type_draft4_custom})
