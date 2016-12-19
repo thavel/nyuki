@@ -5,7 +5,7 @@ from nose.tools import (
     assert_is, assert_is_not_none, assert_raises, assert_true, eq_
 )
 
-from nyuki.api.api import WebServer, mw_capability, Response
+from nyuki.api.api import Api, mw_capability, Response
 
 from tests import make_future
 
@@ -13,18 +13,19 @@ from tests import make_future
 class TestApi(TestCase):
 
     def setUp(self):
-        self._api = WebServer(self.loop)
-        self._host = 'localhost'
-        self._port = 8080
+        nyuki = Mock()
+        nyuki.HTTP_RESOURCES = []
+        nyuki.loop = None
+        self._api = Api(nyuki)
 
     @patch('aiohttp.web.Application.make_handler')
     @patch('asyncio.unix_events._UnixSelectorEventLoop.create_server')
     async def test_001_build_server(self, create_server_mock, handler_mock):
-        await self._api.build(self._host, self._port)
+        await self._api.start()
         eq_(handler_mock.call_count, 1)
         eq_(create_server_mock.call_count, 1)
         create_server_mock.assert_called_with(
-            self._api._handler, host=self._host, port=self._port
+            self._api._handler, host=None, port=None
         )
 
     async def test_002_destroy_server(self):
@@ -33,13 +34,9 @@ class TestApi(TestCase):
             with patch.object(self._api, '_server') as i_server:
                 i_server.wait_closed.return_value = make_future([])
                 with patch.object(self._api._server, 'close') as call_close:
-                    await self._api.destroy()
+                    await self._api.stop()
                     eq_(call_close.call_count, 1)
                     eq_(i_server.wait_closed.call_count, 1)
-
-    @ignore_loop
-    def test_003_instantiated_router(self):
-        assert_is(self._api.router, self._api._app.router)
 
 
 class TestCapabilityMiddleware(TestCase):
