@@ -63,60 +63,6 @@ class Response(web.Response):
         return kwargs.get('content_type') or kwargs.get('headers', {}).get('Content-Type')
 
 
-class WebServer:
-
-    """
-    The goal of this class is to gather all http-related behaviours.
-    Basically, it's a wrapper around aiohttp.
-    """
-
-    def __init__(self, loop, debug=False, **kwargs):
-        self._loop = loop
-        self._server = None
-        self._handler = None
-        # Call order = list order
-        self._middlewares = [mw_capability]
-        self._debug = debug
-        self._app = web.Application(
-            loop=self._loop,
-            middlewares=self._middlewares,
-            **kwargs
-        )
-
-    @property
-    def debug(self):
-        return self._debug
-
-    @debug.setter
-    def debug(self, value):
-        self._debug = bool(value)
-
-    @property
-    def router(self):
-        return self._app.router
-
-    async def build(self, host, port):
-        """
-        Create a HTTP server to expose the API.
-        """
-        log.info("Starting the http server on {}:{}".format(host, port))
-        self._handler = self._app.make_handler(
-            log=log, access_log=access_log, debug=self._debug
-        )
-        self._server = await self._loop.create_server(
-            self._handler, host=host, port=port
-        )
-
-    async def destroy(self):
-        """
-        Gracefully destroy the HTTP server by closing all pending connections.
-        """
-        self._server.close()
-        await self._handler.finish_connections()
-        await self._server.wait_closed()
-        log.info('Stopped the http server')
-
-
 async def mw_capability(app, capa_handler):
     """
     Transform the request data to be passed through a capability and
@@ -238,27 +184,46 @@ class Api(Service):
         self._nyuki = nyuki
         self._nyuki.register_schema(self.CONF_SCHEMA)
         self._loop = self._nyuki.loop or asyncio.get_event_loop()
-        self._webserver = WebServer(self._loop)
-        self.host = None
-        self.port = None
+        self._host = None
+        self._port = None
+        self._middlewares = [mw_capability]
+        self._debug = False
+        self._app = None
+        self._handler = None
+        self._server = None
 
     @property
     def capabilities(self):
         return self._nyuki.HTTP_RESOURCES
+
+    def configure(self, host='0.0.0.0', port=5558, debug=False):
+        self._host = host
+        self._port = port
+        self._debug = bool(debug)
 
     async def start(self):
         """
         Expose capabilities by building the HTTP server.
         The server will be started with the event loop.
         """
+        self._app = web.Application(
+            loop=self._loop, middlewares=self._middlewares
+        )
         for resource in self._nyuki.HTTP_RESOURCES:
-            resource.RESOURCE_CLASS.register(self._nyuki, self._webserver.router)
-        await self._webserver.build(self.host, self.port)
-
-    def configure(self, host='0.0.0.0', port=5558, debug=False):
-        self.host = host
-        self.port = port
-        self._webserver.debug = debug
+            resource.RESOURCE_CLASS.register(self._nyuki, self._app.router)
+        log.info("Starting the http server on {}:{}".format(self._host, self._port))
+        self._handler = self._app.make_handler(
+            log=log, access_log=access_log, debug=self._debug
+        )
+        self._server = await self._loop.create_server(
+            self._handler, host=self._host, port=self._port
+        )
 
     async def stop(self):
-        await self._webserver.destroy()
+        log.info('Stopped the http server')
+        self._server.close()
+        await self._handler.finish_connections()
+        await self._server.wait_closed()
+        self._app = None
+        self._handler = None
+        self._server = None

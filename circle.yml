@@ -1,10 +1,10 @@
 machine:
     python:
-        version: 3.5.0
+        version: 3.5.2
 
 dependencies:
     pre:
-        - pip install "pip==8.0.2"
+        - pip install -U pip
     override:
         - pip install -U .
     post:
