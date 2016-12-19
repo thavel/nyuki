@@ -10,7 +10,7 @@ from tukio.workflow import (
 
 from nyuki import Nyuki
 from nyuki.bus import reporting
-from nyuki.utils.mongo import MongoManager
+from nyuki.utils.mongo import MongoManager, SITE_HEADER
 
 from .api.factory import (
     ApiFactoryRegex, ApiFactoryRegexes, ApiFactoryLookup, ApiFactoryLookups,
@@ -23,7 +23,6 @@ from .api.workflows import (
     ApiWorkflow, ApiWorkflows, ApiWorkflowsHistory, ApiWorkflowHistory,
     ApiWorkflowTriggers, ApiWorkflowTrigger, serialize_wflow_exec
 )
-
 from .storage import MongoStorage
 from .tasks import *
 from .tasks.utils import runtime
@@ -209,7 +208,7 @@ class WorkflowNyuki(Nyuki):
         """
         Immediately send all instances of workflows to the client.
         """
-        org = client.websocket.request_headers.get('X-Surycat-Organization')
+        org = client.websocket.request_headers.get(SITE_HEADER)
         if org not in self.ws_clients:
             self.ws_clients[org] = []
         self.ws_clients[org].append(client)

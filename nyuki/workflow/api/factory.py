@@ -7,6 +7,7 @@ import re
 from uuid import uuid4
 
 from nyuki.api import Response, resource, content_type
+from nyuki.utils.mongo import SITE_HEADER
 from nyuki.workflow.tasks import FACTORY_SCHEMAS
 
 
@@ -35,7 +36,7 @@ class ApiFactoryRegexes:
         """
         Return the list of all regexes
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
@@ -48,7 +49,7 @@ class ApiFactoryRegexes:
         """
         Insert a new regex
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
@@ -70,7 +71,7 @@ class ApiFactoryRegexes:
         """
         Delete all regexes and return the list
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
@@ -88,7 +89,7 @@ class ApiFactoryRegex:
         """
         Return the regex for id `regex_id`
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
@@ -103,7 +104,7 @@ class ApiFactoryRegex:
         """
         Modify an existing regex
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
@@ -126,7 +127,7 @@ class ApiFactoryRegex:
         """
         Delete the regex with id `regex_id`
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
@@ -175,7 +176,7 @@ class ApiFactoryLookups:
         """
         Return the list of all lookups
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
@@ -189,7 +190,7 @@ class ApiFactoryLookups:
         """
         Get a CSV file and parse it into a new lookup table.
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
@@ -243,7 +244,7 @@ class ApiFactoryLookups:
         """
         Insert a new lookup table
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
@@ -269,7 +270,7 @@ class ApiFactoryLookups:
         """
         Delete all lookups and return the list
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
@@ -287,7 +288,7 @@ class ApiFactoryLookup:
         """
         Return the lookup table for id `lookup_id`
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
@@ -302,7 +303,7 @@ class ApiFactoryLookup:
         """
         Modify an existing lookup table
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
@@ -325,7 +326,7 @@ class ApiFactoryLookup:
         """
         Delete the lookup table with id `lookup_id`
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:
@@ -346,7 +347,7 @@ class ApiFactoryLookupCSV:
         """
         Return the lookup table for id `lookup_id`
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.nyuki.mongo_manager.database(org)
         except AutoReconnect:

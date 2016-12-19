@@ -1,13 +1,14 @@
-from aiohttp import ClientSession
 import asyncio
 import json
 import logging
-from uuid import uuid4
+from aiohttp import ClientSession
 from enum import Enum
-
 from tukio.task import register
 from tukio.task.holder import TaskHolder
 from tukio.workflow import WorkflowExecState, Workflow
+from uuid import uuid4
+
+from nyuki.utils.mongo import SITE_HEADER
 
 from .utils import runtime
 from .utils.uri import URI
@@ -129,7 +130,7 @@ class TriggerWorkflowTask(TaskHolder):
 
         # 'organization' attribute added by WorkflowNyuki
         if self.workflow.organization is not None:
-            headers['X-Surycat-Organization'] = self.workflow.organization
+            headers[SITE_HEADER] = self.workflow.organization
 
         # Handle blocking trigger_workflow using mqtt
         if self.blocking:

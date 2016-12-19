@@ -7,6 +7,7 @@ from tukio.task.holder import TaskHolder
 from tukio.workflow import Workflow
 
 from nyuki.utils import Converter
+from nyuki.utils.mongo import SITE_HEADER
 from nyuki.workflow.tasks.utils import runtime, generate_factory_schema
 
 
@@ -145,7 +146,7 @@ class FactoryTask(TaskHolder):
         # 'organization' attribute added by WorkflowNyuki
         workflow = Workflow.current_workflow()
         if workflow.organization is not None:
-            self.headers = {'X-Surycat-Organization': workflow.organization}
+            self.headers = {SITE_HEADER: workflow.organization}
 
         data = event.data
         runtime_config = deepcopy(self.config)

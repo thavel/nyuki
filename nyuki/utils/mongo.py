@@ -4,6 +4,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 
 log = logging.getLogger(__name__)
+SITE_HEADER = 'X-Surycat-Site'
 
 
 class _DatabaseContext:
@@ -83,7 +84,7 @@ class MongoManager:
         name = self._db_name(name)
         log.debug('Using database: %s', name)
         if name not in self._databases:
-            log.info("Setting up workflow storage on database '%s'", name)
+            log.info("Setting up storage on database '%s'", name)
             self._databases[name] = self._storage_cls(self._client[name], self._prefix)
             init = True
         return _DatabaseContext(self._client, self._databases[name], init)

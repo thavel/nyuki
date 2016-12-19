@@ -15,6 +15,7 @@ from tukio.workflow import (
 
 from nyuki.api import Response, resource, content_type
 from nyuki.utils import from_isoformat
+from nyuki.utils.mongo import SITE_HEADER
 from nyuki.workflow.tasks.utils.uri import URI, InvalidWorkflowUri
 
 
@@ -179,7 +180,7 @@ class ApiWorkflows(_WorkflowResource):
             "draft": true/false
         }
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:
@@ -296,7 +297,7 @@ class ApiWorkflowsHistory:
             * `order` order results following the Ordering enum values
             * `search` search templates with specific title
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:
@@ -369,7 +370,7 @@ class ApiWorkflowsHistory:
 class ApiWorkflowHistory:
 
     async def get(self, request, uid):
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:
@@ -391,7 +392,7 @@ class ApiWorkflowTriggers:
         """
         Return the list of all trigger forms
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:
@@ -405,7 +406,7 @@ class ApiWorkflowTriggers:
         """
         Upload a trigger form file
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:
@@ -439,7 +440,7 @@ class ApiWorkflowTrigger:
         """
         Return a single trigger form
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:
@@ -454,7 +455,7 @@ class ApiWorkflowTrigger:
         """
         Delete a trigger form
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:

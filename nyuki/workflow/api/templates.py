@@ -4,6 +4,7 @@ from pymongo.errors import AutoReconnect, DuplicateKeyError
 from tukio.workflow import TemplateGraphError, WorkflowTemplate
 
 from nyuki.api import Response, resource
+from nyuki.utils.mongo import SITE_HEADER
 from nyuki.workflow.validation import validate, TemplateError
 
 
@@ -267,7 +268,7 @@ class ApiTemplates(_TemplateResource):
         """
         Return available workflows' DAGs
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:
@@ -284,7 +285,7 @@ class ApiTemplates(_TemplateResource):
         """
         Create a workflow DAG from JSON
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:
@@ -347,7 +348,7 @@ class ApiTemplate(_TemplateResource):
         """
         Return the latest version of the template
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:
@@ -363,7 +364,7 @@ class ApiTemplate(_TemplateResource):
         """
         Create a new draft for this template id
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:
@@ -409,7 +410,7 @@ class ApiTemplate(_TemplateResource):
         """
         Modify the template's metadata
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:
@@ -433,7 +434,7 @@ class ApiTemplate(_TemplateResource):
         """
         Delete the template
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:
@@ -461,7 +462,7 @@ class ApiTemplateVersion(_TemplateResource):
         """
         Return the template's given version
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:
@@ -477,7 +478,7 @@ class ApiTemplateVersion(_TemplateResource):
         """
         Delete a template with given version
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:
@@ -498,7 +499,7 @@ class ApiTemplateDraft(_TemplateResource):
         """
         Return the template's draft, if any
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:
@@ -514,7 +515,7 @@ class ApiTemplateDraft(_TemplateResource):
         """
         Publish a draft into production
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:
@@ -550,7 +551,7 @@ class ApiTemplateDraft(_TemplateResource):
         """
         Modify the template's draft
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:
@@ -590,7 +591,7 @@ class ApiTemplateDraft(_TemplateResource):
         """
         Delete the template's draft
         """
-        org = request.headers.get('X-Surycat-Organization')
+        org = request.headers.get(SITE_HEADER)
         try:
             storage = await self.manager.database(org)
         except AutoReconnect:
