@@ -50,14 +50,17 @@ def sanitize_workflow_exec(obj):
     return obj
 
 
-class WorkflowInstance:
+class WorkflowInstance(WebsocketResource):
+
     """
     Holds a workflow pair of template/instance.
     Allow retrieving a workflow exec state at any moment.
     """
+
     ALLOWED_EXEC_KEYS = ['requester', 'track']
 
-    def __init__(self, template, instance, **kwargs):
+    def __init__(self, template, instance, serializer=None, **kwargs):
+        super().__init__('/exec/{}'.format(instance.uid), serializer=serializer)
         self._template = template
         self._instance = instance
         self._exec = {
@@ -77,6 +80,9 @@ class WorkflowInstance:
     @property
     def exec(self):
         return self._exec
+
+    async def ready(self, client):
+        return self.report()
 
     def report(self):
         """
@@ -101,11 +107,18 @@ class WorkflowInstance:
 
 class WSExec(WebsocketResource):
 
+    def __init__(self, nyuki, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.nyuki = nyuki
+
     async def ready(self, client):
-        return [
-            workflow.report()
-            for workflow in self.nyuki.running_workflows.values()
-        ]
+        running = []
+        for workflow in self.nyuki.running_workflows.values():
+            report = workflow.report()
+            del report['graph']
+            del report['tasks']
+            running.append(report)
+        return running
 
 
 class WorkflowNyuki(Nyuki):
@@ -172,8 +185,7 @@ class WorkflowNyuki(Nyuki):
         runtime.config = self.config
         runtime.workflows = self.running_workflows
 
-        self.ws_exec = WSExec('/exec')
-        self.ws_exec.nyuki = self
+        self.ws_exec = WSExec(self, '/exec', serializer=serialize_wflow_exec)
 
     @property
     def mongo_config(self):
@@ -192,8 +204,6 @@ class WorkflowNyuki(Nyuki):
             ))
         # Enable workflow exec follow-up
         get_broker().register(self.report_workflow, topic=EXEC_TOPIC)
-        # Set workflow serializer
-        self.websocket.serializer = serialize_wflow_exec
 
     async def reload(self):
         asyncio.ensure_future(self.reload_from_storage())
@@ -206,7 +216,9 @@ class WorkflowNyuki(Nyuki):
         """
         Keep in memory a workflow template/instance pair.
         """
-        wflow = WorkflowInstance(template, instance, **kwargs)
+        wflow = WorkflowInstance(
+            template, instance, serializer=serialize_wflow_exec, **kwargs
+        )
         self.running_workflows[instance.uid] = wflow
         return wflow
 
@@ -227,6 +239,7 @@ class WorkflowNyuki(Nyuki):
             asyncio.ensure_future(self.storage.instances.insert(
                 sanitize_workflow_exec(wflow.report())
             ))
+            wflow.end()
             del self.running_workflows[exec_id]
 
         payload = {
@@ -240,7 +253,7 @@ class WorkflowNyuki(Nyuki):
         if event.data['type'] == WorkflowExecState.begin.value:
             payload['template'] = wflow.template
 
-        await self.websocket.broadcast(payload)
+        await wflow.broadcast(payload)
 
     async def workflow_event(self, efrom, data):
         """

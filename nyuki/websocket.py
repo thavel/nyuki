@@ -1,9 +1,10 @@
 import asyncio
-from datetime import datetime
 import json
-from jsonschema import validate, ValidationError
 import logging
 import websockets
+from datetime import datetime
+from jsonschema import validate, ValidationError
+from websockets.protocol import CLOSED
 
 from nyuki.services import Service
 
@@ -13,7 +14,6 @@ log = logging.getLogger(__name__)
 
 class WebsocketResource:
 
-    DEFAULT_REASON = (1000, 'connection closed normally')
     KEEPALIVE = 60
 
     def __init__(self, path, serializer=None):
@@ -27,13 +27,14 @@ class WebsocketResource:
         """
         Unregister this resource, the object becoming stall.
         """
-        asyncio.ensure_future(self.shutdown())
-        log.debug("Ended websocket resource on path: '%s'", self._path)
+        asyncio.ensure_future(self.close_clients())
+        log.info("Ended websocket resource on path: '%s'", self._path)
         del WebsocketHandler.RESOURCES[self._path]
 
-    async def shutdown(self):
+    async def close_clients(self):
+        log.debug("Closing all websocket connections on path: '%s'", self._path)
         tasks = [
-            asyncio.ensure_future(client.close(1001, 'server shutdown'))
+            asyncio.ensure_future(self.remove_client(client, 1001, 'server closing'))
             for client in self._clients
         ]
         if tasks:
@@ -50,10 +51,12 @@ class WebsocketResource:
         self._clients.append(client)
 
     async def remove_client(self, client, code=None, reason=None):
+        if client not in self._clients:
+            return
         if code is None:
-            code = self.DEFAULT_REASON[0]
+            code = 1000
         if reason is None:
-            reason = self.DEFAULT_REASON[1]
+            reason = 'connection closed normally'
         await self.close(client)
         self._clients.remove(client)
         await client.close(code, reason)
@@ -70,10 +73,12 @@ class WebsocketResource:
             for client in self._clients
         ]
         if not tasks:
-            log.debug('No client to send data to')
             return
 
-        log.debug('Sending data to %s client(s)', len(self._clients))
+        log.debug(
+            'Sending data of length %s to %s clients',
+            len(data), len(self._clients)
+        )
         await asyncio.wait(tasks, timeout=timeout)
 
     async def ready(self, client):
@@ -139,7 +144,7 @@ class WebsocketHandler(Service):
         if not self.server:
             return
         for resource in self.RESOURCES.values():
-            asyncio.ensure_future(resource.shutdown())
+            asyncio.ensure_future(resource.close_clients())
         await self.server.wait_closed()
 
     def _schedule_keepalive(self, resource, client):
@@ -188,5 +193,6 @@ class WebsocketHandler(Service):
                 handle.cancel()
                 handle = self._schedule_keepalive(resource, websocket)
 
+        # 'websocket' client may already be closed here.
         handle.cancel()
         await resource.remove_client(websocket)
