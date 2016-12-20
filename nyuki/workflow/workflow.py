@@ -8,7 +8,7 @@ from tukio.workflow import (
 
 from nyuki import Nyuki
 from nyuki.bus import reporting
-from nyuki.websocket import websocket_ready
+from nyuki.websocket import WebsocketResource
 
 from .api.factory import (
     ApiFactoryRegex, ApiFactoryRegexes, ApiFactoryLookup, ApiFactoryLookups,
@@ -99,6 +99,15 @@ class WorkflowInstance:
         }
 
 
+class WSExec(WebsocketResource):
+
+    async def ready(self, client):
+        return [
+            workflow.report()
+            for workflow in self.nyuki.running_workflows.values()
+        ]
+
+
 class WorkflowNyuki(Nyuki):
 
     """
@@ -163,6 +172,9 @@ class WorkflowNyuki(Nyuki):
         runtime.config = self.config
         runtime.workflows = self.running_workflows
 
+        self.ws_exec = WSExec('/exec')
+        self.ws_exec.nyuki = self
+
     @property
     def mongo_config(self):
         return self.config['mongo']
@@ -189,16 +201,6 @@ class WorkflowNyuki(Nyuki):
     async def teardown(self):
         if self.engine:
             await self.engine.stop()
-
-    @websocket_ready
-    async def websocket_ready(self, token):
-        """
-        Immediately send all instances of workflows to the client.
-        """
-        return [
-            workflow.report()
-            for workflow in self.running_workflows.values()
-        ]
 
     def new_workflow(self, template, instance, **kwargs):
         """
