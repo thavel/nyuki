@@ -2,9 +2,7 @@ import asyncio
 import json
 import logging
 import websockets
-from datetime import datetime
 from jsonschema import validate, ValidationError
-from websockets.protocol import CLOSED
 
 from nyuki.services import Service
 
@@ -65,6 +63,8 @@ class WebsocketResource:
         """
         Send a message to every connected client.
         """
+        if not self._clients:
+            return
         if not isinstance(data, str):
             data = json.dumps(data, default=self._serializer)
 
@@ -72,9 +72,6 @@ class WebsocketResource:
             asyncio.ensure_future(client.send(data))
             for client in self._clients
         ]
-        if not tasks:
-            return
-
         log.debug(
             'Sending data of length %s to %s clients',
             len(data), len(self._clients)
@@ -145,6 +142,7 @@ class WebsocketHandler(Service):
             return
         for resource in self.RESOURCES.values():
             asyncio.ensure_future(resource.close_clients())
+        self.server.close()
         await self.server.wait_closed()
 
     def _schedule_keepalive(self, resource, client):

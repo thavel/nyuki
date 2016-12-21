@@ -1,6 +1,6 @@
 import asyncio
-from datetime import datetime
 import logging
+from datetime import datetime
 from tukio import Engine, TaskRegistry, get_broker, EXEC_TOPIC
 from tukio.workflow import (
     TemplateGraphError, Workflow, WorkflowTemplate, WorkflowExecState
@@ -54,13 +54,16 @@ class WorkflowInstance(WebsocketResource):
 
     """
     Holds a workflow pair of template/instance.
-    Allow retrieving a workflow exec state at any moment.
+    Allows retrieving a workflow exec state at any moment.
     """
 
     ALLOWED_EXEC_KEYS = ['requester', 'track']
 
-    def __init__(self, template, instance, serializer=None, **kwargs):
-        super().__init__('/exec/{}'.format(instance.uid), serializer=serializer)
+    def __init__(self, template, instance, **kwargs):
+        super().__init__(
+            '/exec/{}'.format(instance.uid),
+            serializer=serialize_wflow_exec
+        )
         self._template = template
         self._instance = instance
         self._exec = {
@@ -82,6 +85,9 @@ class WorkflowInstance(WebsocketResource):
         return self._exec
 
     async def ready(self, client):
+        """
+        Overrides WebsocketResource's method.
+        """
         return self.report()
 
     def report(self):
@@ -105,10 +111,10 @@ class WorkflowInstance(WebsocketResource):
         }
 
 
-class WSExec(WebsocketResource):
+class GlobalExec(WebsocketResource):
 
     def __init__(self, nyuki, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, serializer=serialize_wflow_exec, **kwargs)
         self.nyuki = nyuki
 
     async def ready(self, client):
@@ -119,6 +125,12 @@ class WSExec(WebsocketResource):
             del report['tasks']
             running.append(report)
         return running
+
+    async def broadcast(self, data, *args, **kwargs):
+        if 'template' in data:
+            del data['template']['graph']
+            del data['template']['tasks']
+        return await super().broadcast(data, *args, **kwargs)
 
 
 class WorkflowNyuki(Nyuki):
@@ -174,18 +186,18 @@ class WorkflowNyuki(Nyuki):
         self.migrate_config()
         self.engine = None
         self.storage = None
-        # Stores workflow instances with their template data
-        self.running_workflows = {}
 
         self.AVAILABLE_TASKS = {}
         for name, value in TaskRegistry.all().items():
             self.AVAILABLE_TASKS[name] = getattr(value[0], 'SCHEMA', {})
 
+        # Stores workflow instances with their template data
+        self.running_workflows = {}
+        self.global_exec = GlobalExec(self, '/exec')
+
         runtime.bus = self.bus
         runtime.config = self.config
         runtime.workflows = self.running_workflows
-
-        self.ws_exec = WSExec(self, '/exec', serializer=serialize_wflow_exec)
 
     @property
     def mongo_config(self):
@@ -209,6 +221,7 @@ class WorkflowNyuki(Nyuki):
         asyncio.ensure_future(self.reload_from_storage())
 
     async def teardown(self):
+        self.global_exec.end()
         if self.engine:
             await self.engine.stop()
 
@@ -216,9 +229,7 @@ class WorkflowNyuki(Nyuki):
         """
         Keep in memory a workflow template/instance pair.
         """
-        wflow = WorkflowInstance(
-            template, instance, serializer=serialize_wflow_exec, **kwargs
-        )
+        wflow = WorkflowInstance(template, instance, **kwargs)
         self.running_workflows[instance.uid] = wflow
         return wflow
 
@@ -230,17 +241,6 @@ class WorkflowNyuki(Nyuki):
         exec_id = source['workflow_exec_id']
         wflow = self.running_workflows[exec_id]
         source['workflow_exec_requester'] = wflow.exec.get('requester')
-        # Workflow ended, clear it from memory
-        if event.data['type'] in [
-            WorkflowExecState.end.value,
-            WorkflowExecState.error.value
-        ]:
-            # Sanitize objects to store the finished workflow instance
-            asyncio.ensure_future(self.storage.instances.insert(
-                sanitize_workflow_exec(wflow.report())
-            ))
-            wflow.end()
-            del self.running_workflows[exec_id]
 
         payload = {
             'type': event.data['type'],
@@ -249,9 +249,22 @@ class WorkflowNyuki(Nyuki):
             'timestamp': datetime.utcnow().isoformat()
         }
 
-        # Is workflow begin, also send the full template.
+        # Workflow begins, also send the full template.
         if event.data['type'] == WorkflowExecState.begin.value:
-            payload['template'] = wflow.template
+            payload['template'] = dict(wflow.template)
+            asyncio.ensure_future(self.global_exec.broadcast(payload))
+        # Workflow ended, clear it from memory
+        elif event.data['type'] in [
+            WorkflowExecState.end.value,
+            WorkflowExecState.error.value
+        ]:
+            asyncio.ensure_future(self.global_exec.broadcast(payload))
+            # Sanitize objects to store the finished workflow instance
+            asyncio.ensure_future(self.storage.instances.insert(
+                sanitize_workflow_exec(wflow.report())
+            ))
+            wflow.end()
+            del self.running_workflows[exec_id]
 
         await wflow.broadcast(payload)
 
