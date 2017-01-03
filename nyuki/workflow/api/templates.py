@@ -56,7 +56,12 @@ class TemplateCollection:
         Fetch drafts if draft=True
         Both drafts and latest version if both are True
         """
-        cursor = self._templates.find(None, {'_id': 0})
+        filters = {'_id': 0}
+        # '/v1/workflow/templates' does not requires all the informations
+        if full is False:
+            filters.update({'id': 1, 'draft': 1, 'version': 1})
+
+        cursor = self._templates.find(None, filters)
         cursor.sort('version', DESCENDING)
         templates = await cursor.to_list(None)
 
@@ -66,16 +71,6 @@ class TemplateCollection:
             metadatas = {meta['id']: meta for meta in metadatas}
             for template in templates:
                 template.update(metadatas[template['id']])
-
-        # '/v1/workflow/templates' does not requires all the informations
-        if full is False and with_metadata is True:
-            templates = [{
-                'id': template['id'],
-                'title': template['title'],
-                'tags': template['tags'],
-                'version': template['version'],
-                'draft': template['draft']
-            } for template in templates]
 
         if latest is False and draft is False:
             return templates

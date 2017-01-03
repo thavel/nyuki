@@ -266,6 +266,7 @@ class WorkflowNyuki(Nyuki):
         self.storage = MongoStorage(**self.mongo_config)
 
         templates = await self.storage.templates.get_all(
+            full=True,
             latest=True,
             with_metadata=False
         )
