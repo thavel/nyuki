@@ -49,7 +49,7 @@ class TemplateCollection:
         cursor = self._metadata.find(query, {'_id': 0})
         return await cursor.to_list(None)
 
-    async def get_all(self, latest=False, draft=False, with_metadata=True):
+    async def get_all(self, full=False, latest=False, draft=False, with_metadata=True):
         """
         Return all templates, used at nyuki's startup and GET /v1/templates
         Fetch latest versions if latest=True
@@ -67,7 +67,17 @@ class TemplateCollection:
             for template in templates:
                 template.update(metadatas[template['id']])
 
-        if not latest and not draft:
+        # '/v1/workflow/templates' does not requires all the informations
+        if full is False and with_metadata is True:
+            templates = [{
+                'id': template['id'],
+                'title': template['title'],
+                'tags': template['tags'],
+                'version': template['version'],
+                'draft': template['draft']
+            } for template in templates]
+
+        if latest is False and draft is False:
             return templates
 
         # Retrieve the latest versions + drafts
@@ -80,7 +90,7 @@ class TemplateCollection:
             elif latest and not template['draft'] and template['id'] not in lasts:
                 lasts[template['id']] = template
 
-        return drafts + [tmpl for tmpl in lasts.values()]
+        return drafts + list(lasts.values())
 
     async def get(self, tid, version=None, draft=None, with_metadata=True):
         """
@@ -260,8 +270,9 @@ class ApiTemplates(_TemplateResource):
         """
         try:
             templates = await self.nyuki.storage.templates.get_all(
-                latest=request.GET.get('latest') in ['true', 'True'],
-                draft=request.GET.get('draft') in ['true', 'True'],
+                full=(request.GET.get('full') == '1'),
+                latest=(request.GET.get('latest') == '1'),
+                draft=(request.GET.get('draft') == '1'),
             )
         except AutoReconnect:
             return Response(status=503)
