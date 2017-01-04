@@ -1,97 +1,165 @@
 import asyncio
-from asynctest import TestCase
 import json
+import websockets
 from nose.tools import eq_, assert_raises, assert_in, assert_not_in
-import tempfile
-from websockets import client, exceptions
+from unittest import TestCase
+from unittest.mock import Mock
 
 from nyuki import Nyuki
-from nyuki.api.websocket import ApiWebsocketToken
-from nyuki.websocket import websocket_ready
+from nyuki.websocket import WebsocketResource, WebsocketHandler
 
 
-class WebNyuki(Nyuki):
+class CustomResource(WebsocketResource):
 
-    @websocket_ready
-    async def ready(self, token):
-        return {'your_token': token}
+    async def ready(self, client):
+        return {'header': client.request_headers['X-Header']}
+
+
+class TimeoutResource(WebsocketResource):
+
+    KEEPALIVE = 0.01
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.event = asyncio.Event()
+
+    async def close(self, client):
+        self.event.set()
 
 
 class WebsocketTest(TestCase):
 
-    async def setUp(self):
-        conf = tempfile.NamedTemporaryFile('w')
-        with open(conf.name, 'w') as f:
-            f.write(json.dumps({
-                'websocket': {}
-            }))
-        self.nyuki = WebNyuki(config=conf.name)
+    def setUp(self):
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        self.server = WebsocketHandler(Mock())
+        self.server.configure()
+        self.loop.run_until_complete(self.server.start())
 
-    async def tearDown(self):
-        await self.client.close()
-        await self.nyuki.websocket.stop()
+    def tearDown(self):
+        self.loop.run_until_complete(self.server.stop())
+        self.loop.close()
 
-    async def test_001_connection(self):
-        # Init nyuki
-        self.nyuki.websocket.configure('0.0.0.0', 5566, 600)
-        web = self.nyuki.websocket
-        await self.nyuki.websocket.start()
+    def test_001_client_connection(self):
+        # No endpoint
+        conn = self.loop.run_until_complete(websockets.connect(
+            'ws://localhost:5559/some/url',
+            extra_headers={'X-Header': 'some header'}
+        ))
+        with assert_raises(websockets.ConnectionClosed) as ctx:
+            self.loop.run_until_complete(conn.recv())
+        eq_(ctx.exception.code, 4004)
 
-        # Bad token
-        self.client = await client.connect('ws://localhost:5566/not_a_token')
-        with assert_raises(exceptions.ConnectionClosed):
-            await self.client.recv()
-
-        # Create token using API
-        api = ApiWebsocketToken()
-        api.nyuki = self.nyuki
-        resp = api.get(None)
-        token = json.loads(resp.body.decode())['token']
-        assert_in(token, web.clients)
-
-        # Good token
-        self.client = await client.connect('ws://localhost:5566/' + token)
-        await web.broadcast({'test': 'hello'})
-        msg = json.loads(await self.client.recv())
-        eq_(msg, {
-            'data': {'your_token': token},
-            'keepalive_delay': 480,
-            'type': 'ready'
-        })
-
-        # Token already in use
-        conn = list(web.server.websockets)[0]
-        eq_(len(web.server.websockets), 1)
-        await client.connect('ws://localhost:5566/' + token)
-        for c in web.server.websockets:
-            if c != conn:
-                new_conn = c
-                break
-        await new_conn.handler_task
-        eq_(len(web.server.websockets), 1)
-
-        # Close connection
-        await self.client.close()
-        assert_not_in(token, web.clients)
-
-    async def test_002_keepalive(self):
-        # Init nyuki
-        self.nyuki.websocket.configure('0.0.0.0', 5566, 0.1)
-        web = self.nyuki.websocket
-        await self.nyuki.websocket.start()
-
-        # Generate token
-        token = web.new_token()
+        assert_not_in('/some/url', WebsocketHandler.RESOURCES)
+        res = CustomResource('/some/url')
+        assert_in('/some/url', WebsocketHandler.RESOURCES)
 
         # Connect
-        self.client = await client.connect('ws://localhost:5566/' + token)
-        assert_in(token, web.clients)
-        await asyncio.sleep(0.06)
-        assert_in(token, web.clients)
-        await self.client.send(json.dumps({'type': 'keepalive'}))
+        conn = self.loop.run_until_complete(websockets.connect(
+            'ws://localhost:5559/some/url',
+            extra_headers={'X-Header': 'some header'}
+        ))
+        eq_(len(res._clients), 1)
 
-        # Token expire
-        await asyncio.sleep(0.06)
-        assert_in(token, web.clients)
-        await asyncio.sleep(0.06)
-        assert_not_in(token, web.clients)
+        # Receive the 'ready' payload
+        msg = self.loop.run_until_complete(conn.recv())
+        msg = json.loads(msg)
+        eq_(msg, {
+            'type': 'ready',
+            'keepalive_delay': 48,
+            'data': {'header': 'some header'}
+        })
+
+        # Receive a broadcast
+        self.loop.run_until_complete(res.broadcast({'some': 'payload'}))
+        msg = self.loop.run_until_complete(conn.recv())
+        msg = json.loads(msg)
+        eq_(msg, {'some': 'payload'})
+
+        # Receive a custom message
+        self.loop.run_until_complete(
+            res._clients[0].send(b'{"something":"personal"}')
+        )
+        msg = self.loop.run_until_complete(conn.recv())
+        msg = json.loads(msg)
+        eq_(msg, {'something': 'personal'})
+
+        # Disconnect
+        self.loop.run_until_complete(conn.close(1000))
+        with assert_raises(websockets.ConnectionClosed) as ctx:
+            self.loop.run_until_complete(conn.recv())
+        eq_(ctx.exception.code, 1000)
+        eq_(len(res._clients), 0)
+
+    def test_002_client_timeout(self):
+        res = TimeoutResource('/timeout')
+
+        # Connect
+        conn = self.loop.run_until_complete(websockets.connect(
+            'ws://localhost:5559/timeout'
+        ))
+        eq_(len(res._clients), 1)
+
+        # Receive the 'ready' payload
+        msg = self.loop.run_until_complete(conn.recv())
+        msg = json.loads(msg)
+        eq_(msg, {
+            'type': 'ready',
+            'keepalive_delay': 0.008,
+            'data': {}
+        })
+
+        # One keepalive
+        async def keepalive():
+            await asyncio.sleep(0.008)
+            await conn.send(json.dumps({'type': 'keepalive'}))
+        self.loop.run_until_complete(keepalive())
+        eq_(len(res._clients), 1)
+
+        # Wait for timeout
+        with assert_raises(websockets.ConnectionClosed) as ctx:
+            self.loop.run_until_complete(conn.recv())
+        eq_(ctx.exception.code, 4008)
+        eq_(len(res._clients), 0)
+
+    def test_003_multiple_clients(self):
+        res = CustomResource('/some/url')
+        tasks = [
+            asyncio.ensure_future(websockets.connect(
+                'ws://localhost:5559/some/url',
+                extra_headers={'X-Header': 'some header'}
+            ))
+            for _ in range(0, 500)
+        ]
+
+        self.loop.run_until_complete(asyncio.wait(tasks))
+        eq_(len(res._clients), 500)
+        self.loop.run_until_complete(res.close_clients())
+        eq_(len(res._clients), 0)
+
+    def test_004_end_resource(self):
+        res = CustomResource('/some/url')
+        assert_in('/some/url', WebsocketHandler.RESOURCES)
+
+        # Connect
+        conn = self.loop.run_until_complete(websockets.connect(
+            'ws://localhost:5559/some/url',
+            extra_headers={'X-Header': 'some header'}
+        ))
+        eq_(len(res._clients), 1)
+
+        # Receive the 'ready' payload
+        msg = self.loop.run_until_complete(conn.recv())
+        msg = json.loads(msg)
+        eq_(msg, {
+            'type': 'ready',
+            'keepalive_delay': 48,
+            'data': {'header': 'some header'}
+        })
+
+        # End resource
+        res.end()
+        with assert_raises(websockets.ConnectionClosed) as ctx:
+            self.loop.run_until_complete(conn.recv())
+        eq_(ctx.exception.code, 1001)
+        assert_not_in('/some/url', WebsocketHandler.RESOURCES)
