@@ -78,7 +78,7 @@ class WebsocketTest(TestCase):
 
         # Receive a custom message
         self.loop.run_until_complete(
-            res._clients[0].send(b'{"something":"personal"}')
+            res._clients[0].send('{"something":"personal"}')
         )
         msg = self.loop.run_until_complete(conn.recv())
         msg = json.loads(msg)
