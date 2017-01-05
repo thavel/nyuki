@@ -69,7 +69,7 @@ class MongoManager:
         name = self._db_name(name)
         log.debug('Using database: %s', name)
         if name not in self._databases:
-            log.info("Setting up workflow storage on database '%s'", name)
+            log.info("Setting up storage on database '%s'", name)
             db = self._storage_cls(self._client[name], self._prefix)
             await db.init()
             self._databases[name] = db
