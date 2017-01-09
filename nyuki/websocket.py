@@ -12,6 +12,7 @@ log = logging.getLogger(__name__)
 
 class WebsocketResource:
 
+    # Value before the client is timed out after not sending any keepalive.
     KEEPALIVE = 60
 
     def __init__(self, path, serializer=None):
@@ -42,7 +43,7 @@ class WebsocketResource:
     async def add_client(self, client):
         ready = {
             'type': 'ready',
-            'keepalive_delay': self.KEEPALIVE * 0.8,
+            'keepalive_delay': self.KEEPALIVE,
             'data': await self.ready(client) or {}
         }
         await client.send(json.dumps(ready, default=self._serializer))
@@ -56,8 +57,8 @@ class WebsocketResource:
         if reason is None:
             reason = 'connection closed normally'
         await self.close(client)
-        self._clients.remove(client)
         await client.close(code, reason)
+        self._clients.remove(client)
 
     async def broadcast(self, data, timeout=None):
         """
@@ -162,8 +163,8 @@ class WebsocketHandler(Service):
             await websocket.close(4004, 'resource not found')
             return
 
-        handle = self._schedule_keepalive(resource, websocket)
         await resource.add_client(websocket)
+        handle = self._schedule_keepalive(resource, websocket)
 
         while True:
             # Main read loop

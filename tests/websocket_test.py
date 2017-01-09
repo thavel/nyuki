@@ -17,7 +17,7 @@ class CustomResource(WebsocketResource):
 
 class TimeoutResource(WebsocketResource):
 
-    KEEPALIVE = 0.01
+    KEEPALIVE = 0.1
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -66,7 +66,7 @@ class WebsocketTest(TestCase):
         msg = json.loads(msg)
         eq_(msg, {
             'type': 'ready',
-            'keepalive_delay': 48,
+            'keepalive_delay': 60,
             'data': {'header': 'some header'}
         })
 
@@ -105,13 +105,13 @@ class WebsocketTest(TestCase):
         msg = json.loads(msg)
         eq_(msg, {
             'type': 'ready',
-            'keepalive_delay': 0.008,
+            'keepalive_delay': 0.1,
             'data': {}
         })
 
         # One keepalive
         async def keepalive():
-            await asyncio.sleep(0.008)
+            await asyncio.sleep(0.08)
             await conn.send(json.dumps({'type': 'keepalive'}))
         self.loop.run_until_complete(keepalive())
         eq_(len(res._clients), 1)
@@ -132,8 +132,23 @@ class WebsocketTest(TestCase):
             for _ in range(0, 500)
         ]
 
-        self.loop.run_until_complete(asyncio.wait(tasks))
+        done, pending = self.loop.run_until_complete(asyncio.wait(tasks))
         eq_(len(res._clients), 500)
+
+        testclient1 = done.pop().result()
+        testclient2 = done.pop().result()
+
+        # Broadcast
+        self.loop.run_until_complete(res.broadcast({'hello': 'there'}))
+
+        self.loop.run_until_complete(testclient1.recv())
+        msg = self.loop.run_until_complete(testclient1.recv())
+        eq_(json.loads(msg), {'hello': 'there'})
+
+        self.loop.run_until_complete(testclient2.recv())
+        msg = self.loop.run_until_complete(testclient2.recv())
+        eq_(json.loads(msg), {'hello': 'there'})
+
         self.loop.run_until_complete(res.close_clients())
         eq_(len(res._clients), 0)
 
@@ -153,7 +168,7 @@ class WebsocketTest(TestCase):
         msg = json.loads(msg)
         eq_(msg, {
             'type': 'ready',
-            'keepalive_delay': 48,
+            'keepalive_delay': 60,
             'data': {'header': 'some header'}
         })
 
