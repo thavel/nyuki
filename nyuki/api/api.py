@@ -36,6 +36,13 @@ def content_type(content_type):
     return decorated
 
 
+class HTTPBreak(Exception):
+
+    def __init__(self, status, body=None):
+        self.status = status
+        self.body = body
+
+
 class Response(web.Response):
 
     """
@@ -112,13 +119,14 @@ async def mw_capability(app, capa_handler):
         except (web.HTTPNotFound, web.HTTPMethodNotAllowed):
             # Avoid sending a report on a simple 404/405
             raise
+        except HTTPBreak as exc:
+            return Response(exc.body, status=exc.status)
         except Exception as exc:
             reporting.exception(exc)
             raise
 
         if capa_resp and isinstance(capa_resp, Response):
             return capa_resp
-
         return Response()
 
     return middleware

@@ -444,7 +444,7 @@ class XmppBus(Service):
 
         # '/' are not supported in MUCs name
         topic = topic.replace('/', '.')
-        self._mucs.joinMUC(self._muc_address(topic), self.name)
+        self._mucs.join_muc(self._muc_address(topic), self.name)
         log.info("Subscribed to '%s'", topic)
         if self._callbacks.get(topic) is None:
             self._callbacks[topic] = callback

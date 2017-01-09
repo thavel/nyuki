@@ -1,15 +1,14 @@
 import asyncio
-from hbmqtt.client import MQTTClient, ConnectException, ClientException
-from hbmqtt.errors import NoDataException
-from hbmqtt.mqtt.constants import QOS_1
 import json
 import logging
 import re
+from hbmqtt.client import MQTTClient, ConnectException, ClientException
+from hbmqtt.errors import NoDataException
+from hbmqtt.mqtt.constants import QOS_1
 from uuid import uuid4
 
 from nyuki.bus import reporting
 from nyuki.services import Service
-
 from .persistence import BusPersistence, EventStatus, PersistenceError
 from .utils import serialize_bus_event
 
@@ -181,19 +180,41 @@ class MqttBus(Service):
         """
         if not asyncio.iscoroutinefunction(callback):
             raise ValueError('event callback must be a coroutine')
-        log.debug('MQTT subscription to %s', topic)
-        await self.client.subscribe([(topic, QOS_1)])
-        self._subscriptions[topic] = callback
-        log.info('Callback set on regex: %s', self._regex_topic(topic))
 
-    async def unsubscribe(self, topic):
+        log.debug('MQTT subscription to %s->%s', topic, callback.__name__)
+        await self.client.subscribe([(topic, QOS_1)])
+
+        try:
+            self._subscriptions[topic].add(callback)
+        except KeyError:
+            self._subscriptions[topic] = {callback}
+        log.info(
+            'Subscribed to %s: %s callback(s)',
+            topic, len(self._subscriptions[topic])
+        )
+
+    async def unsubscribe(self, topic, callback):
         """
         Unsubscribe from the topic, remove callback if set
         """
-        log.debug('MQTT unsubscription from %s', topic)
-        await self.client.unsubscribe([topic])
-        if topic in self._subscriptions:
-            del self._subscriptions[topic]
+        log.debug("MQTT unsubscription from %s->%s", topic, callback.__name__)
+        try:
+            self._subscriptions[topic].remove(callback)
+        except KeyError:
+            return
+        else:
+            if not self._subscriptions[topic]:
+                del self._subscriptions[topic]
+                await self.client.unsubscribe([topic])
+                log.info('Unsubscribed from %s', topic)
+
+    async def _resubscribe(self):
+        """
+        Resubscribe on reconnection.
+        """
+        for topic in self._subscriptions.keys():
+            log.debug('Resubscribing to %s', topic)
+            await self.client.subscribe([(topic, QOS_1)])
 
     async def publish(self, data, topic=None, previous_uid=None):
         """
@@ -251,6 +272,7 @@ class MqttBus(Service):
                 ))
 
             # Start listening
+            await self._resubscribe()
             self.listen_future = asyncio.ensure_future(self._listen())
             # Blocks until mqtt is disconnected
             await self.client._handler.wait_disconnect()
@@ -279,8 +301,9 @@ class MqttBus(Service):
             if topic == self.name:
                 continue
 
-            for cb_topic, callback in self._subscriptions.items():
-                if re.match(self._regex_topic(cb_topic), topic):
+            for sub_topic, callbacks in self._subscriptions.items():
+                if re.match(self._regex_topic(sub_topic), topic):
                     data = json.loads(message.data.decode())
                     log.debug("Event from topic '%s': %s", topic, data)
-                    asyncio.ensure_future(callback(topic, data))
+                    for callback in callbacks:
+                        asyncio.ensure_future(callback(topic, data))
