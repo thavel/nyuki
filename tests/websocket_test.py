@@ -129,11 +129,11 @@ class WebsocketTest(TestCase):
                 'ws://localhost:5559/some/url',
                 extra_headers={'X-Header': 'some header'}
             ))
-            for _ in range(0, 500)
+            for _ in range(0, 50)
         ]
 
         done, pending = self.loop.run_until_complete(asyncio.wait(tasks))
-        eq_(len(res._clients), 500)
+        eq_(len(res._clients), 50)
 
         testclient1 = done.pop().result()
         testclient2 = done.pop().result()
