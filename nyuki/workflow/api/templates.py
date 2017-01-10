@@ -391,7 +391,7 @@ class ApiTemplate(_TemplateResource):
             })
 
         try:
-            tmpl_dict = await self.update_draft(template, request)
+            tmpl_dict = await self.update_draft(storage, template, request)
         except ConflictError as exc:
             return Response(status=409, body={
                 'error': exc
@@ -572,7 +572,7 @@ class ApiTemplateDraft(_TemplateResource):
             })
 
         try:
-            tmpl_dict = await self.update_draft(template, request)
+            tmpl_dict = await self.update_draft(storage, template, request)
         except ConflictError as exc:
             return Response(status=409, body={
                 'error': str(exc)

@@ -156,18 +156,19 @@ class _WorkflowResource:
         broker.register(exec_handler, topic=EXEC_TOPIC)
 
 
-@resource('/workflow/instances', ['v1'], 'application/json')
+@resource('/workflow/instances', ['v1'])
 class ApiWorkflows(_WorkflowResource):
 
     async def get(self, request):
         """
         Return workflow instances
         """
+        org = request.headers.get(SITE_HEADER)
         return Response(
-            json.dumps(
-                [workflow.report()
-                 for workflow in self.nyuki.running_workflows.values()],
-                default=serialize_wflow_exec
+            json.dumps([
+                workflow.report()
+                for workflow in self.nyuki.running_workflows.get(org, {}).values()
+            ], default=serialize_wflow_exec
             ),
             content_type='application/json'
         )
@@ -258,10 +259,11 @@ class ApiWorkflow(_WorkflowResource):
         """
         Return a workflow instance
         """
+        org = request.headers.get(SITE_HEADER)
         try:
             return Response(
                 json.dumps(
-                    self.nyuki.running_workflows[iid].report(),
+                    self.nyuki.running_workflows[org][iid].report(),
                     default=serialize_wflow_exec
                 ),
                 content_type='application/json'
@@ -273,6 +275,10 @@ class ApiWorkflow(_WorkflowResource):
         """
         Cancel a workflow instance.
         """
+        org = request.headers.get(SITE_HEADER)
+        if iid not in self.nyuki.running_workflows[org]:
+            return Response(status=404)
+
         for instance in self.nyuki.engine.instances:
             if instance.uid == iid:
                 instance.cancel()
@@ -283,6 +289,10 @@ class ApiWorkflow(_WorkflowResource):
 
 @resource('/workflow/history', versions=['v1'])
 class ApiWorkflowsHistory:
+
+    @property
+    def manager(self):
+        return self.nyuki.mongo_manager
 
     async def get(self, request):
         """
