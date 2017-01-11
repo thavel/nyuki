@@ -1,14 +1,12 @@
 import asyncio
 import json
 import logging
-import re
 from slixmpp import ClientXMPP
 from slixmpp.exceptions import IqError, IqTimeout
 from uuid import uuid4
 
 from nyuki.bus import reporting
 from nyuki.services import Service
-
 from .persistence import BusPersistence, EventStatus, PersistenceError
 from .utils import serialize_bus_event
 
@@ -219,7 +217,7 @@ class XmppBus(Service):
             log.debug("Could not register account: {}".format(error))
         except IqTimeout:
             log.error("No response from the server")
-        finally:
+        else:
             log.debug("Account {} created".format(self.client.boundjid))
 
     async def _on_start(self, event):

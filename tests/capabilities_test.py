@@ -52,7 +52,8 @@ class TestResourceClass(TestCase):
 
     @patch('aiohttp.web_urldispatcher.Resource.add_route')
     def test_001_register(self, add_route):
-        router = UrlDispatcher(Mock())
+        router = UrlDispatcher()
+        router.post_init(Mock())
         self.resource_cls.register(Mock(), router)
         # GET /v1/test
         # DELETE /v1/test

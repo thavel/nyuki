@@ -44,7 +44,7 @@ class TestXmppBus(TestCase):
     async def test_002_on_event(self):
         self.bus._connected.set()
         cb = CoroutineMock()
-        with patch.object(self.bus._mucs, 'joinMUC') as join_mock:
+        with patch.object(self.bus._mucs, 'join_muc') as join_mock:
             await self.bus.subscribe('someone', cb)
             join_mock.assert_called_once_with('someone@mucs.localhost', 'test')
         msg = self.bus.client.Message()
@@ -78,7 +78,7 @@ class TestXmppBus(TestCase):
     @patch('slixmpp.xmlstream.stanzabase.StanzaBase.send')
     async def test_003d_publish_unknown_topic(self, send_mock):
         self.bus._connected.set()
-        with patch.object(self.bus._mucs, 'joinMUC') as join_mock:
+        with patch.object(self.bus._mucs, 'join_muc') as join_mock:
             asyncio.ensure_future(self.bus.publish({'test': 'message'}, 'unknown/topic'))
             await exhaust_callbacks(self.loop)
             join_mock.assert_called_once_with('unknown.topic@mucs.localhost', 'test')
