@@ -185,7 +185,10 @@ class _Rule(metaclass=_RegisteredRule):
         def wrapper(self, data):
             # Handle data through a traceable dict
             tracker = TraceableDict(data)
-            func(self, tracker)
+            try:
+                func(self, tracker)
+            except RegexpRuleError as exc:
+                return {'type': self.TYPENAME, 'changes': tracker.changes, 'error': 'regexp_rule_error'}
             # We want to keep the object reference
             data.clear()
             data.update(tracker)
@@ -230,6 +233,10 @@ class _RegexpRule(_Rule):
             data.update(resdict)
 
 
+class RegexpRuleError(TypeError):
+    pass
+
+
 class Extract(_RegexpRule):
 
     """
@@ -240,12 +247,11 @@ class Extract(_RegexpRule):
 
     def _configure(self, pattern, flags=0, pos=None, endpos=None):
         super()._configure(pattern, flags=flags)
-        if not self.regexp.groupindex:
-            raise TypeError("'{pattern}' has no named capturing group".format(
-                            pattern=pattern))
         self._pos_args = tuple(f for f in (pos, endpos) if f is not None)
 
     def _run_regexp(self, string):
+        if not self.regexp.groupindex:
+            raise RegexpRuleError("regex is invalid, ensure a group is captured")
         args = (string,) + self._pos_args
         match = self.regexp.search(*args)
         if match is not None:
