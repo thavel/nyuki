@@ -127,10 +127,14 @@ class Converter(object):
 
     def apply(self, data):
         rules = []
+        errors = False
         for rule in self.rules:
             diff = rule.apply(data)
             rules.append(diff)
-        return {'rules': rules}
+            if 'error' in diff:
+                errors = True
+
+        return {'rules': rules, 'errors': errors}
 
 
 class FactoryConditionBlock(ConditionBlock, metaclass=_RegisteredRule):
