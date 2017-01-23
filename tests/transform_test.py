@@ -129,3 +129,8 @@ class TestTransformCases(TestCase):
         converter.apply(self.data)
         self.assertEqual(self.data['normal'], 'LOOKUP')
         self.assertEqual(self.data['to_upper'], 'LOOKUP')
+
+    def test_010a_regexp_error_report(self):
+        rule = Extract('regex', r'(.*)')
+        diff = rule.apply(self.data)
+        self.assertEqual(diff['error'], 'regexp_rule_error')
