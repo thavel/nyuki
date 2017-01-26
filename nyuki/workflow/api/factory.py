@@ -4,6 +4,7 @@ from io import StringIO
 import logging
 from pymongo.errors import AutoReconnect
 import re
+from re import error as re_error
 from uuid import uuid4
 
 from nyuki.api import Response, resource, content_type
@@ -21,6 +22,7 @@ class ApiFactoryRules:
 
 
 def new_regex(title, pattern, regex_id=None):
+    re.compile(pattern)
     return {
         'id': regex_id or str(uuid4()),
         'title': title,
@@ -52,6 +54,11 @@ class ApiFactoryRegexes:
         except KeyError as exc:
             return Response(status=400, body={
                 'error': 'missing parameter {}'.format(exc)
+            })
+        except re_error as exc:
+            return Response(status=400, body={
+                'error': 'invalid regular expression {}'.format(exc),
+                'error_code': 'invalid_regex'
             })
 
         try:
@@ -99,11 +106,17 @@ class ApiFactoryRegex:
             return Response(status=404)
 
         request = await request.json()
-        regex = new_regex(
-            request.get('title', regex['title']),
-            request.get('pattern', regex['pattern']),
-            regex_id=regex_id
-        )
+        try:
+            regex = new_regex(
+                request.get('title', regex['title']),
+                request.get('pattern', regex['pattern']),
+                regex_id=regex_id
+            )
+        except re_error as exc:
+            return Response(status=400, body={
+                'error': 'invalid regular expression {}'.format(exc),
+                'error_code': 'invalid_regex'
+            })
         await self.nyuki.storage.regexes.insert(regex)
         return Response(regex)
 
