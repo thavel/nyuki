@@ -192,7 +192,10 @@ class _Rule(metaclass=_RegisteredRule):
             try:
                 func(self, tracker)
             except RegexpRuleError as exc:
-                return {'type': self.TYPENAME, 'changes': tracker.changes, 'error': 'regexp_rule_error', 'error_details': str(exc)}
+                return {
+                    'type': self.TYPENAME, 'changes': tracker.changes,
+                    'error': 'regexp_rule_error', 'error_details': str(exc)
+                }
             # We want to keep the object reference
             data.clear()
             data.update(tracker)
