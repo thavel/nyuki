@@ -15,6 +15,7 @@ from .config import get_full_config, write_conf_json, merge_configs
 from .logs import DEFAULT_LOGGING
 from .services import ServiceManager
 from .websocket import WebsocketHandler
+from .discovery import Discovery
 
 
 log = logging.getLogger(__name__)
@@ -37,7 +38,11 @@ class Nyuki:
     # Configuration schema must follow jsonschema rules.
     BASE_CONF_SCHEMA = {
         "type": "object",
-        "required": ["log"]
+        "required": ["name", "log"],
+        "properties": {
+            "name": {"type": "string", "minLength": 1},
+            "singleton": {"type": "boolean"}
+        }
     }
     # API endpoints
     HTTP_RESOURCES = [
@@ -86,6 +91,10 @@ class Nyuki:
         # Add websocket server if in conf file
         if self._config.get('websocket') is not None:
             self._services.add('websocket', WebsocketHandler(self))
+        # Add discovery service
+        if not self._config.get('singleton', False):
+            method = self._config.get('discovery', {}).get('method', 'dns')
+            self._services.add('discovery', Discovery.get(method))
 
         self.is_stopping = False
 
