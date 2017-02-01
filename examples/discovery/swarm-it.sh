@@ -31,5 +31,4 @@ docker service ps worker
 
 # Access the container
 echo -e "\nworker.1 container: ${SHA}\n"
-#docker exec -it ${SHA} ash
 docker logs -f ${SHA}

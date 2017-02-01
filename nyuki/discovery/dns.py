@@ -32,13 +32,15 @@ class DnsDiscovery(DiscoveryService):
     def __init__(self, nyuki, loop=None):
         self._nyuki = nyuki
         self._loop = loop or asyncio.get_event_loop()
-        self._namedentry = None
+        self._entry = None
         self._period = None
         self._future = None
         self._callbacks = []
 
-    def configure(self, namedentry=None, period=5, **kwargs):
-        self._namedentry = namedentry or self._nyuki.name
+        self._nyuki.register_schema(self.CONF_SCHEMA)
+
+    def configure(self, entry=None, period=5, **kwargs):
+        self._entry = entry or self._nyuki.config['service']
         self._period = period
 
     def register(self, callback):
@@ -52,7 +54,7 @@ class DnsDiscovery(DiscoveryService):
     async def periodic_query(self):
         while True:
             try:
-                answers = resolver.query(self._namedentry, 'A')
+                answers = resolver.query(self._entry, 'A')
             except DNSException as exc:
                 log.error("DNS query failed for discovery service")
                 log.debug("DNS failure reason: %s", str(exc))

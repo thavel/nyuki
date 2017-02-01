@@ -14,7 +14,7 @@ class Worker(Nyuki):
     async def handler(self, addresses):
         log.critical(
             "Discovery found %d instances of the service '%s'\n%s",
-            len(addresses), self.config['name'], addresses
+            len(addresses), self.config['service'], addresses
         )
 
 

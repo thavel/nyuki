@@ -38,10 +38,9 @@ class Nyuki:
     # Configuration schema must follow jsonschema rules.
     BASE_CONF_SCHEMA = {
         "type": "object",
-        "required": ["name", "log"],
+        "required": ["log"],
         "properties": {
-            "name": {"type": "string", "minLength": 1},
-            "singleton": {"type": "boolean"}
+            "service": {"type": "string", "minLength": 1}
         }
     }
     # API endpoints
@@ -92,7 +91,7 @@ class Nyuki:
         if self._config.get('websocket') is not None:
             self._services.add('websocket', WebsocketHandler(self))
         # Add discovery service
-        if not self._config.get('singleton', False):
+        if self._config.get('service'):
             method = self._config.get('discovery', {}).get('method', 'dns')
             discovery = Discovery.get(method)
             self._services.add('discovery', discovery(self))
@@ -114,10 +113,6 @@ class Nyuki:
     @property
     def config(self):
         return self._config
-
-    @property
-    def name(self):
-        return self._config.get('name', 'nyuki')
 
     @property
     def reporter(self):

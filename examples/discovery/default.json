@@ -1,8 +1,8 @@
 {
-    "name": "worker",
+    "service": "worker",
     "discovery": {
         "method": "dns",
-        "namedentry": "tasks.worker",
+        "entry": "tasks.worker",
         "period": 5
     }
 }
