@@ -9,13 +9,9 @@ class Worker(Nyuki):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.discovery.register(self.handler)
 
-    async def handler(self, addresses):
-        log.critical(
-            "Discovery found %d instances of the service '%s'\n%s",
-            len(addresses), self.config['service'], addresses
-        )
+    async def setup(self):
+        pass
 
 
 if __name__ == '__main__':

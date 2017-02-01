@@ -19,16 +19,12 @@ docker network create --driver overlay workspace
 sleep 1
 
 # Create service
-docker service create --name worker --replicas 3 --network workspace \
+docker service create --name worker --replicas 5 --network workspace \
     --mount type=bind,source=${LIB_SRC},destination=${LIB_DEST},ro=1 \
     --mount type=bind,source=$(pwd),destination=/home/,ro=1 \
     worker python3 worker.py
 sleep 3
-SHA=`docker ps -q -f name=worker.1`
 
 exec &>/dev/tty
 docker service ps worker
-
-# Access the container
-echo -e "\nworker.1 container: ${SHA}\n"
-docker logs -f ${SHA}
+docker service logs --follow worker

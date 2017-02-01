@@ -16,6 +16,7 @@ from .logs import DEFAULT_LOGGING
 from .services import ServiceManager
 from .websocket import WebsocketHandler
 from .discovery import Discovery
+from .raft import RaftProtocol, ApiRaft
 
 
 log = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ class Nyuki:
         ApiBusTopics,
         ApiConfiguration,
         ApiSwagger,
+        ApiRaft
     ]
 
     def __init__(self, **kwargs):
@@ -95,6 +97,8 @@ class Nyuki:
             method = self._config.get('discovery', {}).get('method', 'dns')
             discovery = Discovery.get(method)
             self._services.add('discovery', discovery(self))
+            self._services.add('raft', RaftProtocol(self))
+            self.discovery.register(self.raft.discovery_handler)
 
         self.is_stopping = False
 
