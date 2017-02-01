@@ -3,7 +3,7 @@ import logging
 from dns import resolver
 from dns.exception import DNSException
 
-from . import DiscoveryService
+from nyuki.discovery import DiscoveryService
 
 
 log = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class DnsDiscovery(DiscoveryService):
         self._callbacks = []
 
     def configure(self, namedentry=None, period=5, **kwargs):
-        self._namedentry = namedentry or self._nyuki.config['name']
+        self._namedentry = namedentry or self._nyuki.name
         self._period = period
 
     def register(self, callback):
@@ -58,12 +58,7 @@ class DnsDiscovery(DiscoveryService):
                 log.debug("DNS failure reason: %s", str(exc))
                 await asyncio.sleep(self._RETRY_PERIOD)
                 continue
-
             addresses = [ip.address for ip in answers]
-            log.debug(
-                "Found {} instances of {}: {}",
-                len(addresses), self._namedentry, addresses
-            )
 
             # Trigger callbacks for discovered instances IPs
             for callback in self._callbacks:

@@ -6,12 +6,13 @@ exec &> /dev/null
 
 # Get absolute path for nyuki lib.
 pushd ../../nyuki/
-WORKSPACE=`pwd`
-MOUNT=/usr/lib/python3.5/site-packages/nyuki
+LIB_SRC=`pwd`
+LIB_DEST=/usr/lib/python3.5/site-packages/nyuki
 popd
 
 # Clean swarm services and config.
 docker service rm worker
+docker network rm workspace
 docker swarm leave --force
 docker swarm init
 docker network create --driver overlay workspace
@@ -19,8 +20,9 @@ sleep 1
 
 # Create service
 docker service create --name worker --replicas 3 --network workspace \
-    --mount type=bind,source=${WORKSPACE},destination=${MOUNT},ro=1 \
-    worker sleep 36000
+    --mount type=bind,source=${LIB_SRC},destination=${LIB_DEST},ro=1 \
+    --mount type=bind,source=$(pwd),destination=/home/,ro=1 \
+    worker python3 worker.py
 sleep 3
 SHA=`docker ps -q -f name=worker.1`
 
@@ -29,4 +31,5 @@ docker service ps worker
 
 # Access the container
 echo -e "\nworker.1 container: ${SHA}\n"
-docker exec -it ${SHA} ash
+#docker exec -it ${SHA} ash
+docker logs -f ${SHA}

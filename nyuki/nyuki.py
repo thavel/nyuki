@@ -94,7 +94,8 @@ class Nyuki:
         # Add discovery service
         if not self._config.get('singleton', False):
             method = self._config.get('discovery', {}).get('method', 'dns')
-            self._services.add('discovery', Discovery.get(method))
+            discovery = Discovery.get(method)
+            self._services.add('discovery', discovery(self))
 
         self.is_stopping = False
 
@@ -113,6 +114,10 @@ class Nyuki:
     @property
     def config(self):
         return self._config
+
+    @property
+    def name(self):
+        return self._config.get('name', 'nyuki')
 
     @property
     def reporter(self):

@@ -1,3 +1,8 @@
 {
-    "name": "worker"
+    "name": "worker",
+    "discovery": {
+        "method": "dns",
+        "namedentry": "tasks.worker",
+        "period": 5
+    }
 }
