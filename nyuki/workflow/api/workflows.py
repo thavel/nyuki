@@ -260,16 +260,47 @@ class ApiWorkflow(_WorkflowResource):
         except KeyError:
             return Response(status=404)
 
+    async def post(self, request, iid):
+        """
+        Suspend/resume a runnning workflow.
+        """
+        try:
+            wf = self.nyuki.running_workflows[iid]
+        except KeyError:
+            return Response(status=404)
+
+        request = await request.json()
+
+        try:
+            action = request['action']
+        except KeyError:
+            return Response(status=400, body={
+                'action parameter required'
+            })
+
+        # Should we return 409 Conflict if the status is already set ?
+        if action == 'suspend':
+            wf.instance.suspend()
+        elif action == 'resume':
+            wf.instance.resume()
+        else:
+            return Response(status=400, body={
+                "action must be 'suspend' or 'resume'"
+            })
+
+        return Response(
+            json.dumps(wf.report(), default=serialize_wflow_exec),
+            content_type='application/json'
+        )
+
     async def delete(self, request, iid):
         """
         Cancel a workflow instance.
         """
-        for instance in self.nyuki.engine.instances:
-            if instance.uid == iid:
-                instance.cancel()
-                return
-
-        return Response(status=404)
+        try:
+            self.nyuki.running_workflows[iid].instance.cancel()
+        except KeyError:
+            return Response(status=404)
 
 
 @resource('/workflow/history', versions=['v1'])

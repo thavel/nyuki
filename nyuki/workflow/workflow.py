@@ -265,6 +265,12 @@ class WorkflowNyuki(Nyuki):
             ))
             wflow.end()
             del self.running_workflows[exec_id]
+        # Workflow suspended/resumed
+        elif event.data['type'] in [
+            WorkflowExecState.suspend.value,
+            WorkflowExecState.resume.value
+        ]:
+            asyncio.ensure_future(self.global_exec.broadcast(payload))
 
         await wflow.broadcast(payload)
 
