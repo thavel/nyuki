@@ -27,7 +27,7 @@ class DnsDiscovery(DiscoveryService):
         }
     }
 
-    _RETRY_PERIOD = 3
+    _RETRY_PERIOD = 5
 
     def __init__(self, nyuki, loop=None):
         self._nyuki = nyuki
@@ -39,7 +39,7 @@ class DnsDiscovery(DiscoveryService):
 
         self._nyuki.register_schema(self.CONF_SCHEMA)
 
-    def configure(self, entry=None, period=5, **kwargs):
+    def configure(self, entry=None, period=3, **kwargs):
         self._entry = entry or self._nyuki.config['service']
         self._period = period
 

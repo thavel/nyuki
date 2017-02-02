@@ -1,4 +1,5 @@
 import json
+import math
 import socket
 import logging
 import asyncio
@@ -41,7 +42,7 @@ class ApiRaft:
         # Local variables
         data = await request.json()
         proto.voted_for = data['candidate']
-        proto.term += 1
+        proto.term = data['term']
 
         # Reset the timer
         proto.set_timer(proto.candidate)
@@ -54,6 +55,7 @@ class ApiRaft:
         proto = self.nyuki.raft
         # Local variables
         proto.state = State.FOLLOWER
+        proto.votes = 0
         proto.voted_for = None
 
         # Reset the timer
@@ -66,6 +68,9 @@ class RaftProtocol(Service):
     Leader election based on Raft distributed algorithm.
     Paper: https://raft.github.io/raft.pdf
     """
+
+    HEARTBEAT = 1.0
+    TIMEOUT = (2.0, 3.5)
 
     def __init__(self, nyuki):
         self.service = nyuki.config['service']
@@ -80,18 +85,19 @@ class RaftProtocol(Service):
         self.term = -1
         self.votes = -1
         self.voted_for = None
+        self.majority = math.inf
 
     def configure(self, *args, **kwargs):
         pass
 
-    def set_timer(self, cb):
+    def set_timer(self, cb, factor=1):
         """
         Set or reset a unique timer.
         """
         if self.timer:
             self.timer.cancel()
         self.timer = self.loop.call_later(
-            uniform(5.0, 10.0), asyncio.ensure_future, cb()
+            uniform(*self.TIMEOUT) * factor, asyncio.ensure_future, cb()
         )
 
     @staticmethod
@@ -115,12 +121,19 @@ class RaftProtocol(Service):
             return
 
     async def start(self, *args, **kwargs):
+        """
+        Starts the protocol as a follower instance.
+        """
         self.state = State.FOLLOWER
         self.term = 0
         self.votes = 0
-        self.set_timer(self.candidate)
+        # Won't bootstrap the timer here to avoid any unwanted early election
 
     async def stop(self, *args, **kwargs):
+        """
+        Stops the protocol by cancelling the current timer.
+        """
+        self.state = State.FOLLOWER
         if self.timer:
             self.timer.cancel()
 
@@ -140,24 +153,32 @@ class RaftProtocol(Service):
             # Schedule HB for new workers
             for ipv4 in added:
                 asyncio.ensure_future(self.heartbeat(ipv4))
+        elif self.state is State.FOLLOWER and not self.timer:
+            # The protocol has started but the timer needs to be bootstraped
+            # Initial factor for the timer is higher (discovery reasons)
+            self.set_timer(self.candidate, 3)
 
     async def candidate(self):
         """
         Election timer went out, this instance considers itself as a candidate.
         """
-        # Local variables
-        self.state = State.CANDIDATE
-        self.voted_for = self.uid
-        self.term += 1
-        self.votes += 1
-
-        # Init the timer, retry vote if timeout
-        self.set_timer(self.candidate)
+        cluster_size = len(self.cluster) + 1
 
         # Promote itself as leader if alone
-        if len(self.cluster) < 1:
+        if cluster_size == 1:
             await self.promote()
             return
+
+        # Local variables
+        self.state = State.CANDIDATE
+        self.term += 1
+        self.votes = 1
+        self.voted_for = self.uid
+        self.majority = int(math.floor(cluster_size / 2) + 1)
+
+        # Init the timer, retry vote if timeout
+        log.debug("Instance is candidate (requires %d votes)", self.majority)
+        self.set_timer(self.candidate)
 
         # Start the election
         for ipv4 in self.cluster:
@@ -167,9 +188,13 @@ class RaftProtocol(Service):
         """
         Promote this instance to the rank of leader.
         """
-        log.info("Leader elected of the service '{}'".format(self.service))
+        log.info("Leader elected of the service '%s'", self.service)
+
+        # Local variables
         self.timer.cancel()
         self.state = State.LEADER
+        self.votes = 0
+        self.voted_for = None
 
         # Sending heartbeats to the cluster
         for ipv4 in self.cluster:
@@ -179,7 +204,9 @@ class RaftProtocol(Service):
         """
         Request a vote from an instance.
         """
-        vote = await self.request(ipv4, 'put', {'candidate': self.uid})
+        vote = await self.request(ipv4, 'put', {
+            'candidate': self.uid, 'term': term
+        })
         if not vote:
             # Won't count negative feedbacks
             return
@@ -194,8 +221,8 @@ class RaftProtocol(Service):
         self.cluster[ipv4] = vote['instance']
         self.votes += 1
 
-        # The node becomes a leader
-        if self.votes >= len(self.cluster)/2 + 1:
+        # The instance becomes a leader
+        if self.votes >= self.majority:
             await self.promote()
 
     async def heartbeat(self, ipv4):
@@ -203,10 +230,10 @@ class RaftProtocol(Service):
         Send a heartbeat to reset instance's timer.
         """
         if self.state is not State.LEADER:
-            # Won't send HB if the node is not the leader anymore
+            # Won't send HB if the instance is not the leader anymore
             return
         if ipv4 in self.suspicious:
-            # If a node disappears from the membership list, stop sending HB
+            # If an instance disappears from the membership, stop sending HB
             self.suspicious.remove(ipv4)
             return
         if ipv4 not in self.cluster:
@@ -214,5 +241,7 @@ class RaftProtocol(Service):
             return
 
         # Schedule the next HB
-        self.loop.call_later(5, asyncio.ensure_future, self.heartbeat(ipv4))
+        self.loop.call_later(
+            self.HEARTBEAT, asyncio.ensure_future, self.heartbeat(ipv4)
+        )
         await self.request(ipv4, 'post', {'leader': self.uid})

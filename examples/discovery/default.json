@@ -3,6 +3,6 @@
     "discovery": {
         "method": "dns",
         "entry": "tasks.worker",
-        "period": 5
+        "period": 3
     }
 }
