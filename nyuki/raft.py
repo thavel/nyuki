@@ -142,7 +142,10 @@ class RaftProtocol(Service):
         The discovery service provides updates periodically.
         """
         cluster = {ipv4: self.cluster.get(ipv4) for ipv4 in addresses}
-        del cluster[self.ipv4]
+        if self.ipv4 in cluster:
+            del cluster[self.ipv4]
+        else:
+            log.warning("This instance isn't part of the discovery results")
 
         # Check differences
         added = set(cluster.keys()) - set(self.cluster.keys())
@@ -191,7 +194,8 @@ class RaftProtocol(Service):
         log.info("Leader elected of the service '%s'", self.service)
 
         # Local variables
-        self.timer.cancel()
+        if self.timer:
+            self.timer.cancel()
         self.state = State.LEADER
         self.votes = 0
         self.voted_for = None
@@ -207,14 +211,14 @@ class RaftProtocol(Service):
         vote = await self.request(ipv4, 'put', {
             'candidate': self.uid, 'term': term
         })
-        if not vote:
+        if (
             # Won't count negative feedbacks
-            return
-        if self.term != term or self.loop.time() >= self.timer._when:
+            not vote or
             # Ignore the vote if the election is over
-            return
-        if self.state is State.LEADER:
-            # Already a leader
+            self.term != term or self.loop.time() >= self.timer._when or
+            # Not in a candidate anymore
+            self.state is not State.CANDIDATE
+        ):
             return
 
         # Count vote
@@ -229,15 +233,14 @@ class RaftProtocol(Service):
         """
         Send a heartbeat to reset instance's timer.
         """
-        if self.state is not State.LEADER:
+        if (
             # Won't send HB if the instance is not the leader anymore
-            return
-        if ipv4 in self.suspicious:
+            self.state is not State.LEADER or
             # If an instance disappears from the membership, stop sending HB
-            self.suspicious.remove(ipv4)
-            return
-        if ipv4 not in self.cluster:
+            ipv4 in self.suspicious or
             # Won't send HB if he instances is not in the cluster
+            ipv4 not in self.cluster
+        ):
             return
 
         # Schedule the next HB
