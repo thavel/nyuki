@@ -171,6 +171,7 @@ class ApiWorkflows(_WorkflowResource):
         {
             "id": "template_id",
             "draft": true/false
+            "exec": {}
         }
         """
         async_topic = request.headers.get('X-Surycat-Async-Topic')
@@ -182,16 +183,24 @@ class ApiWorkflows(_WorkflowResource):
             return Response(status=400, body={
                 'error': "Template's ID key 'id' is mandatory"
             })
-
         draft = request.get('draft', False)
-        try:
-            templates = await self.nyuki.storage.templates.get(
-                request['id'],
-                draft=draft,
-                with_metadata=True
-            )
-        except AutoReconnect:
-            return Response(status=503)
+        data = request.get('inputs', {})
+        exec = request.get('exec')
+
+        if request.get('exec'):
+            # Suspended/crashed instance
+            # The request's payload is the last known execution report
+            templates = [request]
+        else:
+            # Fetch the template from the storage
+            try:
+                templates = await self.nyuki.storage.templates.get(
+                    request['id'],
+                    draft=draft,
+                    with_metadata=True
+                )
+            except AutoReconnect:
+                return Response(status=503)
 
         if not templates:
             return Response(status=404, body={
@@ -199,8 +208,9 @@ class ApiWorkflows(_WorkflowResource):
             })
 
         wf_tmpl = WorkflowTemplate.from_dict(templates[0])
-        data = request.get('inputs', {})
-        if draft:
+        if exec:
+            wflow = await self.nyuki.engine.rescue(wf_tmpl, request)
+        elif draft:
             wflow = await self.nyuki.engine.run_once(wf_tmpl, data)
         else:
             wflow = await self.nyuki.engine.trigger(wf_tmpl.uid, data)
