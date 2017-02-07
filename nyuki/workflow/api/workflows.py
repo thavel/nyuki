@@ -2,11 +2,12 @@ import asyncio
 import json
 import logging
 import re
+from uuid import uuid4
 from aiohttp.web_reqrep import FileField
 from datetime import datetime
 from enum import Enum
 from pymongo import DESCENDING, ASCENDING
-from pymongo.errors import AutoReconnect
+from pymongo.errors import AutoReconnect, DuplicateKeyError
 from tukio import get_broker, EXEC_TOPIC
 from tukio.utils import FutureState
 from tukio.workflow import (
@@ -114,11 +115,19 @@ class InstanceCollection:
         # Execute query
         return count, await cursor.to_list(None)
 
-    async def insert(self, workflow_exec):
+    async def insert(self, workflow):
         """
         Insert a finished workflow report into the workflow history.
         """
-        await self._instances.insert(workflow_exec)
+        try:
+            await self._instances.insert(workflow)
+        except DuplicateKeyError:
+            # Ensure a report won't be lost
+            # uuid4 are 8-4-4-4-12 formatted (36 chars), let's add a suffix
+            exec_id = workflow['exec']['id'][:36]
+            suffix = str(uuid4())[:8]
+            workflow['exec']['id'] = '{}-{}'.format(exec_id, suffix)
+            await self._instances.insert(workflow)
 
 
 class _WorkflowResource:
@@ -187,10 +196,14 @@ class ApiWorkflows(_WorkflowResource):
         data = request.get('inputs', {})
         exec = request.get('exec')
 
-        if request.get('exec'):
+        if exec:
             # Suspended/crashed instance
             # The request's payload is the last known execution report
             templates = [request]
+            if exec['id'] in self.nyuki.running_workflows:
+                return Response(status=400, body={
+                    'error': 'This workflow is already being rescued'
+                })
         else:
             # Fetch the template from the storage
             try:
