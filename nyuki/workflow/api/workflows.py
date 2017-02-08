@@ -122,11 +122,9 @@ class InstanceCollection:
         try:
             await self._instances.insert(workflow)
         except DuplicateKeyError:
-            # Ensure a report won't be lost
-            # uuid4 are 8-4-4-4-12 formatted (36 chars), let's add a suffix
-            exec_id = workflow['exec']['id'][:36]
-            suffix = str(uuid4())[:8]
-            workflow['exec']['id'] = '{}-{}'.format(exec_id, suffix)
+            # If it's a duplicate, we don't want to lose it
+            workflow['exec']['duplicate'] = workflow['exec']['id']
+            workflow['exec']['id'] = str(uuid4())
             await self._instances.insert(workflow)
 
 
