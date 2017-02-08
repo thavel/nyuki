@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime
+from aioredis import create_redis
 from tukio import Engine, TaskRegistry, get_broker, EXEC_TOPIC
 from tukio.workflow import (
     TemplateGraphError, Workflow, WorkflowTemplate, WorkflowExecState
@@ -179,6 +180,7 @@ class WorkflowNyuki(Nyuki):
     ]
 
     DEFAULT_POLICY = None
+    MEMORY_KEY = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -186,6 +188,7 @@ class WorkflowNyuki(Nyuki):
         self.migrate_config()
         self.engine = None
         self.storage = None
+        self.memory = None
 
         self.AVAILABLE_TASKS = {}
         for name, value in TaskRegistry.all().items():
@@ -216,14 +219,18 @@ class WorkflowNyuki(Nyuki):
             ))
         # Enable workflow exec follow-up
         get_broker().register(self.report_workflow, topic=EXEC_TOPIC)
+        await self.setup_memory()
 
     async def reload(self):
         asyncio.ensure_future(self.reload_from_storage())
+        await self.setup_memory()
 
     async def teardown(self):
         self.global_exec.end()
         if self.engine:
             await self.engine.stop()
+        if self.memory:
+            await self.memory.close()
 
     def new_workflow(self, template, instance, **kwargs):
         """
@@ -231,6 +238,8 @@ class WorkflowNyuki(Nyuki):
         """
         wflow = WorkflowInstance(template, instance, **kwargs)
         self.running_workflows[instance.uid] = wflow
+        if self.memory:
+            asyncio.ensure_future(self.share_report(wflow.report(), False))
         return wflow
 
     async def report_workflow(self, event):
@@ -241,6 +250,11 @@ class WorkflowNyuki(Nyuki):
         exec_id = source['workflow_exec_id']
         wflow = self.running_workflows[exec_id]
         source['workflow_exec_requester'] = wflow.exec.get('requester')
+
+        report = None
+        if self.memory:
+            report = wflow.report()
+            asyncio.ensure_future(self.share_report(report))
 
         payload = {
             'type': event.data['type'],
@@ -261,10 +275,12 @@ class WorkflowNyuki(Nyuki):
             asyncio.ensure_future(self.global_exec.broadcast(payload))
             # Sanitize objects to store the finished workflow instance
             asyncio.ensure_future(self.storage.instances.insert(
-                sanitize_workflow_exec(wflow.report())
+                sanitize_workflow_exec(report or wflow.report())
             ))
             wflow.end()
             del self.running_workflows[exec_id]
+            if self.memory:
+                self.memory.hdel(self.MEMORY_KEY, exec_id)
         # Workflow suspended/resumed
         elif event.data['type'] in [
             WorkflowExecState.suspend.value,
@@ -311,3 +327,39 @@ class WorkflowNyuki(Nyuki):
             except Exception as exc:
                 # Means a bad workflow is in database, report it
                 reporting.exception(exc)
+
+    async def setup_memory(self):
+        config = self.config.get('redis')
+
+        if not config:
+            if self.memory:
+                self.memory.close()
+                await self.memory.wait_closed()
+            self.memory = None
+            return
+
+        try:
+            service = self.config['service']
+        except KeyError:
+            log.error("Can't enable 'redis': 'service' config key is missing")
+            return
+
+        self.MEMORY_KEY = '{}.workflows.instances'.format(service)
+        self.memory = await create_redis(
+            (config.get('host', 'localhost'), config.get('port', 6379)),
+            db=config.get('database'),
+            ssl=config.get('ssl'),
+            encoding='utf-8',
+            loop=self.loop
+        )
+        log.info("Connection made with Redis")
+
+    async def share_report(self, report, replace=True):
+        field = report['exec']['id']
+        set_method = getattr(self.memory, 'hset' if replace else 'hsetnx')
+
+        if not await set_method(self.MEMORY_KEY, field, report):
+            log.error("Can't share workflow id %s context in memory", field)
+            return
+
+        await self.memory.expire(86400)
