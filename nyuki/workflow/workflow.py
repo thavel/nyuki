@@ -1,3 +1,4 @@
+import pickle
 import asyncio
 import logging
 from datetime import datetime
@@ -180,7 +181,6 @@ class WorkflowNyuki(Nyuki):
     ]
 
     DEFAULT_POLICY = None
-    MEMORY_KEY = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -280,7 +280,7 @@ class WorkflowNyuki(Nyuki):
             wflow.end()
             del self.running_workflows[exec_id]
             if self.memory:
-                self.memory.hdel(self.MEMORY_KEY, exec_id)
+                self.memory.delete(self.memory_key('instances', exec_id))
         # Workflow suspended/resumed
         elif event.data['type'] in [
             WorkflowExecState.suspend.value,
@@ -338,28 +338,39 @@ class WorkflowNyuki(Nyuki):
             self.memory = None
             return
 
-        try:
-            service = self.config['service']
-        except KeyError:
+        if not self.config.get('service'):
             log.error("Can't enable 'redis': 'service' config key is missing")
             return
 
-        self.MEMORY_KEY = '{}.workflows.instances'.format(service)
         self.memory = await create_redis(
             (config.get('host', 'localhost'), config.get('port', 6379)),
-            db=config.get('database'),
+            db=config.get('database', 'nyuki'),
             ssl=config.get('ssl'),
             encoding='utf-8',
             loop=self.loop
         )
         log.info("Connection made with Redis")
 
+    def memory_key(self, resource, entry):
+        return '{service}.workflows.{resource}.{entry}'.format(
+            service=self.config['service'],
+            resource=resource,
+            entry=entry
+        )
+
     async def share_report(self, report, replace=True):
-        field = report['exec']['id']
-        set_method = getattr(self.memory, 'hset' if replace else 'hsetnx')
+        """
+        Store an instance report into shared memory.
+        A simple 'set' is used againts a 'hset' (hash storage), even though the
+        'hset' seems more appropriate because a field in a hash can't have TTL.
+        """
+        uid = report['exec']['id']
+        response = await self.memory.set(
+            key=self.memory_key('instances', uid),
+            value=pickle.dumps(report),
+            expire=86400,
+            exist=None if replace else False
+        )
 
-        if not await set_method(self.MEMORY_KEY, field, report):
-            log.error("Can't share workflow id %s context in memory", field)
-            return
-
-        await self.memory.expire(86400)
+        if not response:
+            log.error("Can't share workflow id %s context in memory", uid)
