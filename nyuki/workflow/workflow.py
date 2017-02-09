@@ -344,9 +344,8 @@ class WorkflowNyuki(Nyuki):
 
         self.memory = await create_redis(
             (config.get('host', 'localhost'), config.get('port', 6379)),
-            db=config.get('database', 'nyuki'),
+            db=config.get('database', 0),
             ssl=config.get('ssl'),
-            encoding='utf-8',
             loop=self.loop
         )
         log.info("Connection made with Redis")
@@ -374,3 +373,9 @@ class WorkflowNyuki(Nyuki):
 
         if not response:
             log.error("Can't share workflow id %s context in memory", uid)
+
+    async def backup_report(self, uid):
+        report = await self.memory.get(self.memory_key('instances', uid))
+        if not report:
+            raise KeyError("Can't find workflow id context %s in memory", uid)
+        return pickle.loads(report)
