@@ -1,8 +1,6 @@
-import pickle
 import asyncio
 import logging
 from datetime import datetime
-from aioredis import create_redis
 from tukio import Engine, TaskRegistry, get_broker, EXEC_TOPIC
 from tukio.workflow import (
     TemplateGraphError, Workflow, WorkflowTemplate, WorkflowExecState
@@ -25,6 +23,7 @@ from .api.workflows import (
 )
 
 from .storage import MongoStorage
+from .memory import Memory
 from .tasks import *
 from .tasks.utils import runtime
 
@@ -188,7 +187,7 @@ class WorkflowNyuki(Nyuki):
         self.migrate_config()
         self.engine = None
         self.storage = None
-        self.memory = None
+        self.memory = Memory(loop=self.loop)
 
         self.AVAILABLE_TASKS = {}
         for name, value in TaskRegistry.all().items():
@@ -219,18 +218,17 @@ class WorkflowNyuki(Nyuki):
             ))
         # Enable workflow exec follow-up
         get_broker().register(self.report_workflow, topic=EXEC_TOPIC)
-        await self.setup_memory()
+        await self.memory.setup(self.config)
 
     async def reload(self):
         asyncio.ensure_future(self.reload_from_storage())
-        await self.setup_memory()
+        await self.memory.setup(self.config)
 
     async def teardown(self):
         self.global_exec.end()
         if self.engine:
             await self.engine.stop()
-        if self.memory:
-            await self.memory.close()
+        self.memory.close()
 
     def new_workflow(self, template, instance, **kwargs):
         """
@@ -238,8 +236,10 @@ class WorkflowNyuki(Nyuki):
         """
         wflow = WorkflowInstance(template, instance, **kwargs)
         self.running_workflows[instance.uid] = wflow
-        if self.memory:
-            asyncio.ensure_future(self.share_report(wflow.report(), False))
+        if self.memory.available:
+            asyncio.ensure_future(
+                self.memory.write_report(wflow.report(), False)
+            )
         return wflow
 
     async def report_workflow(self, event):
@@ -252,9 +252,9 @@ class WorkflowNyuki(Nyuki):
         source['workflow_exec_requester'] = wflow.exec.get('requester')
 
         report = None
-        if self.memory:
+        if self.memory.available:
             report = wflow.report()
-            asyncio.ensure_future(self.share_report(report))
+            asyncio.ensure_future(self.memory.write_report(report))
 
         payload = {
             'type': event.data['type'],
@@ -279,8 +279,8 @@ class WorkflowNyuki(Nyuki):
             ))
             wflow.end()
             del self.running_workflows[exec_id]
-            if self.memory:
-                self.memory.delete(self.memory_key('instances', exec_id))
+            if self.memory.available:
+                self.memory.store.delete(self.memory.key('instances', exec_id))
         # Workflow suspended/resumed
         elif event.data['type'] in [
             WorkflowExecState.suspend.value,
@@ -327,55 +327,3 @@ class WorkflowNyuki(Nyuki):
             except Exception as exc:
                 # Means a bad workflow is in database, report it
                 reporting.exception(exc)
-
-    async def setup_memory(self):
-        config = self.config.get('redis')
-
-        if not config:
-            if self.memory:
-                self.memory.close()
-                await self.memory.wait_closed()
-            self.memory = None
-            return
-
-        if not self.config.get('service'):
-            log.error("Can't enable 'redis': 'service' config key is missing")
-            return
-
-        self.memory = await create_redis(
-            (config.get('host', 'localhost'), config.get('port', 6379)),
-            db=config.get('database', 0),
-            ssl=config.get('ssl'),
-            loop=self.loop
-        )
-        log.info("Connection made with Redis")
-
-    def memory_key(self, resource, entry):
-        return '{service}.workflows.{resource}.{entry}'.format(
-            service=self.config['service'],
-            resource=resource,
-            entry=entry
-        )
-
-    async def share_report(self, report, replace=True):
-        """
-        Store an instance report into shared memory.
-        A simple 'set' is used againts a 'hset' (hash storage), even though the
-        'hset' seems more appropriate because a field in a hash can't have TTL.
-        """
-        uid = report['exec']['id']
-        response = await self.memory.set(
-            key=self.memory_key('instances', uid),
-            value=pickle.dumps(report),
-            expire=86400,
-            exist=None if replace else False
-        )
-
-        if not response:
-            log.error("Can't share workflow id %s context in memory", uid)
-
-    async def backup_report(self, uid):
-        report = await self.memory.get(self.memory_key('instances', uid))
-        if not report:
-            raise KeyError("Can't find workflow id context %s in memory", uid)
-        return pickle.loads(report)
