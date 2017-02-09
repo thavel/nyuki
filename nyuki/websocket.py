@@ -58,7 +58,8 @@ class WebsocketResource:
             reason = 'connection closed normally'
         await self.close(client)
         await client.close(code, reason)
-        self._clients.remove(client)
+        if client in self._clients:
+            self._clients.remove(client)
 
     async def broadcast(self, data, timeout=None):
         """
