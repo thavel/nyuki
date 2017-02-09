@@ -1,7 +1,7 @@
 import asyncio
 import logging
-from dns import resolver
-from dns.exception import DNSException
+from aiodns import DNSResolver
+from aiodns.error import DNSError
 
 from nyuki.discovery import DiscoveryService
 
@@ -31,11 +31,11 @@ class DnsDiscovery(DiscoveryService):
 
     def __init__(self, nyuki, loop=None):
         self._nyuki = nyuki
-        self._loop = loop or asyncio.get_event_loop()
         self._entry = None
         self._period = None
         self._future = None
         self._callbacks = []
+        self._resolver = DNSResolver(loop=loop or asyncio.get_event_loop())
 
         self._nyuki.register_schema(self.CONF_SCHEMA)
 
@@ -54,13 +54,13 @@ class DnsDiscovery(DiscoveryService):
     async def periodic_query(self):
         while True:
             try:
-                answers = resolver.query(self._entry, 'A')
-            except DNSException as exc:
+                answers = await self._resolver.query(self._entry, 'A')
+            except DNSError as exc:
                 log.error("DNS query failed for discovery service")
                 log.debug("DNS failure reason: %s", str(exc))
                 await asyncio.sleep(self._RETRY_PERIOD)
                 continue
-            addresses = [ip.address for ip in answers]
+            addresses = [record.host for record in answers]
 
             # Trigger callbacks for discovered instances IPs
             for callback in self._callbacks:

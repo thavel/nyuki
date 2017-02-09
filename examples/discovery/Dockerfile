@@ -8,7 +8,7 @@ COPY ./ ./
 RUN apk add --update python3 curl && \
     apk add --virtual build-deps python3-dev make g++ && \
     curl https://bootstrap.pypa.io/get-pip.py | python3 && \
-    pip install nyuki dnspython && \
+    pip install nyuki && \
     apk del build-deps && \
     rm -rf /var/cache/apk/* $HOME/.cache
 

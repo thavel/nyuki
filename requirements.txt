@@ -8,5 +8,4 @@ pycares==1.0.0
 slixmpp>=1.1,<1.2
 tukio>=0.11,<0.12
 websockets>=3.2,<3.3
-dnspython>=1.15,<1.16
 aioredis>=0.3,<0.4
