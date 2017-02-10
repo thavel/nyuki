@@ -100,6 +100,10 @@ class Nyuki:
             self._services.add('raft', RaftProtocol(self))
             self.discovery.register(self.raft.discovery_handler)
 
+        # Add account_backend service
+        if self._config.get('orga_config'):
+            self._services.add('orga_config', OrganizationConfig(self))
+
         self.is_stopping = False
 
     def __getattribute__(self, name):

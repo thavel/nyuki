@@ -112,6 +112,10 @@ python sample.py -a 0.0.0.0:5558 -c sample.json
         "host": "localhost",
         "name": "nyuki"
     },
+    "orga_config": {
+        "backend": "mongo",
+        "host": "locahost"
+    },
     "version": 0
 }
 ```
@@ -120,6 +124,7 @@ python sample.py -a 0.0.0.0:5558 -c sample.json
 |-------|-------------|
 | `api` | The nyuki api host and port |
 | `bus` | The nyuki bus configuration see **Bus configuration** |
+| `orga_config` | The organization configuration backend **Orga configuration** |
 | `version` | The current configuration version. Versionning is used to be able to migrate config files cf [pijon](https://github.com/optiflows/pijon) |
 
 
@@ -193,6 +198,28 @@ Bus events persistence can be enabled to ensure the delivery of every publicatio
 | `host` | The backend host name |
 | `ttl` | the events ttl in minutes |
 | `memory_size` | the number of events kept in memory (independently of the backend storage) |
+
+
+### Orga configuration
+
+In order to fetch organization configuration, nyukis must have access to a backend database (Mongo only for now) to fetch and edit the configuration.
+
+#### MQTT
+```json
+{
+    "orga_config": {
+        "backend": "mongo",
+        "host": "localhost",
+    },
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `backend` | The backedn system, only Mongo supported for now |
+| `host` | the backend server host |
+| `?` | optional Any backend option: port, ... |
+
 
 ## Workflow capabilities
 
