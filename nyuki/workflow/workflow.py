@@ -251,11 +251,6 @@ class WorkflowNyuki(Nyuki):
         wflow = self.running_workflows[exec_id]
         source['workflow_exec_requester'] = wflow.exec.get('requester')
 
-        report = None
-        if self.memory.available:
-            report = wflow.report()
-            asyncio.ensure_future(self.memory.write_report(report))
-
         payload = {
             'type': event.data['type'],
             'data': event.data.get('content') or {},
@@ -263,6 +258,7 @@ class WorkflowNyuki(Nyuki):
             'timestamp': datetime.utcnow().isoformat()
         }
 
+        memwrite = True
         # Workflow begins, also send the full template.
         if event.data['type'] == WorkflowExecState.begin.value:
             payload['template'] = dict(wflow.template)
@@ -275,18 +271,25 @@ class WorkflowNyuki(Nyuki):
             asyncio.ensure_future(self.global_exec.broadcast(payload))
             # Sanitize objects to store the finished workflow instance
             asyncio.ensure_future(self.storage.instances.insert(
-                sanitize_workflow_exec(report or wflow.report())
+                sanitize_workflow_exec(wflow.report())
             ))
             wflow.end()
             del self.running_workflows[exec_id]
-            if self.memory.available:
-                self.memory.store.delete(self.memory.key('instances', exec_id))
+            memwrite = False
         # Workflow suspended/resumed
         elif event.data['type'] in [
             WorkflowExecState.suspend.value,
             WorkflowExecState.resume.value
         ]:
             asyncio.ensure_future(self.global_exec.broadcast(payload))
+
+        # Shared memory set/del
+        if self.memory.available:
+            if memwrite:
+                memjob = self.memory.write_report(wflow.report())
+            else:
+                memjob = self.memory.clear_report(exec_id)
+            asyncio.ensure_future(memjob)
 
         await wflow.broadcast(payload)
 

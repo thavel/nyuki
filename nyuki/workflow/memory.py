@@ -78,6 +78,11 @@ class Memory(object):
             log.exception(exc)
 
     @handle_errors
+    async def clear_report(self, uid):
+        key = self.key('instances', uid)
+        await self.store.delete(key)
+
+    @handle_errors
     async def write_report(self, report, replace=True):
         """
         Store an instance report into shared memory.
@@ -97,7 +102,8 @@ class Memory(object):
 
     @handle_errors
     async def read_report(self, uid):
-        report = await self.store.get(self.key('instances', uid))
+        key = self.key('instances', uid)
+        report = await self.store.get(key)
         if not report:
             raise KeyError("Can't find workflow id context %s in memory", uid)
         return pickle.loads(report)
