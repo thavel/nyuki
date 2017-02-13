@@ -323,5 +323,5 @@ class Nyuki:
         for name, service in self._services.all.items():
             if (request is not None and name in request) or request is None:
                 await service.stop()
-                service.configure(**self._config[name])
+                service.configure(**self._config.get(name, {}))
                 asyncio.ensure_future(service.start())

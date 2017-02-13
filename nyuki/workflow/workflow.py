@@ -228,7 +228,6 @@ class WorkflowNyuki(Nyuki):
         self.global_exec.end()
         if self.engine:
             await self.engine.stop()
-        self.memory.close()
 
     def new_workflow(self, template, instance, **kwargs):
         """
