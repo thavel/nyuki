@@ -12,8 +12,10 @@ def handle_errors(coro):
     async def wrapper(*args, **kwargs):
         try:
             return await coro(*args, **kwargs)
-        except RedisError:
-            log.error("Invalid or badly formatted Redis command")
+        except RedisError as exc:
+            # Any connection and protocol related issues but also invalid
+            # Redis-command formatting (not likely).
+            log.exception(exc)
         except SocketError:
             log.error("Connection with Redis has been lost. Retrying...")
     return wrapper
@@ -37,15 +39,6 @@ class Memory(object):
             entry=entry
         )
 
-    async def close(self):
-        """
-        Gracefully close any opened connection.
-        """
-        if self.store:
-            self.store.close()
-            await self.store.wait_closed()
-        self.store = None
-
     async def setup(self, nyuki_config):
         """
         Setup a shared memory using Redis.
@@ -53,7 +46,7 @@ class Memory(object):
         config = nyuki_config.get('redis')
 
         if not config:
-            await self.close()
+            self.store = None
             return
 
         self.service = nyuki_config.get('service')
@@ -87,7 +80,7 @@ class Memory(object):
         """
         Store an instance report into shared memory.
         A simple 'set' is used againts a 'hset' (hash storage), even though the
-        'hset' seems more appropriate because a field in a hash can't have TTL.
+        'hset' seems more appropriate, because a field in a hash can't have TTL
         """
         uid = report['exec']['id']
         response = await self.store.set(
