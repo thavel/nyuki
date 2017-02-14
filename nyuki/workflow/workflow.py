@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import pickle
 from datetime import datetime
 from tukio import Engine, TaskRegistry, get_broker, EXEC_TOPIC
 from tukio.workflow import (
@@ -9,6 +10,7 @@ from tukio.workflow import (
 from nyuki import Nyuki
 from nyuki.bus import reporting
 from nyuki.websocket import WebsocketResource
+from nyuki.memory import memsafe
 
 from .api.factory import (
     ApiFactoryRegex, ApiFactoryRegexes, ApiFactoryLookup, ApiFactoryLookups,
@@ -23,7 +25,6 @@ from .api.workflows import (
 )
 
 from .storage import MongoStorage
-from .memory import Memory
 from .tasks import *
 from .tasks.utils import runtime
 
@@ -187,7 +188,6 @@ class WorkflowNyuki(Nyuki):
         self.migrate_config()
         self.engine = None
         self.storage = None
-        self.memory = Memory(loop=self.loop)
 
         self.AVAILABLE_TASKS = {}
         for name, value in TaskRegistry.all().items():
@@ -218,11 +218,9 @@ class WorkflowNyuki(Nyuki):
             ))
         # Enable workflow exec follow-up
         get_broker().register(self.report_workflow, topic=EXEC_TOPIC)
-        await self.memory.setup(self.config)
 
     async def reload(self):
         asyncio.ensure_future(self.reload_from_storage())
-        await self.memory.setup(self.config)
 
     async def teardown(self):
         self.global_exec.end()
@@ -237,7 +235,7 @@ class WorkflowNyuki(Nyuki):
         self.running_workflows[instance.uid] = wflow
         if self.memory.available:
             asyncio.ensure_future(
-                self.memory.write_report(wflow.report(), False)
+                self.write_report(wflow.report(), False)
             )
         return wflow
 
@@ -285,9 +283,9 @@ class WorkflowNyuki(Nyuki):
         # Shared memory set/del
         if self.memory.available:
             if memwrite:
-                memjob = self.memory.write_report(wflow.report())
+                memjob = self.write_report(wflow.report())
             else:
-                memjob = self.memory.clear_report(exec_id)
+                memjob = self.clear_report(exec_id)
             asyncio.ensure_future(memjob)
 
         await wflow.broadcast(payload)
@@ -329,3 +327,40 @@ class WorkflowNyuki(Nyuki):
             except Exception as exc:
                 # Means a bad workflow is in database, report it
                 reporting.exception(exc)
+
+    @memsafe
+    async def clear_report(self, uid):
+        """
+        Remove a report from the shared memory.
+        """
+        key = self.memory.key('instances', uid)
+        await self.memory.store.delete(key)
+
+    @memsafe
+    async def write_report(self, report, replace=True):
+        """
+        Store an instance report into shared memory.
+        A simple 'set' is used againts a 'hset' (hash storage), even though the
+        'hset' seems more appropriate, because a field in a hash can't have TTL
+        """
+        uid = report['exec']['id']
+        response = await self.memory.store.set(
+            key=self.memory.key('instances', uid),
+            value=pickle.dumps(report),
+            expire=86400,
+            exist=None if replace else False
+        )
+
+        if not response:
+            log.error("Can't share workflow id %s context in memory", uid)
+
+    @memsafe
+    async def read_report(self, uid):
+        """
+        Read and parse a report from the shared memory.
+        """
+        key = self.memory.key('instances', uid)
+        report = await self.memory.store.get(key)
+        if not report:
+            raise KeyError("Can't find workflow id context %s in memory", uid)
+        return pickle.loads(report)

@@ -6,7 +6,7 @@
     "mongo": {
         "host": "mongo"
     },
-    "redis": {
+    "memory": {
         "host": "redis"
     }
 }

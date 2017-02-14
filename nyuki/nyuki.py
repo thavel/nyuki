@@ -17,6 +17,7 @@ from .services import ServiceManager
 from .websocket import WebsocketHandler
 from .discovery import Discovery
 from .raft import RaftProtocol, ApiRaft
+from .memory import Memory
 
 
 log = logging.getLogger(__name__)
@@ -92,13 +93,19 @@ class Nyuki:
         # Add websocket server if in conf file
         if self._config.get('websocket') is not None:
             self._services.add('websocket', WebsocketHandler(self))
-        # Add discovery service
+
+        # Add NaaS (nyuki-as-a-service) related services
         if self._config.get('service'):
+            # Discovery
             method = self._config.get('discovery', {}).get('method', 'dns')
             discovery = Discovery.get(method)
             self._services.add('discovery', discovery(self))
+            # Raft
             self._services.add('raft', RaftProtocol(self))
             self.discovery.register(self.raft.discovery_handler)
+            # Memory
+            if self._config.get('memory'):
+                self._services.add('memory', Memory(self))
 
         self.is_stopping = False
 
