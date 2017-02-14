@@ -53,14 +53,22 @@ class ApiRaft:
         Heartbeat endpoint.
         """
         proto = self.nyuki.raft
+        data = await request.json()
+        suspicious = proto.suspicious
+
         # Local variables
         proto.state = State.FOLLOWER
         proto.votes = 0
         proto.voted_for = None
+        proto.log = data['log']
+        proto.suspicious = set()
 
         # Reset the timer
         proto.set_timer(proto.candidate)
-        return Response(status=200, body={'instance': proto.uid})
+        return Response(status=200, body={
+            'instance': proto.uid,
+            'suspicious': list(suspicious)
+        })
 
 
 class RaftProtocol(Service):
@@ -86,6 +94,7 @@ class RaftProtocol(Service):
         self.votes = -1
         self.voted_for = None
         self.majority = math.inf
+        self.log = {}
 
     def configure(self, *args, **kwargs):
         pass
@@ -117,7 +126,7 @@ class RaftProtocol(Service):
                     if resp.status != 200:
                         return
                     return await resp.json()
-        except aiohttp.errors.ClientOSError:
+        except (aiohttp.errors.ClientOSError, ConnectionError):
             return
 
     async def start(self, *args, **kwargs):
@@ -149,7 +158,10 @@ class RaftProtocol(Service):
 
         # Check differences
         added = set(cluster.keys()) - set(self.cluster.keys())
-        self.suspicious = set(self.cluster.keys()) - set(cluster.keys())
+        self.suspicious.update([
+            (ipv4, self.cluster[ipv4])
+            for ipv4 in set(self.cluster.keys()) - set(cluster.keys())
+        ])
         self.cluster = cluster
 
         if self.state is State.LEADER:
@@ -200,6 +212,11 @@ class RaftProtocol(Service):
         self.votes = 0
         self.voted_for = None
 
+        # Use the log to restore ipv4 to instance uid mapping
+        for ipv4, uid in self.log.items():
+            if self.cluster.get(ipv4):
+                self.cluster[ipv4] = uid
+
         # Sending heartbeats to the cluster
         for ipv4 in self.cluster:
             asyncio.ensure_future(self.heartbeat(ipv4))
@@ -236,8 +253,6 @@ class RaftProtocol(Service):
         if (
             # Won't send HB if the instance is not the leader anymore
             self.state is not State.LEADER or
-            # If an instance disappears from the membership, stop sending HB
-            ipv4 in self.suspicious or
             # Won't send HB if he instances is not in the cluster
             ipv4 not in self.cluster
         ):
@@ -247,4 +262,20 @@ class RaftProtocol(Service):
         self.loop.call_later(
             self.HEARTBEAT, asyncio.ensure_future, self.heartbeat(ipv4)
         )
-        await self.request(ipv4, 'post', {'leader': self.uid})
+
+        # Heartbeats allow to refresh follower's timers and to replicate logs
+        response = await self.request(ipv4, 'post', {
+            'leader': self.uid,
+            'log': {**self.cluster, self.ipv4: self.uid}
+        })
+
+        # An instance isn't referenced under the same ID anymore
+        uid = self.cluster.get(ipv4)
+        if uid and uid != response['instance']:
+            self.suspicious.add((ipv4, uid))
+        self.cluster[ipv4] = response['instance']
+
+        # Collect suspicious instances from heartbeat's response
+        self.suspicious.update(
+            [tuple(entry) for entry in response['suspicious']]
+        )
