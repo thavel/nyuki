@@ -193,20 +193,21 @@ class MqttBus(Service):
             topic, len(self._subscriptions[topic])
         )
 
-    async def unsubscribe(self, topic, callback):
+    async def unsubscribe(self, topic, callback=None):
         """
         Unsubscribe from the topic, remove callback if set
         """
-        log.debug("MQTT unsubscription from %s->%s", topic, callback.__name__)
-        try:
-            self._subscriptions[topic].remove(callback)
-        except KeyError:
+        if topic not in self._subscriptions:
             return
-        else:
-            if not self._subscriptions[topic]:
-                del self._subscriptions[topic]
-                await self.client.unsubscribe([topic])
-                log.info('Unsubscribed from %s', topic)
+
+        if callback in self._subscriptions[topic]:
+            log.debug("MQTT unsubscription from %s->%s", topic, callback.__name__)
+            self._subscriptions[topic].remove(callback)
+
+        if callback is None or not self._subscriptions[topic]:
+            del self._subscriptions[topic]
+            await self.client.unsubscribe([topic])
+            log.info('Unsubscribed from %s', topic)
 
     async def _resubscribe(self):
         """
