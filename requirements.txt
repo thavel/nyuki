@@ -10,3 +10,5 @@ tukio>=0.11,<0.12
 websockets>=3.2,<3.3
 aioredis>=0.3,<0.4
 aiodns>=1.1,<1.2
+# yarl >= 0.9.3 breaks aiohttp client
+yarl>=0.9,<0.9.3
