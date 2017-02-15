@@ -61,7 +61,7 @@ class ApiRaft:
         proto.votes = 0
         proto.voted_for = None
         proto.log = data['log']
-        proto.suspicious = set()
+        proto.suspicious.clear()
 
         # Reset the timer
         proto.set_timer(proto.candidate)
@@ -87,7 +87,7 @@ class RaftProtocol(Service):
         self.ipv4 = socket.gethostbyname(socket.gethostname())
 
         self.cluster = {}
-        self.suspicious = set()
+        self.suspicious = DanausSet(after=5, callback=self.failure_handler)
         self.timer = None
         self.state = State.UNKNOWN
         self.term = -1
@@ -126,7 +126,7 @@ class RaftProtocol(Service):
                     if resp.status != 200:
                         return
                     return await resp.json()
-        except (aiohttp.errors.ClientOSError, ConnectionError):
+        except (aiohttp.errors.ClientError, ConnectionError):
             return
 
     async def start(self, *args, **kwargs):
@@ -159,7 +159,7 @@ class RaftProtocol(Service):
         # Check differences
         added = set(cluster.keys()) - set(self.cluster.keys())
         self.suspicious.update([
-            (ipv4, self.cluster[ipv4])
+            (ipv4, self.cluster[ipv4] or self.log.get(ipv4))
             for ipv4 in set(self.cluster.keys()) - set(cluster.keys())
         ])
         self.cluster = cluster
@@ -171,7 +171,14 @@ class RaftProtocol(Service):
         elif self.state is State.FOLLOWER and not self.timer:
             # The protocol has started but the timer needs to be bootstraped
             # Initial factor for the timer is higher (discovery reasons)
-            self.set_timer(self.candidate, 3)
+            self.set_timer(self.candidate, 5)
+
+    async def failure_handler(self, instances):
+        """
+        Handle suspicous instances.
+        """
+        # TODO: handle failing instances
+        log.critical('Failing: %s', instances)
 
     async def candidate(self):
         """
@@ -212,7 +219,7 @@ class RaftProtocol(Service):
         self.votes = 0
         self.voted_for = None
 
-        # Use the log to restore ipv4 to instance uid mapping
+        # Use the log to restore ipv4-to-uid mapping
         for ipv4, uid in self.log.items():
             if self.cluster.get(ipv4):
                 self.cluster[ipv4] = uid
@@ -269,8 +276,13 @@ class RaftProtocol(Service):
             'log': {**self.cluster, self.ipv4: self.uid}
         })
 
-        # An instance isn't referenced under the same ID anymore
+        # Empty answer or no response is suspicious
         uid = self.cluster.get(ipv4)
+        if not response:
+            self.suspicious.add((ipv4, uid))
+            return
+
+        # An instance isn't referenced under the same ID anymore
         if uid and uid != response['instance']:
             self.suspicious.add((ipv4, uid))
         self.cluster[ipv4] = response['instance']
@@ -279,3 +291,51 @@ class RaftProtocol(Service):
         self.suspicious.update(
             [tuple(entry) for entry in response['suspicious']]
         )
+
+
+class DanausSet(set):
+    """
+    Named after the myth of the daughters of Danaus.
+    This set can be filled up but will eventually be emptied (upon timeout).
+    """
+
+    def __init__(self, seq=(), *, after=1, callback=None, loop=None):
+        super().__init__(seq)
+        self.loop = loop or asyncio.get_event_loop()
+        self.after = after
+        self.callback = callback
+        self._timer = None
+
+    def abort(self):
+        if self._timer:
+            self._timer.cancel()
+        self._timer = None
+
+    def add(self, item):
+        if item not in self:
+            self._schedule()
+        super().add(item)
+
+    def update(self, seq):
+        if set(seq) - self:
+            self._schedule()
+        super().update(seq)
+
+    def clear(self):
+        super().clear()
+        self.abort()
+
+    def _schedule(self):
+        self.abort()
+        self._timer = self.loop.call_later(self.after, self._empty)
+
+    def _empty(self):
+        cleared = self.copy()
+        self.clear()
+        self._timer = None
+
+        if cleared and self.callback:
+            cb = self.callback
+            if not asyncio.iscoroutine(self.callback):
+                cb = asyncio.coroutine(cb)
+            asyncio.ensure_future(cb(cleared))

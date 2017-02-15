@@ -39,7 +39,7 @@ class DnsDiscovery(DiscoveryService):
 
         self._nyuki.register_schema(self.CONF_SCHEMA)
 
-    def configure(self, entry=None, period=3, **kwargs):
+    def configure(self, entry=None, period=2, **kwargs):
         self._entry = entry or self._nyuki.config['service']
         self._period = period
 
