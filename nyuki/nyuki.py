@@ -3,6 +3,7 @@ import json
 from jsonschema import validate
 import logging
 import logging.config
+from uuid import uuid4
 from pijon import Pijon
 from signal import SIGHUP, SIGINT, SIGTERM
 
@@ -58,6 +59,7 @@ class Nyuki:
     def __init__(self, **kwargs):
         # List of configuration schemas
         self._schemas = []
+        self._id = str(uuid4())[:8]
 
         # Initialize logging
         logging.config.dictConfig(DEFAULT_LOGGING)
@@ -120,6 +122,10 @@ class Nyuki:
                 return self._services.get(name)
             except KeyError:
                 raise exc
+
+    @property
+    def id(self):
+        return self._id
 
     @property
     def config(self):

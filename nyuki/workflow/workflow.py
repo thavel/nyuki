@@ -333,8 +333,13 @@ class WorkflowNyuki(Nyuki):
         """
         Remove a report from the shared memory.
         """
-        key = self.memory.key('instances', uid)
-        await self.memory.store.delete(key)
+        await self.memory.store.delete(
+            key=self.memory.key(self.id, 'workflows', 'instances', uid)
+        )
+        await self.memory.store.srem(
+            key=self.memory.key(self.id, 'workflows', 'instances'),
+            member=uid
+        )
 
     @memsafe
     async def write_report(self, report, replace=True):
@@ -345,7 +350,7 @@ class WorkflowNyuki(Nyuki):
         """
         uid = report['exec']['id']
         response = await self.memory.store.set(
-            key=self.memory.key('instances', uid),
+            key=self.memory.key(self.id, 'workflows', 'instances', uid),
             value=pickle.dumps(report),
             expire=86400,
             exist=None if replace else False
@@ -353,14 +358,20 @@ class WorkflowNyuki(Nyuki):
 
         if not response:
             log.error("Can't share workflow id %s context in memory", uid)
+            return
+
+        keyspace = self.memory.key(self.id, 'workflows', 'instances')
+        await self.memory.store.sadd(key=keyspace, member=uid)
+        await self.memory.expire(key=keyspace, timeout=86400)
 
     @memsafe
     async def read_report(self, uid):
         """
         Read and parse a report from the shared memory.
         """
-        key = self.memory.key('instances', uid)
-        report = await self.memory.store.get(key)
+        report = await self.memory.store.get(
+            key=self.memory.key(self.id, 'workflows', 'instances', uid)
+        )
         if not report:
             raise KeyError("Can't find workflow id context %s in memory", uid)
         return pickle.loads(report)

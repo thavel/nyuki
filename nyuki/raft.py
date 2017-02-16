@@ -5,7 +5,6 @@ import logging
 import asyncio
 import aiohttp
 from enum import Enum
-from uuid import uuid4
 from random import uniform
 
 from nyuki.services import Service
@@ -83,7 +82,7 @@ class RaftProtocol(Service):
     def __init__(self, nyuki):
         self.service = nyuki.config['service']
         self.loop = nyuki.loop or asyncio.get_event_loop()
-        self.uid = str(uuid4())[:8]
+        self.uid = nyuki.id
         self.ipv4 = socket.gethostbyname(socket.gethostname())
 
         self.cluster = {}

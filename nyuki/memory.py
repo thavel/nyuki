@@ -34,12 +34,11 @@ class Memory(Service):
     def available(self):
         return self.store is not None
 
-    def key(self, resource, entry):
-        return '{service}.workflows.{resource}.{entry}'.format(
-            service=self.service,
-            resource=resource,
-            entry=entry
-        )
+    def key(self, instance, *args):
+        keyspace = '{}.{}'.format(self.service, instance)
+        for arg in args:
+            keyspace = '{}.{}'.format(keyspace, arg)
+        return keyspace
 
     def configure(self, *args, **kwargs):
         self.config = kwargs
