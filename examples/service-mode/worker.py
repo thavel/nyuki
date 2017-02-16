@@ -6,12 +6,7 @@ log = logging.getLogger(__name__)
 
 
 class Worker(WorkflowNyuki):
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    async def setup(self):
-        pass
+    pass
 
 
 if __name__ == '__main__':
