@@ -11,17 +11,22 @@ LIB_DEST=/usr/lib/python3.5/site-packages/nyuki
 popd
 
 # Clean swarm services and config.
-docker service rm worker
+docker service rm worker mongo redis
 docker network rm workspace
 docker swarm leave --force
+
+# Init swarm services
 docker swarm init
 docker network create --driver overlay workspace
 sleep 1
 
-# Create service
+# Create services
+docker service create --name mongo --replicas 1 --network workspace mongo:3.4
+docker service create --name redis --replicas 1 --network workspace redis:3.2
+
 docker service create --name worker --replicas 5 --network workspace \
     --mount type=bind,source=${LIB_SRC},destination=${LIB_DEST},ro=1 \
-    --mount type=bind,source=$(pwd),destination=/home/,ro=1 \
+    --mount type=bind,source=$(pwd),destination=/home/,ro=0 \
     worker python3 worker.py
 sleep 3
 

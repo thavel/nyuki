@@ -1,11 +1,11 @@
 import logging
-from nyuki import Nyuki
+from nyuki.workflow import WorkflowNyuki
 
 
 log = logging.getLogger(__name__)
 
 
-class Worker(Nyuki):
+class Worker(WorkflowNyuki):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

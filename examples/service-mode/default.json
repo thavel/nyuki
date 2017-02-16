@@ -1,0 +1,12 @@
+{
+    "service": "worker",
+    "discovery": {
+        "entry": "tasks.worker"
+    },
+    "mongo": {
+        "host": "mongo"
+    },
+    "redis": {
+        "host": "redis"
+    }
+}
