@@ -197,7 +197,7 @@ class WorkflowNyuki(Nyuki):
         self.running_workflows = {}
         self.global_exec = GlobalExec(self, '/exec')
 
-        runtime.bus = self.bus if 'bus' is self._services.all else None
+        runtime.bus = self.bus
         runtime.config = self.config
         runtime.workflows = self.running_workflows
 
@@ -362,7 +362,7 @@ class WorkflowNyuki(Nyuki):
 
         keyspace = self.memory.key(self.id, 'workflows', 'instances')
         await self.memory.store.sadd(key=keyspace, member=uid)
-        await self.memory.expire(key=keyspace, timeout=86400)
+        await self.memory.store.expire(key=keyspace, timeout=86400)
 
     @memsafe
     async def read_report(self, uid):
