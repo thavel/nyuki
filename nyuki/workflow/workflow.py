@@ -197,7 +197,7 @@ class WorkflowNyuki(Nyuki):
         self.running_workflows = {}
         self.global_exec = GlobalExec(self, '/exec')
 
-        runtime.bus = self.bus
+        runtime.bus = self.bus if 'bus' is self._services.all else None
         runtime.config = self.config
         runtime.workflows = self.running_workflows
 
