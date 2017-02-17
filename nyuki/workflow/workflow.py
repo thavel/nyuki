@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import pickle
+import random
 from datetime import datetime
 from tukio import Engine, TaskRegistry, get_broker, EXEC_TOPIC
 from tukio.workflow import (
@@ -218,6 +219,9 @@ class WorkflowNyuki(Nyuki):
             ))
         # Enable workflow exec follow-up
         get_broker().register(self.report_workflow, topic=EXEC_TOPIC)
+        # Handle distributed workflow's failures
+        if 'raft' in self._services.all:
+            self.raft.register('failures', self.failure_handler)
 
     async def reload(self):
         asyncio.ensure_future(self.reload_from_storage())
@@ -327,6 +331,31 @@ class WorkflowNyuki(Nyuki):
             except Exception as exc:
                 # Means a bad workflow is in database, report it
                 reporting.exception(exc)
+
+    @memsafe
+    async def failure_handler(self, instances):
+        """
+        This method is called upon failure detection implemented in raft.
+
+        Failing instances are just instances that have been shutdown, either
+        because of a crash, or a restart. Let's find out which ones need a
+        failover (basically, rescuing workflows detached from dead instances).
+        """
+        # Select eligible rescuers
+        ntw = self.raft.network
+        rescuers = [ipv4 for ipv4, uid in ntw.items() if uid not in instances]
+
+        for uid in instances:
+            index = self.memory.key(uid, 'workflows', 'instances')
+            workflows = await self.memory.store.smembers(index)
+            for workflow in workflows:
+                workflow = workflow.decode('utf-8')
+                rescuer = random.sample(rescuers, 1)[0]
+                # TODO: request `rescuer` to handle `workflow` failover.
+                log.info(
+                    "Move %s's workflow id %s from instance id %s to %s",
+                    self.config['service'], workflow, uid, ntw[rescuer]
+                )
 
     @memsafe
     async def clear_report(self, uid):

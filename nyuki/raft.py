@@ -21,6 +21,12 @@ class State(Enum):
     LEADER = 'leader'
 
 
+class Event(Enum):
+    ELECTED = 'elected'
+    DISMISSED = 'dismissed'
+    FAILURES = 'failures'
+
+
 @resource('/raft', ['v1'], 'application/json')
 class ApiRaft:
     """
@@ -84,6 +90,7 @@ class RaftProtocol(Service):
         self.loop = nyuki.loop or asyncio.get_event_loop()
         self.uid = nyuki.id
         self.ipv4 = socket.gethostbyname(socket.gethostname())
+        self.handlers = {event: set() for event in Event}
 
         self.cluster = {}
         self.suspicious = DanausSet(after=5, callback=self.failure_handler)
@@ -95,8 +102,15 @@ class RaftProtocol(Service):
         self.majority = math.inf
         self.log = {}
 
+    @property
+    def network(self):
+        return {**self.cluster, self.ipv4: self.uid}
+
     def configure(self, *args, **kwargs):
         pass
+
+    def register(self, etype, callback):
+        self.handlers[Event(etype)].add(callback)
 
     def set_timer(self, cb, factor=1):
         """
@@ -181,9 +195,8 @@ class RaftProtocol(Service):
         failing = [uid for ipv4, uid in instances if uid is not None]
         if not failing:
             return
-
-        # TODO: handle failing instances
-        log.critical('Failing instances: %s', failing)
+        for callback in self.handlers[Event.FAILURES]:
+            asyncio.ensure_future(callback(failing))
 
     async def candidate(self):
         """
@@ -278,7 +291,7 @@ class RaftProtocol(Service):
         # Heartbeats allow to refresh follower's timers and to replicate logs
         response = await self.request(ipv4, 'post', {
             'leader': self.uid,
-            'log': {**self.cluster, self.ipv4: self.uid}
+            'log': self.network
         })
 
         # Empty answer or no response is suspicious
