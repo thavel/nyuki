@@ -154,6 +154,8 @@ class RaftProtocol(Service):
             del cluster[self.ipv4]
         else:
             log.warning("This instance isn't part of the discovery results")
+            await self.stop()
+            return
 
         # Check differences
         added = set(cluster.keys()) - set(self.cluster.keys())
@@ -176,8 +178,12 @@ class RaftProtocol(Service):
         """
         Handle suspicous instances.
         """
+        failing = [uid for ipv4, uid in instances if uid is not None]
+        if not failing:
+            return
+
         # TODO: handle failing instances
-        log.critical('Failing: %s', instances)
+        log.critical('Failing instances: %s', failing)
 
     async def candidate(self):
         """
