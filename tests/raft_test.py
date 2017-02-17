@@ -65,11 +65,12 @@ class TestRaftApi(TestCase):
         self.api.nyuki = from_context({
             'uid': '000001'
         })
-        request = Request({'candidate': '000002', 'term': 12})
+        request = Request({'candidate': '000002', 'term': 12, 'log': {}})
         response = await self.api.post(request)
         eq_(response.status, 200)
         eq_(self.api.nyuki.raft.state, State.FOLLOWER)
         assert_not_equal(self.api.nyuki.raft.timer, None)
+        assert_in('suspicious', json.loads(response.text))
 
 
 class TestRaftProtocol(TestCase):
@@ -97,7 +98,7 @@ class TestRaftProtocol(TestCase):
         raft.state = State.LEADER
 
         await raft.discovery_handler(['10.50.0.1', '10.50.0.3'])
-        assert_in('10.50.0.2', raft.suspicious)
+        assert_in(('10.50.0.2', '000002'), raft.suspicious)
         assert_in('10.50.0.3', raft.cluster)
         eq_(hb_mock.call_count, 1)
 
