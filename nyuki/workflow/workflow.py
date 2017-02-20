@@ -1,7 +1,9 @@
+import json
 import asyncio
 import logging
 import pickle
-import random
+import aiohttp
+from random import shuffle
 from datetime import datetime
 from tukio import Engine, TaskRegistry, get_broker, EXEC_TOPIC
 from tukio.workflow import (
@@ -341,45 +343,80 @@ class WorkflowNyuki(Nyuki):
         because of a crash, or a restart. Let's find out which ones need a
         failover (basically, rescuing workflows detached from dead instances).
         """
+        log.debug(
+            "The following '%s' instances are failing: %s",
+            self.config['service'], instances
+        )
+
         # Select eligible rescuers
         ntw = self.raft.network
         rescuers = [ipv4 for ipv4, uid in ntw.items() if uid not in instances]
 
-        for uid in instances:
-            index = self.memory.key(uid, 'workflows', 'instances')
-            workflows = await self.memory.store.smembers(index)
-            for workflow in workflows:
-                workflow = workflow.decode('utf-8')
-                rescuer = random.sample(rescuers, 1)[0]
-                # TODO: request `rescuer` to handle `workflow` failover.
-                log.info(
-                    "Move %s's workflow id %s from instance id %s to %s",
-                    self.config['service'], workflow, uid, ntw[rescuer]
-                )
+        # Iterate over all failing instances
+        for ifrom in instances:
+
+            # Fetch the list of workflows for a given failing instance.
+            index = self.memory.key(ifrom, 'workflows', 'instances')
+            for wflow in await self.memory.store.smembers(index):
+                wflow = wflow.decode('utf-8')
+
+                # Get the report shared by the failing instance
+                try:
+                    report = await self.read_report(wflow, ifrom)
+                except KeyError:
+                    log.error("Workflow %s memory has been wiped out", wflow)
+                    break
+
+                shuffle(rescuers)
+                report = json.dumps(report, default=serialize_wflow_exec)
+
+                # Send a failover request to a valid, not failing, instance.
+                success = False
+                for ito in rescuers:
+                    request = {
+                        'url': 'http://{}:{}/v1/workflow/instances'.format(
+                            ito, self.api._port
+                        ),
+                        'headers': {'Content-Type': 'application/json'},
+                        'data': report
+                    }
+                    async with aiohttp.ClientSession() as session:
+                        async with session.put(**request) as resp:
+                            if resp.status == 200:
+                                # `ito` rescuer has taken over the workflow
+                                success = True
+                                break
+
+                if not success:
+                    log.error("Workflow %s hasn't be rescued properly", wflow)
+                    continue
+                asyncio.ensure_future(self.clear_report(wflow, ifrom=ifrom))
 
     @memsafe
-    async def clear_report(self, uid):
+    async def clear_report(self, uid, ifrom=None):
         """
         Remove a report from the shared memory.
         """
+        _iform = ifrom or self.id
         await self.memory.store.delete(
-            key=self.memory.key(self.id, 'workflows', 'instances', uid)
+            key=self.memory.key(_iform, 'workflows', 'instances', uid)
         )
         await self.memory.store.srem(
-            key=self.memory.key(self.id, 'workflows', 'instances'),
+            key=self.memory.key(_iform, 'workflows', 'instances'),
             member=uid
         )
 
     @memsafe
-    async def write_report(self, report, replace=True):
+    async def write_report(self, report, replace=True, ito=None):
         """
         Store an instance report into shared memory.
         A simple 'set' is used againts a 'hset' (hash storage), even though the
         'hset' seems more appropriate, because a field in a hash can't have TTL
         """
+        _ito = ito or self.id
         uid = report['exec']['id']
         response = await self.memory.store.set(
-            key=self.memory.key(self.id, 'workflows', 'instances', uid),
+            key=self.memory.key(_ito, 'workflows', 'instances', uid),
             value=pickle.dumps(report),
             expire=86400,
             exist=None if replace else False
@@ -394,12 +431,13 @@ class WorkflowNyuki(Nyuki):
         await self.memory.store.expire(key=keyspace, timeout=86400)
 
     @memsafe
-    async def read_report(self, uid):
+    async def read_report(self, uid, ifrom=None):
         """
         Read and parse a report from the shared memory.
         """
+        _iform = ifrom or self.id
         report = await self.memory.store.get(
-            key=self.memory.key(self.id, 'workflows', 'instances', uid)
+            key=self.memory.key(_iform, 'workflows', 'instances', uid)
         )
         if not report:
             raise KeyError("Can't find workflow id context %s in memory", uid)
