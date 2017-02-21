@@ -371,7 +371,6 @@ class WorkflowNyuki(Nyuki):
                 report = json.dumps(report, default=serialize_wflow_exec)
 
                 # Send a failover request to a valid, not failing, instance.
-                success = False
                 for ito in rescuers:
                     request = {
                         'url': 'http://{}:{}/v1/workflow/instances'.format(
@@ -384,10 +383,8 @@ class WorkflowNyuki(Nyuki):
                         async with session.put(**request) as resp:
                             if resp.status == 200:
                                 # `ito` rescuer has taken over the workflow
-                                success = True
                                 break
-
-                if not success:
+                else:
                     log.error("Workflow %s hasn't be rescued properly", wflow)
                     continue
                 asyncio.ensure_future(self.clear_report(wflow, ifrom=ifrom))
