@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import re
 from uuid import uuid4
@@ -10,9 +9,7 @@ from pymongo import DESCENDING, ASCENDING
 from pymongo.errors import AutoReconnect, DuplicateKeyError
 from tukio import get_broker, EXEC_TOPIC
 from tukio.utils import FutureState
-from tukio.workflow import (
-    Workflow, WorkflowTemplate, WorkflowExecState
-)
+from tukio.workflow import WorkflowTemplate, WorkflowExecState
 
 from nyuki.api import Response, resource, content_type
 from nyuki.utils import from_isoformat
@@ -20,17 +17,6 @@ from nyuki.workflow.tasks.utils.uri import URI, InvalidWorkflowUri
 
 
 log = logging.getLogger(__name__)
-
-
-def serialize_wflow_exec(obj):
-    """
-    JSON default serializer for workflows and datetime/isoformat.
-    """
-    if isinstance(obj, datetime):
-        return obj.isoformat()
-    if isinstance(obj, Workflow):
-        return obj.report()
-    return 'Internal server data: {}'.format(type(obj))
 
 
 class Ordering(Enum):
@@ -163,14 +149,10 @@ class ApiWorkflows(_WorkflowResource):
         """
         Return workflow instances
         """
-        return Response(
-            json.dumps(
-                [workflow.report()
-                 for workflow in self.nyuki.running_workflows.values()],
-                default=serialize_wflow_exec
-            ),
-            content_type='application/json'
-        )
+        return Response([
+            workflow.report()
+            for workflow in self.nyuki.running_workflows.values()
+        ])
 
     async def put(self, request):
         """
@@ -254,13 +236,7 @@ class ApiWorkflows(_WorkflowResource):
         if async_topic is not None:
             self.register_async_handler(async_topic, wflow)
 
-        return Response(
-            json.dumps(
-                wfinst.report(),
-                default=serialize_wflow_exec
-            ),
-            content_type='application/json'
-        )
+        return Response(wfinst.report())
 
 
 @resource('/workflow/instances/{iid}', versions=['v1'])
@@ -271,13 +247,7 @@ class ApiWorkflow(_WorkflowResource):
         Return a workflow instance
         """
         try:
-            return Response(
-                json.dumps(
-                    self.nyuki.running_workflows[iid].report(),
-                    default=serialize_wflow_exec
-                ),
-                content_type='application/json'
-            )
+            return Response(self.nyuki.running_workflows[iid].report())
         except KeyError:
             return Response(status=404)
 
@@ -309,10 +279,7 @@ class ApiWorkflow(_WorkflowResource):
                 "action must be 'suspend' or 'resume'"
             })
 
-        return Response(
-            json.dumps(wf.report(), default=serialize_wflow_exec),
-            content_type='application/json'
-        )
+        return Response(wf.report())
 
     async def delete(self, request, iid):
         """
@@ -397,10 +364,7 @@ class ApiWorkflowsHistory:
             return Response(status=503)
 
         data = {'count': count, 'data': history}
-        return Response(
-            json.dumps(data, default=serialize_wflow_exec),
-            content_type='application/json'
-        )
+        return Response(data)
 
 
 @resource('/workflow/history/{uid}', versions=['v1'])
@@ -413,10 +377,7 @@ class ApiWorkflowHistory:
             return Response(status=503)
         if not workflow:
             return Response(status=404)
-        return Response(
-            json.dumps(workflow, default=serialize_wflow_exec),
-            content_type='application/json'
-        )
+        return Response(workflow)
 
 
 @resource('/workflow/triggers', versions=['v1'])

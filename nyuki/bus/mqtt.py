@@ -9,8 +9,8 @@ from uuid import uuid4
 
 from nyuki.bus import reporting
 from nyuki.services import Service
+from nyuki.utils import serialize_object
 from .persistence import BusPersistence, EventStatus, PersistenceError
-from .utils import serialize_bus_event
 
 
 log = logging.getLogger(__name__)
@@ -225,7 +225,7 @@ class MqttBus(Service):
         topic = topic or self.name
         log.info('Publishing an event to %s', topic)
         log.debug('dump: %s', data)
-        data = json.dumps(data, default=serialize_bus_event)
+        data = json.dumps(data, default=serialize_object)
 
         # Store the event as PENDING if it is new
         if self._persistence and previous_uid is None:

@@ -7,8 +7,9 @@ from uuid import uuid4
 
 from nyuki.bus import reporting
 from nyuki.services import Service
+from nyuki.utils import serialize_object
+
 from .persistence import BusPersistence, EventStatus, PersistenceError
-from .utils import serialize_bus_event
 
 
 log = logging.getLogger(__name__)
@@ -370,7 +371,7 @@ class XmppBus(Service):
         msg['id'] = uid = previous_uid or str(uuid4())
         msg['type'] = 'groupchat'
         msg['to'] = self._muc_address(topic or self.name)
-        msg['body'] = json.dumps(event, default=serialize_bus_event)
+        msg['body'] = json.dumps(event, default=serialize_object)
 
         self._publish_futures[uid] = asyncio.Future()
         status = EventStatus.PENDING

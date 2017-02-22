@@ -14,6 +14,7 @@ from nyuki import Nyuki
 from nyuki.bus import reporting
 from nyuki.websocket import WebsocketResource
 from nyuki.memory import memsafe
+from nyuki.utils import serialize_object
 
 from .api.factory import (
     ApiFactoryRegex, ApiFactoryRegexes, ApiFactoryLookup, ApiFactoryLookups,
@@ -24,7 +25,7 @@ from .api.templates import (
 )
 from .api.workflows import (
     ApiWorkflow, ApiWorkflows, ApiWorkflowsHistory, ApiWorkflowHistory,
-    ApiWorkflowTriggers, ApiWorkflowTrigger, serialize_wflow_exec
+    ApiWorkflowTriggers, ApiWorkflowTrigger
 )
 
 from .storage import MongoStorage
@@ -37,6 +38,14 @@ log = logging.getLogger(__name__)
 
 class BadRequestError(Exception):
     pass
+
+
+@serialize_object.register(Workflow)
+def _serialize_workflow(wf):
+    """
+    Workflow serializer.
+    """
+    return wf.report()
 
 
 def sanitize_workflow_exec(obj):
@@ -65,10 +74,7 @@ class WorkflowInstance(WebsocketResource):
     ALLOWED_EXEC_KEYS = ['requester', 'track']
 
     def __init__(self, template, instance, **kwargs):
-        super().__init__(
-            '/exec/{}'.format(instance.uid),
-            serializer=serialize_wflow_exec
-        )
+        super().__init__('/exec/{}'.format(instance.uid))
         self._template = template
         self._instance = instance
         self._exec = {
@@ -119,7 +125,7 @@ class WorkflowInstance(WebsocketResource):
 class GlobalExec(WebsocketResource):
 
     def __init__(self, nyuki, *args, **kwargs):
-        super().__init__(*args, serializer=serialize_wflow_exec, **kwargs)
+        super().__init__(*args, **kwargs)
         self.nyuki = nyuki
 
     async def ready(self, client):
@@ -239,7 +245,7 @@ class WorkflowNyuki(Nyuki):
         """
         wflow = WorkflowInstance(template, instance, **kwargs)
         self.running_workflows[instance.uid] = wflow
-        if self.memory.available:
+        if 'memory' in self._services and self.memory.available:
             asyncio.ensure_future(
                 self.write_report(wflow.report(), False)
             )
@@ -287,7 +293,7 @@ class WorkflowNyuki(Nyuki):
             asyncio.ensure_future(self.global_exec.broadcast(payload))
 
         # Shared memory set/del
-        if self.memory.available:
+        if 'memory' in self._services and self.memory.available:
             if memwrite:
                 memjob = self.write_report(wflow.report())
             else:
@@ -368,7 +374,7 @@ class WorkflowNyuki(Nyuki):
                     break
 
                 shuffle(rescuers)
-                report = json.dumps(report, default=serialize_wflow_exec)
+                report = json.dumps(report, default=serialize_object)
 
                 # Send a failover request to a valid, not failing, instance.
                 for ito in rescuers:

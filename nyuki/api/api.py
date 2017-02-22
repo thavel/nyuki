@@ -7,6 +7,7 @@ import logging
 
 from nyuki.bus import reporting
 from nyuki.services import Service
+from nyuki.utils import serialize_object
 
 
 log = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ class Response(web.Response):
 
         # Check json
         if isinstance(body, dict) or isinstance(body, list):
-            body = json.dumps(body).encode(self.ENCODING)
+            body = json.dumps(body, default=serialize_object).encode(self.ENCODING)
             if not self._get_content_type(kwargs):
                 kwargs['content_type'] = 'application/json'
         # Check body

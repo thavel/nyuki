@@ -5,6 +5,7 @@ import websockets
 from jsonschema import validate, ValidationError
 
 from nyuki.services import Service
+from nyuki.utils import serialize_object
 
 
 log = logging.getLogger(__name__)
@@ -15,9 +16,8 @@ class WebsocketResource:
     # Value before the client is timed out after not sending any keepalive.
     KEEPALIVE = 60
 
-    def __init__(self, path, serializer=None):
+    def __init__(self, path):
         self._clients = []
-        self._serializer = serializer
         self._path = path
         log.info("New websocket resource on path: '%s'", path)
         WebsocketHandler.RESOURCES[path] = self
@@ -46,7 +46,7 @@ class WebsocketResource:
             'keepalive_delay': self.KEEPALIVE,
             'data': await self.ready(client) or {}
         }
-        await client.send(json.dumps(ready, default=self._serializer))
+        await client.send(json.dumps(ready, default=serialize_object))
         self._clients.append(client)
 
     async def remove_client(self, client, code=None, reason=None):
@@ -68,7 +68,7 @@ class WebsocketResource:
         if not self._clients:
             return
         if not isinstance(data, str):
-            data = json.dumps(data, default=self._serializer)
+            data = json.dumps(data, default=serialize_object)
 
         tasks = [
             asyncio.ensure_future(client.send(data))

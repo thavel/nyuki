@@ -25,6 +25,10 @@ class ServiceManager(object):
         self.services = dict()
         self._running = False
 
+    def __iter__(self):
+        for name in self.services.keys():
+            yield name
+
     def add(self, name, service):
         """
         Add a managed service

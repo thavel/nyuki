@@ -175,7 +175,7 @@ class Nyuki:
         # Start services
         self.loop.run_until_complete(self._services.start())
 
-        if 'bus' in self._services.all:
+        if 'bus' in self._services:
             self.bus.init_reporting()
             self.loop.set_exception_handler(self._exception_handler)
 
