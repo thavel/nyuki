@@ -26,8 +26,7 @@ class ServiceManager(object):
         self._running = False
 
     def __iter__(self):
-        for name in self.services.keys():
-            yield name
+        return self.services.__iter__()
 
     def add(self, name, service):
         """
