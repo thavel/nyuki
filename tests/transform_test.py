@@ -13,7 +13,8 @@ class TestTransformCases(TestCase):
             'normal': 'message',
             'to_upper': 'uppercase',
             'to_lower': 'LOWERCASE',
-            'regex': '123message456'
+            'regex': '123message456',
+            'none': None
         }
 
     def test_001_extract(self):
@@ -21,10 +22,22 @@ class TestTransformCases(TestCase):
         rule.apply(self.data)
         self.assertEqual(self.data['new_field'], 'message')
 
+        Extract('missing', r'(?P<new_field>message)').apply(self.data)
+        self.assertTrue('missing' not in self.data)
+
+        Extract('none', r'(?P<new_field>message)').apply(self.data)
+        self.assertIsNone(self.data['none'])
+
     def test_002_sub(self):
         rule = Sub('regex', r'(?P<new_field>message)', 'hello')
         rule.apply(self.data)
         self.assertEqual(self.data['regex'], '123hello456')
+
+        Sub('missing', r'(?P<new_field>message)', 'hello').apply(self.data)
+        self.assertTrue('missing' not in self.data)
+
+        Sub('none', r'(?P<new_field>message)', 'hello').apply(self.data)
+        self.assertIsNone(self.data['none'])
 
     def test_003_set(self):
         rule = Set('new_field', value='hello')
@@ -36,11 +49,23 @@ class TestTransformCases(TestCase):
         rule.apply(self.data)
         self.assertFalse('normal' in self.data)
 
+        Unset('missing').apply(self.data)
+        self.assertTrue('missing' not in self.data)
+
+        Unset('none').apply(self.data)
+        self.assertTrue('none' not in self.data)
+
     def test_005a_lookup(self):
         table = {'message': 'lookup'}
         rule = Lookup('normal', table=table)
         rule.apply(self.data)
         self.assertEqual(self.data['normal'], 'lookup')
+
+        Lookup('missing', table=table).apply(self.data)
+        self.assertTrue('missing' not in self.data)
+
+        Lookup('none').apply(self.data)
+        self.assertIsNone(self.data['none'])
 
     def test_005b_loopkup_icase(self):
         table = {'mEsSaGe': 'lookup'}
@@ -58,10 +83,22 @@ class TestTransformCases(TestCase):
         rule.apply(self.data)
         self.assertEqual(self.data['to_lower'], 'lowercase')
 
+        Lower('missing').apply(self.data)
+        self.assertTrue('missing' not in self.data)
+
+        Lower('none').apply(self.data)
+        self.assertIsNone(self.data['none'])
+
     def test_007_upper(self):
         rule = Upper('to_upper')
         rule.apply(self.data)
         self.assertEqual(self.data['to_upper'], 'UPPERCASE')
+
+        Upper('missing').apply(self.data)
+        self.assertTrue('missing' not in self.data)
+
+        Upper('none').apply(self.data)
+        self.assertIsNone(self.data['none'])
 
     def test_008_condition_block(self):
         rule = FactoryConditionBlock([
