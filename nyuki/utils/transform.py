@@ -232,9 +232,10 @@ class _RegexpRule(_Rule):
     def apply(self, data):
         try:
             string = data[self.fieldname]
-        except KeyError:
+            assert string is not None
+        except (KeyError, AssertionError):
             # No data to process
-            log.debug('Regexp : unknown field %s, ignoring', self.fieldname)
+            log.debug('Regexp : unknown or None field %s, ignoring', self.fieldname)
         else:
             resdict = self._run_regexp(string)
             data.update(resdict)
@@ -373,8 +374,15 @@ class Lower(_Rule):
 
     @_Rule.track_changes
     def apply(self, data):
-        fieldval = data[self.fieldname]
-        data[self.fieldname] = fieldval.lower()
+        try:
+            fieldval = data[self.fieldname]
+            data[self.fieldname] = fieldval.lower()
+        except KeyError as err:
+            log.debug("Lower: fieldname '%s' not in data, ignoring", err)
+            return
+        except AttributeError as err:
+            log.debug("Upper: fieldname '%s' invalid, ignoring", err)
+            return
 
 
 class Upper(_Rule):
@@ -388,5 +396,12 @@ class Upper(_Rule):
 
     @_Rule.track_changes
     def apply(self, data):
-        fieldval = data[self.fieldname]
-        data[self.fieldname] = fieldval.upper()
+        try:
+            fieldval = data[self.fieldname]
+            data[self.fieldname] = fieldval.upper()
+        except KeyError as err:
+            log.debug("Upper: fieldname '%s' not in data, ignoring", err)
+            return
+        except AttributeError as err:
+            log.debug("Upper: fieldname '%s' invalid, ignoring", err)
+            return
