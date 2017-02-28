@@ -379,10 +379,8 @@ class Lower(_Rule):
             data[self.fieldname] = fieldval.lower()
         except KeyError as err:
             log.debug("Lower: fieldname '%s' not in data, ignoring", err)
-            return
         except AttributeError as err:
             log.debug("Upper: fieldname '%s' invalid, ignoring", err)
-            return
 
 
 class Upper(_Rule):
@@ -401,7 +399,5 @@ class Upper(_Rule):
             data[self.fieldname] = fieldval.upper()
         except KeyError as err:
             log.debug("Upper: fieldname '%s' not in data, ignoring", err)
-            return
         except AttributeError as err:
             log.debug("Upper: fieldname '%s' invalid, ignoring", err)
-            return
