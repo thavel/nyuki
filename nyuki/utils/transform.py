@@ -401,3 +401,50 @@ class Upper(_Rule):
             log.debug("Upper: fieldname '%s' not in data, ignoring", err)
         except AttributeError as err:
             log.debug("Upper: fieldname '%s' invalid, ignoring", err)
+
+
+def union(a, b):
+    if isinstance(a, dict):
+        return {**a, **b}
+    elif isinstance(a, list):
+        return a + [item for item in b if item not in a]
+    raise TypeError('union available for two dicts or lists')
+
+
+class Arithmetic(_Rule):
+
+    """
+    Arithmetic rule to add, substrack, multiply, divide and join fields.
+    """
+
+    OPS = {
+        '+': lambda a, b: a + b,
+        '-': lambda a, b: a - b,
+        '*': lambda a, b: a * b,
+        '/': lambda a, b: a / b,
+        'union': union
+    }
+
+    def _configure(self, operator, operand1, operand2):
+        self.op = self.OPS[operator]
+        self.operands = (operand1, operand2)
+
+    @_Rule.track_changes
+    def apply(self, data):
+        try:
+            operand1, operand2 = data[self.operands[0]], data[self.operands[1]]
+        except KeyError as exc:
+            log.debug('Unknown key %s for arithmetic rule', exc)
+            return
+
+        if not isinstance(operand1, type(operand2)):
+            log.debug(
+                'Operands are not of the same type: %s against %s',
+                type(operand1), type(operand2),
+            )
+            return
+
+        try:
+            data[self.fieldname] = self.op(operand1, operand2)
+        except TypeError as exc:
+            log.debug(exc)
