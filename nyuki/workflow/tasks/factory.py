@@ -81,8 +81,14 @@ FACTORY_SCHEMAS = {
             'type': {'type': 'string', 'enum': ['arithmetic']},
             'fieldname': {'type': 'string', 'minLength': 1},
             'operator': {'type': 'string', 'enum': ['+', '-', '*', '/', 'union']},
-            'operand1': {'type': 'string', 'minLength': 1},
-            'operand2': {'type': 'string', 'minLength': 1},
+            'operand1': {'oneOf': [
+                {'type': 'string', 'minLength': 1},
+                {'type': 'integer'},
+            ]},
+            'operand2': {'oneOf': [
+                {'type': 'string', 'minLength': 1},
+                {'type': 'integer'},
+            ]}
         }
     }
 }

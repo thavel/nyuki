@@ -429,10 +429,19 @@ class Arithmetic(_Rule):
         self.op = self.OPS[operator]
         self.operands = (operand1, operand2)
 
+    def _compute_operands(self, data):
+        computed = tuple()
+        for op in self.operands:
+            if isinstance(op, str) and op.startswith('@'):
+                computed += (data[op.split('@')[1]],)
+            else:
+                computed += (op,)
+        return computed
+
     @_Rule.track_changes
     def apply(self, data):
         try:
-            operand1, operand2 = data[self.operands[0]], data[self.operands[1]]
+            operand1, operand2 = self._compute_operands(data)
         except KeyError as exc:
             log.debug('Unknown key %s for arithmetic rule', exc)
             return
