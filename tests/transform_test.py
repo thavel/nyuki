@@ -2,7 +2,7 @@ from unittest import TestCase
 
 from nyuki.utils.transform import (
     Upper, Lower, Lookup, Unset, Set, Sub, Extract, Converter,
-    FactoryConditionBlock
+    FactoryConditionBlock, Arithmetic
 )
 
 
@@ -14,7 +14,7 @@ class TestTransformCases(TestCase):
             'to_upper': 'uppercase',
             'to_lower': 'LOWERCASE',
             'regex': '123message456',
-            'none': None
+            'none': None,
         }
 
     def test_001_extract(self):
@@ -171,3 +171,36 @@ class TestTransformCases(TestCase):
         rule = Extract('regex', r'(.*)')
         diff = rule.apply(self.data)
         self.assertEqual(diff['error'], 'regexp_rule_error')
+
+    def test_011_arithmetic(self):
+        data = {
+            'string_field_1': 'some string',
+            'string_field_2': 'some other string',
+            'int_field_1': 10,
+            'int_field_2': 20,
+            'dict_field_1': {'a': 1, 'b': 2},
+            'dict_field_2': {'a': 10, 'c': 3},
+            'list_field_1': [{'a': 1}, {'b': 2}],
+            'list_field_2': [{'a': 1}, {'c': 3}],
+        }
+        rule = Arithmetic('result', '+', 5, '@int_field_1')
+        rule.apply(data)
+        self.assertEqual(data['result'], 15)
+
+        rule = Arithmetic('result', '-', '@int_field_1', '@int_field_2')
+        rule.apply(data)
+        self.assertEqual(data['result'], -10)
+
+        rule = Arithmetic('result', '*', '@int_field_1', 5)
+        rule.apply(data)
+        self.assertEqual(data['result'], 50)
+
+        rule = Arithmetic('result', '/', 40, '@int_field_2')
+        rule.apply(data)
+        self.assertEqual(data['result'], 2)
+
+        rule = Arithmetic('result', 'union', '@list_field_1', '@list_field_2')
+        rule.apply(data)
+        self.assertIn({'a': 1}, data['result'])
+        self.assertIn({'b': 2}, data['result'])
+        self.assertIn({'c': 3}, data['result'])
