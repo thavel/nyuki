@@ -80,7 +80,7 @@ FACTORY_SCHEMAS = {
         'properties': {
             'type': {'type': 'string', 'enum': ['arithmetic']},
             'fieldname': {'type': 'string', 'minLength': 1},
-            'operator': {'type': 'string', 'enum': ['+', '-', '*', '/', 'union']},
+            'operator': {'type': 'string', 'enum': ['+', '-', '*', '/']},
             'operand1': {'oneOf': [
                 {'type': 'string', 'minLength': 1},
                 {'type': 'number'},
@@ -90,7 +90,25 @@ FACTORY_SCHEMAS = {
                 {'type': 'number'},
             ]}
         }
-    }
+    },
+    'union': {
+        'type': 'object',
+        'required': ['type', 'fieldname', 'operand1', 'operand2'],
+        'properties': {
+            'type': {'type': 'string', 'enum': ['union']},
+            'fieldname': {'type': 'string', 'minLength': 1},
+            'operand1': {'oneOf': [
+                {'type': 'string', 'minLength': 1},
+                {'type': 'array'},
+                {'type': 'object'},
+            ]},
+            'operand2': {'oneOf': [
+                {'type': 'string', 'minLength': 1},
+                {'type': 'array'},
+                {'type': 'object'},
+            ]}
+        }
+    },
 }
 
 

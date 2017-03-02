@@ -2,7 +2,7 @@ from unittest import TestCase
 
 from nyuki.utils.transform import (
     Upper, Lower, Lookup, Unset, Set, Sub, Extract, Converter,
-    FactoryConditionBlock, Arithmetic
+    FactoryConditionBlock, Arithmetic, Union
 )
 
 
@@ -180,10 +180,6 @@ class TestTransformCases(TestCase):
             'int_field_2': 20,
             'float_field_1': 0.31,
             'float_field_2': 0.62,
-            'dict_field_1': {'a': 1, 'b': 2},
-            'dict_field_2': {'a': 10, 'c': 3},
-            'list_field_1': [{'a': 1}, {'b': 2}],
-            'list_field_2': [{'a': 1}, {'c': 3}],
         }
         rule = Arithmetic('result', '+', 5, '@int_field_1')
         rule.apply(data)
@@ -205,12 +201,26 @@ class TestTransformCases(TestCase):
         rule.apply(data)
         self.assertEqual(data['result'], 2)
 
-        rule = Arithmetic('result', 'union', '@list_field_1', '@list_field_2')
+        rule = Arithmetic('result', '+', '@string_field_1', '@some@string')
+        rule.apply(data)
+        self.assertEqual(data['result'], 'some string@some@string')
+
+    def test_012_union(self):
+        data = {
+            'dict_field_1': {'a': 1, 'b': 2},
+            'dict_field_2': {'a': 10, 'c': 3},
+            'list_field_1': [{'a': 1}, {'b': 2}],
+            'list_field_2': [{'a': 1}, {'c': 3}],
+        }
+
+        rule = Union('result', '@list_field_1', '@list_field_2')
         rule.apply(data)
         self.assertIn({'a': 1}, data['result'])
         self.assertIn({'b': 2}, data['result'])
         self.assertIn({'c': 3}, data['result'])
 
-        rule = Arithmetic('result', '+', '@string_field_1', '@some@string')
+        rule = Union('result', '@dict_field_1', data['dict_field_2'])
         rule.apply(data)
-        self.assertEqual(data['result'], 'some string@some@string')
+        self.assertEqual(data['result']['a'], 10)
+        self.assertEqual(data['result']['b'], 2)
+        self.assertEqual(data['result']['c'], 3)
