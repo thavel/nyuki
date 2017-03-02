@@ -81,9 +81,9 @@ class ConditionBlock:
         nb: variable replacement should be `@variable_name` formatted.
         """
         # /!\ This regex forbids the use of ' and " in a string
-        # See https://regex101.com/r/hUueag/5
+        # See https://regex101.com/r/hUueag/7
         match = re.findall(
-            r' *(and|or)? *\( *(@\S*|None|True|False|[\"\'][^\'\"]*[\'\"]|\d+) +([=<>!]=?|not in|in|not) +(@\S*|None|True|False|[\"\'][^\'\"]*[\'\"]|\d+) *\) *',
+            r' *(and|or)? *\( *(@\S*|None|True|False|[\"\'\[][^\'\"]*[\'\"\]]|\d+) +([=<>!]=?|not in|in|not) +(@\S*|None|True|False|[\"\'\[][^\'\"]*[\'\"\]]|\d+) *\) *',
             condition
         )
         if not match:
