@@ -178,6 +178,8 @@ class TestTransformCases(TestCase):
             'string_field_2': 'some other string',
             'int_field_1': 10,
             'int_field_2': 20,
+            'float_field_1': 0.31,
+            'float_field_2': 0.62,
             'dict_field_1': {'a': 1, 'b': 2},
             'dict_field_2': {'a': 10, 'c': 3},
             'list_field_1': [{'a': 1}, {'b': 2}],
@@ -186,6 +188,10 @@ class TestTransformCases(TestCase):
         rule = Arithmetic('result', '+', 5, '@int_field_1')
         rule.apply(data)
         self.assertEqual(data['result'], 15)
+
+        rule = Arithmetic('result', '-', '@float_field_2', '@float_field_1')
+        rule.apply(data)
+        self.assertEqual(data['result'], 0.31)
 
         rule = Arithmetic('result', '-', '@int_field_1', '@int_field_2')
         rule.apply(data)
@@ -204,3 +210,7 @@ class TestTransformCases(TestCase):
         self.assertIn({'a': 1}, data['result'])
         self.assertIn({'b': 2}, data['result'])
         self.assertIn({'c': 3}, data['result'])
+
+        rule = Arithmetic('result', '+', '@string_field_1', '@some@string')
+        rule.apply(data)
+        self.assertEqual(data['result'], 'some string@some@string')

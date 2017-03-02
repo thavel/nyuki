@@ -432,7 +432,7 @@ class Arithmetic(_Rule):
     def _compute_operands(self, data):
         computed = tuple()
         for op in self.operands:
-            if isinstance(op, str) and op.startswith('@'):
+            if isinstance(op, str) and re.match(r'^@[\w-]+$', op):
                 computed += (data[op.split('@')[1]],)
             else:
                 computed += (op,)
@@ -454,6 +454,13 @@ class Arithmetic(_Rule):
             return
 
         try:
-            data[self.fieldname] = self.op(operand1, operand2)
+            result = self.op(operand1, operand2)
         except TypeError as exc:
             log.debug(exc)
+            return
+
+        if isinstance(result, float):
+            # Arbitrary 3-round value
+            result = round(result, 3)
+
+        data[self.fieldname] = result

@@ -83,11 +83,11 @@ FACTORY_SCHEMAS = {
             'operator': {'type': 'string', 'enum': ['+', '-', '*', '/', 'union']},
             'operand1': {'oneOf': [
                 {'type': 'string', 'minLength': 1},
-                {'type': 'integer'},
+                {'type': 'number'},
             ]},
             'operand2': {'oneOf': [
                 {'type': 'string', 'minLength': 1},
-                {'type': 'integer'},
+                {'type': 'number'},
             ]}
         }
     }
