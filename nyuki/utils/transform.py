@@ -1,4 +1,5 @@
 import logging
+import operator
 import re
 from copy import deepcopy
 
@@ -418,10 +419,10 @@ class Arithmetic(_Rule):
     """
 
     OPS = {
-        '+': lambda a, b: a + b,
-        '-': lambda a, b: a - b,
-        '*': lambda a, b: a * b,
-        '/': lambda a, b: a / b,
+        '+': operator.add,
+        '-': operator.sub,
+        '*': operator.mul,
+        '/': operator.truediv,
     }
 
     def _configure(self, operator, operand1, operand2):
