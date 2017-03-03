@@ -197,6 +197,11 @@ class _Rule(metaclass=_RegisteredRule):
                     'type': self.TYPENAME, 'changes': tracker.changes,
                     'error': 'regexp_rule_error', 'error_details': str(exc)
                 }
+            except ArithmeticRuleError as exc:
+                return {
+                    'type': self.TYPENAME, 'changes': tracker.changes,
+                    'error': 'arithmetic_rule_error', 'error_details': str(exc)
+                }
             # We want to keep the object reference
             data.clear()
             data.update(tracker)
@@ -412,6 +417,10 @@ def union(a, b):
     raise TypeError('union available for two dicts or lists')
 
 
+class ArithmeticRuleError(Exception):
+    pass
+
+
 class Arithmetic(_Rule):
 
     """
@@ -430,13 +439,18 @@ class Arithmetic(_Rule):
         self.operands = (operand1, operand2)
 
     def _compute_operands(self, data):
-        computed = tuple()
+        operands = tuple()
+        # We replace placeholders with the actual data
         for op in self.operands:
             if isinstance(op, str) and re.match(r'^@[\w-]+$', op):
-                computed += (data[op.split('@')[1]],)
-            else:
-                computed += (op,)
-        return computed
+                op = data[op.split('@')[1]]
+            if not (isinstance(op, int) or isinstance(op, float)):
+                try:
+                    op = int(op)
+                except ValueError:
+                    op = float(op)
+            operands += (op,)
+        return operands
 
     @_Rule.track_changes
     def apply(self, data):
@@ -444,14 +458,12 @@ class Arithmetic(_Rule):
             operand1, operand2 = self._compute_operands(data)
         except KeyError as exc:
             log.debug('Unknown key %s for arithmetic rule', exc)
-            return
-
-        if not isinstance(operand1, type(operand2)):
+            raise ArithmeticRuleError(exc)
+        except ValueError as exc:
             log.debug(
-                'Operands are not of the same type: %s against %s',
-                type(operand1), type(operand2),
+                'Unusable operands: %s' % exc,
             )
-            return
+            raise ArithmeticRuleError(exc)
 
         try:
             result = self.op(operand1, operand2)
