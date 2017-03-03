@@ -450,11 +450,6 @@ class Arithmetic(_Rule):
         for op in self.operands:
             if isinstance(op, str) and re.match(r'^@[\w-]+$', op):
                 op = data[op.split('@')[1]]
-            if not (isinstance(op, int) or isinstance(op, float)):
-                try:
-                    op = int(op)
-                except ValueError:
-                    op = float(op)
             operands += (op,)
         return operands
 
@@ -466,10 +461,11 @@ class Arithmetic(_Rule):
             log.debug('Unknown key %s for arithmetic rule', exc)
             raise ArithmeticRuleError(exc)
         except ValueError as exc:
-            log.debug(
-                'Unusable operands: %s' % exc,
-            )
+            log.debug('Unusable operands: %s', exc)
             raise ArithmeticRuleError(exc)
+
+        if not isinstance(operand1, type(operand2)):
+            raise ArithmeticRuleError('Operands must be of the same type')
 
         try:
             result = self.op(operand1, operand2)

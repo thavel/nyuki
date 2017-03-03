@@ -177,8 +177,8 @@ class TestTransformCases(TestCase):
             'string_field_1': 'some string',
             'string_field_2': 'some other string',
             'int_field_1': 10,
-            'int_field_2': '20',
-            'float_field_1': '0.31',
+            'int_field_2': 20,
+            'float_field_1': 0.31,
             'float_field_2': 0.62,
         }
         rule = Arithmetic('result', '+', 5, '@int_field_1')
@@ -202,9 +202,8 @@ class TestTransformCases(TestCase):
         self.assertEqual(data['result'], 2)
 
         rule = Arithmetic('result', '+', '@string_field_1', '@some@string')
-        diff = rule.apply(data)
-        print(diff)
-        self.assertEqual(diff['error'], 'arithmetic_rule_error')
+        rule.apply(data)
+        self.assertEqual(data['result'], 'some string@some@string')
 
     def test_012_union(self):
         data = {
