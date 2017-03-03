@@ -234,7 +234,8 @@ class XmppBus(Service):
 
         # Auto-subscribe to the topic where the nyuki could publish events.
         self._connected.set()
-        await self.subscribe(self.name)
+        # Reconnect to all channels (+ `self.name`, set up in configure())
+        await self._resubscribe()
 
         # Replay events that have been lost, if any
         if self._persistence:
@@ -344,6 +345,7 @@ class XmppBus(Service):
 
         events = await self._persistence.retrieve(since, status)
         for event in events:
+            # Publish events one by one in the right publish time order
             await self.publish(
                 json.loads(event['message']),
                 topic=event['topic'],
@@ -392,7 +394,7 @@ class XmppBus(Service):
 
         # Publish in MUC
         if self._connected.is_set():
-            log.debug(">> publishing to '{}': {}".format(self.name, event))
+            log.debug(">> publishing to '{}': {}".format(topic, event))
             log.info('Publishing an event to %s', msg['to'])
             status = None
             while True:
