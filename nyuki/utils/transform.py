@@ -202,6 +202,11 @@ class _Rule(metaclass=_RegisteredRule):
                     'type': self.TYPENAME, 'changes': tracker.changes,
                     'error': 'arithmetic_rule_error', 'error_details': str(exc)
                 }
+            except UnionRuleError as exc:
+                return {
+                    'type': self.TYPENAME, 'changes': tracker.changes,
+                    'error': 'union_rule_error', 'error_details': str(exc)
+                }
             # We want to keep the object reference
             data.clear()
             data.update(tracker)
@@ -479,6 +484,10 @@ class Arithmetic(_Rule):
         data[self.fieldname] = result
 
 
+class UnionRuleError(Exception):
+    pass
+
+
 class Union(_Rule):
 
     """
@@ -498,11 +507,11 @@ class Union(_Rule):
         return computed
 
     def _union(self, a, b):
-        if isinstance(a, dict):
+        if isinstance(a, dict) and isinstance(b, dict):
             return {**a, **b}
-        elif isinstance(a, list):
+        elif isinstance(a, list) and isinstance(b, list):
             return a + [item for item in b if item not in a]
-        raise TypeError('union available for two dicts or lists')
+        raise UnionRuleError('union available for two dicts or lists')
 
     @_Rule.track_changes
     def apply(self, data):
@@ -510,13 +519,6 @@ class Union(_Rule):
             operand1, operand2 = self._compute_operands(data)
         except KeyError as exc:
             log.debug('Unknown key %s for arithmetic rule', exc)
-            return
-
-        if not isinstance(operand1, type(operand2)):
-            log.debug(
-                'Operands are not of the same type: %s against %s',
-                type(operand1), type(operand2),
-            )
             return
 
         try:
