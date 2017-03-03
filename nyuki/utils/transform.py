@@ -432,6 +432,7 @@ class Arithmetic(_Rule):
         '-': operator.sub,
         '*': operator.mul,
         '/': operator.truediv,
+        '%': operator.mod,
     }
 
     def _configure(self, operator, operand1, operand2):

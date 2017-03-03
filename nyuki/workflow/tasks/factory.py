@@ -80,7 +80,7 @@ FACTORY_SCHEMAS = {
         'properties': {
             'type': {'type': 'string', 'enum': ['arithmetic']},
             'fieldname': {'type': 'string', 'minLength': 1},
-            'operator': {'type': 'string', 'enum': ['+', '-', '*', '/']},
+            'operator': {'type': 'string', 'enum': ['+', '-', '*', '/', '%']},
             'operand1': {'oneOf': [
                 {'type': 'string', 'minLength': 1},
                 {'type': 'number'},
