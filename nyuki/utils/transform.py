@@ -464,10 +464,10 @@ class Arithmetic(_Rule):
             log.debug('Unusable operands: %s (%s)', exc, exc.__class__)
             raise ArithmeticRuleError(exc)
 
-        if not isinstance(operand1, type(operand2)):
+        if not (isinstance(operand1, int) and isinstance(operand2, int)):
             try:
                 operand1, operand2 = float(operand1), float(operand2)
-            except ValueError:
+            except (ValueError, TypeError):
                 raise ArithmeticRuleError(
                     'Operands must be of the same type, (%s and %s found)',
                     operand1.__class__, operand2.__class__
