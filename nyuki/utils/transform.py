@@ -465,7 +465,13 @@ class Arithmetic(_Rule):
             raise ArithmeticRuleError(exc)
 
         if not isinstance(operand1, type(operand2)):
-            raise ArithmeticRuleError('Operands must be of the same type')
+            try:
+                operand1, operand2 = float(operand1), float(operand2)
+            except ValueError:
+                raise ArithmeticRuleError(
+                    'Operands must be of the same type, (%s and %s found)',
+                    operand1.__class__, operand2.__class__
+                )
 
         try:
             result = self.op(operand1, operand2)
