@@ -461,7 +461,7 @@ class Arithmetic(_Rule):
             log.debug('Unknown key %s for arithmetic rule', exc)
             raise ArithmeticRuleError(exc)
         except ValueError as exc:
-            log.debug('Unusable operands: %s', exc)
+            log.debug('Unusable operands: %s (%s)', exc, exc.__class__)
             raise ArithmeticRuleError(exc)
 
         if not isinstance(operand1, type(operand2)):
