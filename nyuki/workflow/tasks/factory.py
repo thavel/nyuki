@@ -6,6 +6,7 @@ from tukio.task import register
 from tukio.task.holder import TaskHolder
 
 from nyuki.utils import Converter
+from nyuki.utils.transform import Arithmetic
 from nyuki.workflow.tasks.utils import runtime, generate_factory_schema
 
 
@@ -80,7 +81,10 @@ FACTORY_SCHEMAS = {
         'properties': {
             'type': {'type': 'string', 'enum': ['arithmetic']},
             'fieldname': {'type': 'string', 'minLength': 1},
-            'operator': {'type': 'string', 'enum': ['+', '-', '*', '/', '%']},
+            'operator': {
+                'type': 'string',
+                'enum': list(Arithmetic.OPS.keys())
+            },
             'operand1': {'oneOf': [
                 {'type': 'string', 'minLength': 1},
                 {'type': 'number'},

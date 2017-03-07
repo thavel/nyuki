@@ -414,14 +414,6 @@ class Upper(_Rule):
             log.debug("Upper: fieldname '%s' invalid, ignoring", err)
 
 
-def union(a, b):
-    if isinstance(a, dict):
-        return {**a, **b}
-    elif isinstance(a, list):
-        return a + [item for item in b if item not in a]
-    raise TypeError('union available for two dicts or lists')
-
-
 class ArithmeticRuleError(Exception):
     pass
 
@@ -432,16 +424,33 @@ class Arithmetic(_Rule):
     Arithmetic rule to add, substrack, multiply and divide fields.
     """
 
+    # List available operators and their associated types.
     OPS = {
-        '+': operator.add,
-        '-': operator.sub,
-        '*': operator.mul,
-        '/': operator.truediv,
-        '%': operator.mod,
+        '+': (operator.add, {
+            str: (str,),
+            int: (int, float),
+            float: (int, float),
+        }),
+        '-': (operator.sub, {
+            int: (int, float),
+            float: (int, float),
+        }),
+        '*': (operator.mul, {
+            int: (int, float),
+            float: (int, float),
+        }),
+        '/': (operator.truediv, {
+            int: (int, float),
+            float: (int, float),
+        }),
+        '%': (operator.mod, {
+            int: (int, float),
+            float: (int, float),
+        }),
     }
 
     def _configure(self, operator, operand1, operand2):
-        self.op = self.OPS[operator]
+        self.op, self.types = self.OPS[operator]
         self.operands = (operand1, operand2)
 
     def _compute_operands(self, data):
@@ -464,14 +473,12 @@ class Arithmetic(_Rule):
             log.debug('Unusable operands: %s (%s)', exc, exc.__class__)
             raise ArithmeticRuleError(exc)
 
-        if not (isinstance(operand1, int) and isinstance(operand2, int)):
-            try:
-                operand1, operand2 = float(operand1), float(operand2)
-            except (ValueError, TypeError):
-                raise ArithmeticRuleError(
-                    'Operands must be of the same type, (%s and %s found)',
-                    operand1.__class__, operand2.__class__
-                )
+        type1 = type(operand1)
+        type2 = type(operand2)
+        if type1 not in self.types or type2 not in self.types[type1]:
+            raise ArithmeticRuleError(
+                'Bad operand types ({} against {})'.format(type1, type2)
+            )
 
         try:
             result = self.op(operand1, operand2)
