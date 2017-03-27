@@ -27,6 +27,9 @@ from .api.workflows import (
     ApiWorkflow, ApiWorkflows, ApiWorkflowsHistory, ApiWorkflowHistory,
     ApiWorkflowTriggers, ApiWorkflowTrigger
 )
+from .api.vars import (
+    ApiVars, ApiVarsVersion, ApiVarsDraft
+)
 
 from .storage import MongoStorage
 from .tasks import *
@@ -186,7 +189,10 @@ class WorkflowNyuki(Nyuki):
         ApiFactoryLookup,  # /v1/workflows/lookups/{uid}
         ApiFactoryLookupCSV,  # /v1/workflows/lookups/{uid}/csv
         ApiWorkflowTriggers,  # /v1/workflows/triggers
-        ApiWorkflowTrigger,  # /v1/workflows/triggers/{tid}
+        ApiWorkflowTrigger,  # /v1/workflows/triggers/{tid},
+        ApiVars,  # /v1/workflows/vars/{uid}
+        ApiVarsVersion,  # /v1/workflows/vars/{uid}/{version}
+        ApiVarsDraft  # /v1/workflows/data/{uid}/draft
     ]
 
     DEFAULT_POLICY = None
