@@ -97,7 +97,7 @@ class TriggerWorkflowTask(TaskHolder):
         if data['type'] in [WorkflowExecState.end.value, WorkflowExecState.error.value]:
             if not self.async_future.done():
                 self.async_future.set_result(data)
-            asyncio.ensure_future(runtime.bus.unsubscribe(topic))
+            await runtime.bus.unsubscribe(topic)
 
     async def execute(self, event):
         """
@@ -133,11 +133,10 @@ class TriggerWorkflowTask(TaskHolder):
             headers['X-Surycat-Async-Topic'] = topic
             self.async_future = asyncio.Future()
             await runtime.bus.subscribe(topic, self.async_exec)
-            asyncio.get_event_loop().call_later(
-                self.timeout,
-                asyncio.ensure_future,
-                runtime.bus.unsubscribe(topic)
-            )
+
+            def _unsub(f):
+                asyncio.ensure_future(runtime.bus.unsubscribe(topic))
+            self._task.add_done_callback(_unsub)
 
         async with ClientSession() as session:
             params = {
