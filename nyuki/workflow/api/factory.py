@@ -1,14 +1,14 @@
-from aiohttp.web_reqrep import FileField
 import csv
-from io import StringIO
-import logging
-from pymongo.errors import AutoReconnect
 import re
-from re import error as re_error
+import logging
 from uuid import uuid4
+from io import StringIO
+from re import error as re_error
+from aiohttp.web import FileField
+from pymongo.errors import AutoReconnect
 
-from nyuki.api import Response, resource, content_type
 from nyuki.workflow.tasks import FACTORY_SCHEMAS
+from nyuki.api import Response, resource, content_type
 
 
 log = logging.getLogger(__name__)
