@@ -59,7 +59,7 @@ class TemplateCollection:
         filters = {'_id': 0}
         # '/v1/workflow/templates' does not requires all the informations
         if full is False:
-            filters.update({'id': 1, 'draft': 1, 'version': 1})
+            filters.update({'id': 1, 'draft': 1, 'version': 1, 'topics': 1})
 
         cursor = self._templates.find(None, filters)
         cursor.sort('version', DESCENDING)
