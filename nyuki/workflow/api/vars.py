@@ -2,8 +2,7 @@ import re
 import logging
 from pymongo.errors import AutoReconnect
 
-from nyuki.api import Response, resource
-from nyuki.workflow.validation import TemplateError
+from nyuki.api import Response, resource, HTTPBreak
 
 
 log = logging.getLogger(__name__)
@@ -28,11 +27,15 @@ class DataInspector(object):
             yield node
 
     async def required_keys(self, tid, version=None, draft=False):
-        template = await self.nyuki.storage.templates.get(
-            tid=tid, version=version, draft=draft
-        )
+        try:
+            template = await self.nyuki.storage.templates.get(
+                tid=tid, version=version, draft=draft
+            )
+        except AutoReconnect:
+            raise HTTPBreak(503)
         if not template:
-            raise TemplateError()
+            raise HTTPBreak(404, {'error': 'template not found'})
+
         template = template[0]
         keys = set()
 
@@ -52,36 +55,21 @@ class DataInspector(object):
 class ApiVars(DataInspector):
 
     async def get(self, request, tid):
-        try:
-            keys = await self.required_keys(tid)
-            return Response(body=keys)
-        except TemplateError:
-            return Response(status=404, body={'error': 'template not found'})
-        except AutoReconnect:
-            return Response(status=503)
+        keys = await self.required_keys(tid)
+        return Response(body=keys)
 
 
 @resource('/workflow/vars/{tid}/{version:\d+}', versions=['v1'])
 class ApiVarsVersion(DataInspector):
 
     async def get(self, request, tid, version):
-        try:
-            keys = await self.required_keys(tid, version=version)
-            return Response(body=keys)
-        except TemplateError:
-            return Response(status=404, body={'error': 'template not found'})
-        except AutoReconnect:
-            return Response(status=503)
+        keys = await self.required_keys(tid, version=version)
+        return Response(body=keys)
 
 
 @resource('/workflow/vars/{tid}/draft', versions=['v1'])
 class ApiVarsDraft(DataInspector):
 
     async def get(self, request, tid):
-        try:
-            keys = await self.required_keys(tid, draft=True)
-            return Response(body=keys)
-        except TemplateError:
-            return Response(status=404, body={'error': 'template not found'})
-        except AutoReconnect:
-            return Response(status=503)
+        keys = await self.required_keys(tid, draft=True)
+        return Response(body=keys)
