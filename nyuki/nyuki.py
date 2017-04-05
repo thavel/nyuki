@@ -1,10 +1,11 @@
-import asyncio
+import os
 import json
-from jsonschema import validate
+import asyncio
 import logging
 import logging.config
 from uuid import uuid4
 from pijon import Pijon
+from jsonschema import validate
 from signal import SIGHUP, SIGINT, SIGTERM
 
 from .api import Api
@@ -13,6 +14,7 @@ from .api.config import ApiConfiguration, ApiSwagger
 from .bus import XmppBus, MqttBus, reporting
 from .commands import get_command_kwargs
 from .config import get_full_config, write_conf_json, merge_configs
+from .debugging import Sampler, ApiSampleEmitter
 from .logs import DEFAULT_LOGGING
 from .services import ServiceManager
 from .websocket import WebsocketHandler
@@ -63,6 +65,11 @@ class Nyuki:
 
         # Initialize logging
         logging.config.dictConfig(DEFAULT_LOGGING)
+        # Debugging setup
+        if os.environ.get('DEBUG') in ('1', 'true'):
+            self._sampler = Sampler()
+            self._sampler.start()
+            self.HTTP_RESOURCES.append(ApiSampleEmitter)
 
         # Get configuration from multiple sources and register base schema
         kwargs = kwargs or get_command_kwargs()

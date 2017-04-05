@@ -176,7 +176,8 @@ class MqttBus(Service):
 
     async def subscribe(self, topic, callback):
         """
-        Subscribe to a topic and setup the callback
+        Subscribe to a topic and setup the callback.
+        This will pre-compile the regex used for this topic.
         """
         if not asyncio.iscoroutinefunction(callback):
             raise ValueError('event callback must be a coroutine')
@@ -185,9 +186,13 @@ class MqttBus(Service):
         await self.client.subscribe([(topic, QOS_1)])
 
         try:
-            self._subscriptions[topic].add(callback)
+            self._subscriptions[topic].add(
+                (self._regex_topic(topic), callback),
+            )
         except KeyError:
-            self._subscriptions[topic] = {callback}
+            self._subscriptions[topic] = {
+                (self._regex_topic(topic), callback),
+            }
         log.info(
             'Subscribed to %s: %s callback(s)',
             topic, len(self._subscriptions[topic])
@@ -302,8 +307,8 @@ class MqttBus(Service):
             if topic == self.name:
                 continue
 
-            for sub_topic, callbacks in self._subscriptions.items():
-                if re.match(self._regex_topic(sub_topic), topic):
+            for sub_topic, (regex, callbacks) in self._subscriptions.items():
+                if regex.match(topic):
                     data = json.loads(message.data.decode())
                     log.debug("Event from topic '%s': %s", topic, data)
                     for callback in callbacks:
