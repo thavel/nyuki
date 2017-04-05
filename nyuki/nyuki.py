@@ -1,4 +1,3 @@
-import os
 import json
 import asyncio
 import logging
@@ -14,7 +13,7 @@ from .api.config import ApiConfiguration, ApiSwagger
 from .bus import XmppBus, MqttBus, reporting
 from .commands import get_command_kwargs
 from .config import get_full_config, write_conf_json, merge_configs
-from .debugging import Sampler, ApiSampleEmitter
+from .debugging import StackSampler, ApiSampleEmitter
 from .logs import DEFAULT_LOGGING
 from .services import ServiceManager
 from .websocket import WebsocketHandler
@@ -42,10 +41,11 @@ class Nyuki:
 
     # Configuration schema must follow jsonschema rules.
     BASE_CONF_SCHEMA = {
-        "type": "object",
-        "required": ["log"],
-        "properties": {
-            "service": {"type": "string", "minLength": 1}
+        'type': 'object',
+        'required': ['log'],
+        'properties': {
+            'service': {'type': 'string', 'minLength': 1},
+            'trace': {'type': 'boolean'},
         }
     }
     # API endpoints
@@ -55,7 +55,8 @@ class Nyuki:
         ApiBusTopics,
         ApiConfiguration,
         ApiSwagger,
-        ApiRaft
+        ApiRaft,
+        ApiSampleEmitter,
     ]
 
     def __init__(self, **kwargs):
@@ -65,11 +66,6 @@ class Nyuki:
 
         # Initialize logging
         logging.config.dictConfig(DEFAULT_LOGGING)
-        # Debugging setup
-        if os.environ.get('DEBUG') in ('1', 'true'):
-            self._sampler = Sampler()
-            self._sampler.start()
-            self.HTTP_RESOURCES.append(ApiSampleEmitter)
 
         # Get configuration from multiple sources and register base schema
         kwargs = kwargs or get_command_kwargs()
@@ -84,6 +80,9 @@ class Nyuki:
             })
         self.register_schema(self.BASE_CONF_SCHEMA)
 
+        # Setup stack sampling
+        self._sampler = None
+        self._set_stack_sampling()
         # Set loop
         self.loop = asyncio.get_event_loop() or asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
@@ -227,6 +226,8 @@ class Nyuki:
             return
 
         self.is_stopping = True
+        if self._sampler:
+            self._sampler.stop()
         await self._services.stop()
         self._stop_loop()
 
@@ -339,9 +340,21 @@ class Nyuki:
         Reload the configuration and the services
         """
         logging.config.dictConfig(self._config['log'])
+        self._set_stack_sampling()
         await self.reload()
         for name, service in self._services.all.items():
             if (request is not None and name in request) or request is None:
                 await service.stop()
                 service.configure(**self._config.get(name, {}))
                 asyncio.ensure_future(service.start())
+
+    def _set_stack_sampling(self):
+        enable = self.config.get('trace') is True
+        # Enable sampler trace
+        if not self._sampler and enable:
+            self._sampler = StackSampler()
+            self._sampler.start()
+        # Disable sampler trace if it is enabled
+        elif self._sampler and not enable:
+            self._sampler.stop()
+            self._sampler = None

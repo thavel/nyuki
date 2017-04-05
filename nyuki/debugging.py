@@ -1,4 +1,3 @@
-import time
 import signal
 import logging
 import collections
@@ -12,10 +11,12 @@ log = logging.getLogger(__name__)
 class ApiSampleEmitter:
 
     async def get(self, request):
+        if self.nyuki._sampler is None:
+            return Response(status=404)
         return Response(self.nyuki._sampler.output_stats())
 
 
-class Sampler(object):
+class StackSampler:
 
     """
     Basic stack sampler, inspired by https://nylas.com/blog/performance
@@ -27,9 +28,16 @@ class Sampler(object):
         self.interval = interval
         self._stack_counts = collections.defaultdict(int)
 
+    def __del__(self):
+        self.stop()
+
     def start(self):
         signal.signal(signal.SIGVTALRM, self._sample)
         signal.setitimer(signal.ITIMER_VIRTUAL, self.interval)
+
+    def stop(self):
+        self._stack_counts = collections.defaultdict(int)
+        signal.setitimer(signal.ITIMER_VIRTUAL, 0)
 
     def _sample(self, signum, frame):
         stack = []
