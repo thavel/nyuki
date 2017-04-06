@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import re
+from collections import namedtuple
 from hbmqtt.client import MQTTClient, ConnectException, ClientException
 from hbmqtt.errors import NoDataException
 from hbmqtt.mqtt.constants import QOS_1
@@ -14,6 +15,9 @@ from .persistence import BusPersistence, EventStatus, PersistenceError
 
 
 log = logging.getLogger(__name__)
+
+
+MQTTCallback = namedtuple('MQTTCallback', ['regex', 'callbacks'])
 
 
 class MqttBus(Service):
@@ -149,21 +153,22 @@ class MqttBus(Service):
 
     def _regex_topic(self, topic):
         """
-        Transform the mqtt pattern into a regex one
+        Transform the MQTT pattern into a regex object.
         """
-        return r'^{}$'.format(
+        return re.compile(r'^{}$'.format(
             topic.replace('+', '[^\/]+').replace('#', '.+')
-        )
+        ))
 
     async def replay(self, since=None, status=None):
         """
         Replay events since the given datetime (or all if None)
         """
-        log.info('Replaying events')
+        msg = 'Replaying events'
         if since:
-            log.info('    since %s', since)
+            msg += ' since {}'.format(since)
         if status:
-            log.info('    with status %s', status)
+            msg += ' with status {}'.format(status)
+        log.info(msg)
 
         events = await self._persistence.retrieve(since, status)
         for event in events:
@@ -186,16 +191,15 @@ class MqttBus(Service):
         await self.client.subscribe([(topic, QOS_1)])
 
         try:
-            self._subscriptions[topic].add(
-                (self._regex_topic(topic), callback),
-            )
+            self._subscriptions[topic].callbacks.add(callback)
         except KeyError:
-            self._subscriptions[topic] = {
-                (self._regex_topic(topic), callback),
-            }
+            self._subscriptions[topic] = MQTTCallback(
+                regex=self._regex_topic(topic),
+                callbacks={callback},
+            )
         log.info(
             'Subscribed to %s: %s callback(s)',
-            topic, len(self._subscriptions[topic])
+            topic, len(self._subscriptions[topic].callbacks)
         )
 
     async def unsubscribe(self, topic, callback=None):
@@ -205,9 +209,9 @@ class MqttBus(Service):
         if topic not in self._subscriptions:
             return
 
-        if callback in self._subscriptions[topic]:
+        if callback in self._subscriptions[topic].callbacks:
             log.debug("MQTT unsubscription from %s->%s", topic, callback.__name__)
-            self._subscriptions[topic].remove(callback)
+            self._subscriptions[topic].callbacks.remove(callback)
 
         if callback is None or not self._subscriptions[topic]:
             del self._subscriptions[topic]
@@ -307,9 +311,9 @@ class MqttBus(Service):
             if topic == self.name:
                 continue
 
-            for sub_topic, (regex, callbacks) in self._subscriptions.items():
-                if regex.match(topic):
+            for mqtt_callback in self._subscriptions.values():
+                if mqtt_callback.regex.match(topic):
                     data = json.loads(message.data.decode())
                     log.debug("Event from topic '%s': %s", topic, data)
-                    for callback in callbacks:
+                    for callback in mqtt_callback.callbacks:
                         asyncio.ensure_future(callback(topic, data))
